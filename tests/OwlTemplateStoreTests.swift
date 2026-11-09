@@ -5,7 +5,6 @@ import SwiftUI
 @MainActor
 final class OwlTemplateStoreTests: XCTestCase {
   private var root: URL!
-  private var writer: OwlConfigWriter { OwlConfigWriter(dataDir: root) }
   private let body = " \t中文👩🏽‍💻 e\u{301}\r\n  第二行\t{{clipboard}} {cursor}\n "
 
   override func setUpWithError() throws {
@@ -20,7 +19,7 @@ final class OwlTemplateStoreTests: XCTestCase {
 
   func testSaveReopenSearchPreviewInvokeKeepsExactBytes() throws {
     let original = entry()
-    try OwlTemplateStore.save(OwlTemplateLibrary(entries: [original]), writer: writer)
+    try OwlTemplateStore.save(OwlTemplateLibrary(entries: [original]), dataDir: root)
     let reopened = try OwlTemplateStore.load(dataDir: root)
     XCTAssertEqual(OwlTemplateStore.mode(dataDir: root), .unified)
     var picker = OwlPickerPanelModel(rows: reopened.entries.map(OwlPickerRow.template))
@@ -35,11 +34,11 @@ final class OwlTemplateStoreTests: XCTestCase {
     XCTAssertEqual(delivered.count, 1)
     XCTAssertEqual(Array(try XCTUnwrap(delivered.first).utf8), Array(body.utf8))
     XCTAssertEqual(selected.id, original.id)
-    XCTAssertFalse(String(decoding: try read(OwlTemplateStore.dictFileName), as: UTF8.self).contains(original.id.uuidString))
+    XCTAssertFalse(OwlTemplateStore.renderCandidateProjection(reopened).contains(original.id.uuidString))
   }
 
   func testEditingOnlyUnicodeNormalizationStillPersistsExactNewBytes() throws {
-    let editor = OwlTemplateEditorModel(writer: writer)
+    let editor = OwlTemplateEditorModel(dataDir: root)
     editor.reload()
     editor.draft = OwlTemplateEntry(title: "Accent", body: "é")
     XCTAssertTrue(editor.save())
@@ -54,32 +53,15 @@ final class OwlTemplateStoreTests: XCTestCase {
     item.candidateAliases = ["v" + item.trigger!]
     item.invocationMode = .candidate
     let library = OwlTemplateLibrary(entries: [item])
-    try OwlTemplateStore.save(library, writer: writer)
+    try OwlTemplateStore.save(library, dataDir: root)
     XCTAssertEqual(OwlTemplateStore.resolveCandidate(code: item.candidateAliases[0], text: OwlTemplateStore.candidateText(item),
                                                     loadLibrary: { library }), item)
-    let editor = OwlTemplateEditorModel(writer: writer)
+    let editor = OwlTemplateEditorModel(dataDir: root)
     editor.reload(); editor.draft = item
     editor.setInvocationMode(.searchOnly)
     XCTAssertTrue(editor.save())
     XCTAssertTrue(editor.draft.candidateAliases.isEmpty)
-    XCTAssertFalse(String(decoding: try read(OwlTemplateStore.dictFileName), as: UTF8.self).contains(item.id.uuidString))
-  }
-
-  func testPreparedBatchCanActivateLegacyDirectoryAfterCallerPreflight() throws {
-    let old = root.appendingPathComponent(OwlQuickSendStore.fileName)
-    let original = Data("original legacy bytes".utf8)
-    try original.write(to: old)
-    let library = OwlTemplateLibrary(entries: [entry()])
-    let plan = try OwlTemplateStore.prepareWrites(library, writer: writer)
-    XCTAssertEqual(plan.last?.fileName, OwlTemplateStore.stateFileName)
-    XCTAssertThrowsError(try OwlTemplateStore.commitPreparedWrites(plan, library: library, writer: writer, beforeWrite: {
-      if $0 == OwlTemplateStore.stateFileName { throw CocoaError(.fileWriteNoPermission) }
-    }))
-    XCTAssertEqual(OwlTemplateStore.mode(dataDir: root), .legacy)
-    XCTAssertEqual(try Data(contentsOf: old), original)
-    try OwlTemplateStore.commitPreparedWrites(plan, library: library, writer: writer)
-    XCTAssertEqual(OwlTemplateStore.mode(dataDir: root), .unified)
-    XCTAssertEqual(try Data(contentsOf: old), original)
+    XCTAssertFalse(OwlTemplateStore.renderCandidateProjection(editor.library).contains(item.id.uuidString))
   }
 
   func testInlineCandidatePreviewHidesInternalIdentity() {
@@ -97,8 +79,8 @@ final class OwlTemplateStoreTests: XCTestCase {
     original.tags = ["写作", "常用"]
     original.isPinned = true
     let initial = OwlTemplateLibrary(entries: [original])
-    try OwlTemplateStore.save(initial, writer: writer)
-    let editor = OwlTemplateEditorModel(writer: writer)
+    try OwlTemplateStore.save(initial, dataDir: root)
+    let editor = OwlTemplateEditorModel(dataDir: root)
     editor.reload()
     editor.draft = original
     editor.draft.title = "新的标题"
@@ -119,9 +101,9 @@ final class OwlTemplateStoreTests: XCTestCase {
   func testEditorFailureKeepsDraftAndSavedLibrary() throws {
     let original = entry()
     let library = OwlTemplateLibrary(entries: [original])
-    try OwlTemplateStore.save(library, writer: writer)
+    try OwlTemplateStore.save(library, dataDir: root)
     let before = try read(OwlTemplateStore.fileName)
-    let editor = OwlTemplateEditorModel(writer: writer, write: { _, _ in throw CocoaError(.fileWriteNoPermission) })
+    let editor = OwlTemplateEditorModel(dataDir: root, write: { _, _ in throw CocoaError(.fileWriteNoPermission) })
     editor.reload()
     editor.draft = original
     editor.draft.body = "\n新草稿\t"
@@ -133,39 +115,34 @@ final class OwlTemplateStoreTests: XCTestCase {
   }
 
   func testSaveFailuresRestoreAllFilesIncludingAbsentFiles() throws {
-    let stages = [OwlTemplateStore.fileName, OwlTemplateStore.dictFileName, "rime_ice.custom.yaml", OwlTemplateStore.stateFileName, "completed"]
-    let names = stages.dropLast() + ["owltype/rollback-manifest.json"]
-    for stage in stages {
-      XCTAssertThrowsError(try OwlTemplateStore.save(OwlTemplateLibrary(entries: [entry()]), writer: writer, beforeWrite: {
-        if $0 == stage { throw CocoaError(.fileWriteNoPermission) }
-      }))
-      for name in names { XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(name).path), name) }
-      XCTAssertEqual(OwlTemplateStore.mode(dataDir: root), .empty)
-    }
+    XCTAssertThrowsError(try OwlTemplateStore.save(OwlTemplateLibrary(entries: [entry()]), dataDir: root, beforeWrite: {
+      if $0 == OwlTemplateStore.fileName { throw CocoaError(.fileWriteNoPermission) }
+    }))
+    XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(OwlTemplateStore.fileName).path))
+    XCTAssertEqual(OwlTemplateStore.mode(dataDir: root), .empty)
+
     let initial = OwlTemplateLibrary(entries: [entry()])
-    try OwlTemplateStore.save(initial, writer: writer)
-    let before = try names.map { try read($0) }
-    for stage in stages {
-      XCTAssertThrowsError(try OwlTemplateStore.save(OwlTemplateLibrary(entries: [OwlTemplateEntry(title: "新", body: "正文")]), writer: writer, beforeWrite: {
-        if $0 == stage { throw CocoaError(.fileWriteNoPermission) }
-      }))
-      XCTAssertEqual(try names.map { try read($0) }, before)
-      XCTAssertEqual(try OwlTemplateStore.load(dataDir: root), initial)
-    }
+    try OwlTemplateStore.save(initial, dataDir: root)
+    let before = try read(OwlTemplateStore.fileName)
+    XCTAssertThrowsError(try OwlTemplateStore.save(OwlTemplateLibrary(entries: [OwlTemplateEntry(title: "新", body: "正文")]), dataDir: root, beforeWrite: {
+      if $0 == OwlTemplateStore.fileName { throw CocoaError(.fileWriteNoPermission) }
+    }))
+    XCTAssertEqual(try read(OwlTemplateStore.fileName), before)
+    XCTAssertEqual(try OwlTemplateStore.load(dataDir: root), initial)
   }
 
   func testConcurrentCurrentLibraryReadWaitsForTheCompleteSave() throws {
     let initial = OwlTemplateLibrary(entries: [entry()])
-    try OwlTemplateStore.save(initial, writer: writer)
+    try OwlTemplateStore.save(initial, dataDir: root)
     let next = OwlTemplateLibrary(entries: [.init(title: "New", body: "new body")])
     let directory = root!
     let started = DispatchSemaphore(value: 0)
     let finished = DispatchSemaphore(value: 0)
-    try OwlTemplateStore.save(next, writer: writer, expectedLibrary: initial, beforeWrite: { name in
-      guard name == OwlTemplateStore.dictFileName else { return }
+    try OwlTemplateStore.save(next, dataDir: root, expectedLibrary: initial, beforeWrite: { name in
+      guard name == OwlTemplateStore.fileName else { return }
       DispatchQueue.global().async {
         started.signal()
-        do { let current = try OwlTemplateBackup(dataDir: directory).currentLibrary(); XCTAssertEqual(current, next) }
+        do { let current = try OwlTemplateStore.load(dataDir: directory); XCTAssertEqual(current, next) }
         catch { XCTFail("Public library read failed: \(error)") }
         finished.signal()
       }
@@ -176,9 +153,9 @@ final class OwlTemplateStoreTests: XCTestCase {
   }
 
   func testConcurrentEditorDoesNotOverwriteSavedChanges() throws {
-    try OwlTemplateStore.save(OwlTemplateLibrary(entries: [entry()]), writer: writer)
-    let first = OwlTemplateEditorModel(writer: writer)
-    let second = OwlTemplateEditorModel(writer: writer)
+    try OwlTemplateStore.save(OwlTemplateLibrary(entries: [entry()]), dataDir: root)
+    let first = OwlTemplateEditorModel(dataDir: root)
+    let second = OwlTemplateEditorModel(dataDir: root)
     first.reload(); second.reload()
     first.draft = OwlTemplateEntry(title: "第一窗口", body: "A")
     second.draft = OwlTemplateEntry(title: "第二窗口", body: "B")
@@ -188,12 +165,10 @@ final class OwlTemplateStoreTests: XCTestCase {
     XCTAssertFalse(try OwlTemplateStore.load(dataDir: root).entries.contains { $0.title == "第二窗口" })
   }
 
-  func testFoundationWhitespaceIsPreservedAcrossLibraryAndLegacyBoundaries() throws {
+  func testFoundationWhitespaceIsPreservedAcrossLibraryBoundaries() throws {
     let whitespace = "\u{200B}"
     XCTAssertThrowsError(try OwlTemplateStore.validate(.init(entries: [.init(title: whitespace, body: "body")])))
     XCTAssertThrowsError(try OwlTemplateStore.validate(.init(entries: [.init(title: "title", body: whitespace)])))
-    XCTAssertEqual(try OwlPromptStore.entry(code: whitespace + "foo" + whitespace, title: "Title", body: "Body").code, "foo")
-    XCTAssertEqual(try OwlQuickSendStore.entry(text: "Text", code: whitespace + "foo" + whitespace).code, "foo")
     let entries = [OwlTemplateEntry(title: "Title", body: "Body")]
     XCTAssertEqual(OwlTemplateStore.filtered(entries, query: whitespace).count, 1)
     XCTAssertEqual(OwlPickerPanelModel(rows: entries.map(OwlPickerRow.template), query: whitespace).visible.count, 1)
@@ -201,45 +176,32 @@ final class OwlTemplateStoreTests: XCTestCase {
 
   func testWhitespaceRejectionDoesNotTrimValidBody() throws {
     for text in ["", "\n\t \r\n", "　"] {
-      XCTAssertThrowsError(try OwlTemplateStore.save(OwlTemplateLibrary(entries: [OwlTemplateEntry(title: "T", body: text)]), writer: writer))
+      XCTAssertThrowsError(try OwlTemplateStore.save(OwlTemplateLibrary(entries: [OwlTemplateEntry(title: "T", body: text)]), dataDir: root))
     }
     for title in ["", " \t", "a\nb", "a\rb"] {
-      XCTAssertThrowsError(try OwlTemplateStore.save(OwlTemplateLibrary(entries: [OwlTemplateEntry(title: title, body: body)]), writer: writer))
+      XCTAssertThrowsError(try OwlTemplateStore.save(OwlTemplateLibrary(entries: [OwlTemplateEntry(title: title, body: body)]), dataDir: root))
     }
-    try OwlTemplateStore.save(OwlTemplateLibrary(entries: [entry()]), writer: writer)
+    try OwlTemplateStore.save(OwlTemplateLibrary(entries: [entry()]), dataDir: root)
     XCTAssertEqual(Array(try OwlTemplateStore.load(dataDir: root).entries[0].body.utf8), Array(body.utf8))
   }
 
-  func testExistingLegacyFilesEvenDamagedPreventActivation() throws {
-    for name in [OwlQuickSendStore.fileName, OwlQuickSendStore.dictFileName, OwlPromptStore.fileName, OwlPromptStore.dictFileName] {
-      let url = root.appendingPathComponent(name)
-      let bytes = Data("damaged original".utf8)
-      try bytes.write(to: url)
-      XCTAssertEqual(OwlTemplateStore.mode(dataDir: root), .legacy)
-      XCTAssertThrowsError(try OwlTemplateStore.save(OwlTemplateLibrary(entries: [entry()]), writer: writer))
-      XCTAssertEqual(try Data(contentsOf: url), bytes)
-      XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(OwlTemplateStore.fileName).path))
-      try FileManager.default.removeItem(at: url)
-    }
-  }
-
   func testCorruptNewLibraryDoesNotFallBackOrOverwrite() throws {
-    try OwlTemplateStore.save(OwlTemplateLibrary(entries: [entry()]), writer: writer)
+    try OwlTemplateStore.save(OwlTemplateLibrary(entries: [entry()]), dataDir: root)
     let corrupt = Data("{broken".utf8)
     try corrupt.write(to: root.appendingPathComponent(OwlTemplateStore.fileName))
     guard case .unavailable = OwlTemplateStore.mode(dataDir: root) else { return XCTFail("corrupt library must be unavailable") }
     XCTAssertThrowsError(try OwlTemplateStore.load(dataDir: root))
-    XCTAssertThrowsError(try OwlTemplateStore.save(OwlTemplateLibrary(), writer: writer))
+    XCTAssertThrowsError(try OwlTemplateStore.save(OwlTemplateLibrary(), dataDir: root))
     XCTAssertEqual(try read(OwlTemplateStore.fileName), corrupt)
   }
 
-  func testMissingActivationAndUnknownVersionAreNotEmptyLibrary() throws {
+  func testUnknownVersionIsNotEmptyLibrary() throws {
     var library = OwlTemplateLibrary(entries: [entry()])
     library.formatVersion = 2
     XCTAssertThrowsError(try OwlTemplateStore.validate(library))
     try JSONEncoder().encode(library).write(to: root.appendingPathComponent(OwlTemplateStore.fileName))
     guard case .unavailable = OwlTemplateStore.mode(dataDir: root) else { return XCTFail("must require recovery") }
-    XCTAssertThrowsError(try OwlTemplateStore.save(OwlTemplateLibrary(), writer: writer))
+    XCTAssertThrowsError(try OwlTemplateStore.save(OwlTemplateLibrary(), dataDir: root))
   }
 
   func testCandidateProjectionUsesIDAndKeepsAliasesOutOfBody() throws {
@@ -248,8 +210,8 @@ final class OwlTemplateStoreTests: XCTestCase {
     candidate.candidateAliases = ["vmail"]
     candidate.invocationMode = .candidate
     let library = OwlTemplateLibrary(entries: [candidate, OwlTemplateEntry(title: "仅搜索", body: "原文")])
-    try OwlTemplateStore.save(library, writer: writer)
-    let table = String(decoding: try read(OwlTemplateStore.dictFileName), as: UTF8.self)
+    try OwlTemplateStore.save(library, dataDir: root)
+    let table = OwlTemplateStore.renderCandidateProjection(library)
     XCTAssertTrue(table.contains("\(OwlTemplateStore.candidateText(candidate))\tmail\t100000"))
     XCTAssertTrue(table.contains("\tvmail\t100000"))
     XCTAssertFalse(table.contains("第二行"))
@@ -280,9 +242,9 @@ final class OwlTemplateStoreTests: XCTestCase {
     var first = entry(); first.trigger = "mail"; first.invocationMode = .candidate; first.candidateAliases = ["vmail"]
     var second = OwlTemplateEntry(title: "other", body: "other")
     second.trigger = "vmail"; second.invocationMode = .candidate
-    XCTAssertThrowsError(try OwlTemplateStore.save(OwlTemplateLibrary(entries: [first, second]), writer: writer))
+    XCTAssertThrowsError(try OwlTemplateStore.save(OwlTemplateLibrary(entries: [first, second]), dataDir: root))
     second.invocationMode = .searchOnly
-    XCTAssertNoThrow(try OwlTemplateStore.save(OwlTemplateLibrary(entries: [first, second]), writer: writer))
+    XCTAssertNoThrow(try OwlTemplateStore.save(OwlTemplateLibrary(entries: [first, second]), dataDir: root))
   }
 
   func testLegacySyntaxPreservesSingleBracesAndAllowsExplicitEmptyParameter() {
@@ -324,7 +286,7 @@ final class OwlTemplateStoreTests: XCTestCase {
     var item = entry()
     item.parameters = [OwlTemplateParameter(key: "name", name: "姓名", isRequired: false, defaultValue: "", options: ["", "张"])]
     item.category = .prompt
-    try OwlTemplateStore.save(OwlTemplateLibrary(entries: [item]), writer: writer)
+    try OwlTemplateStore.save(OwlTemplateLibrary(entries: [item]), dataDir: root)
     XCTAssertEqual(try OwlTemplateStore.load(dataDir: root).entries, [item])
     let attrs = try FileManager.default.attributesOfItem(atPath: root.appendingPathComponent(OwlTemplateStore.fileName).path)
     XCTAssertEqual((attrs[.posixPermissions] as? NSNumber)?.intValue, 0o600)
@@ -332,9 +294,9 @@ final class OwlTemplateStoreTests: XCTestCase {
 
   func testSettingsAndPickerRenderWithIsolatedData() throws {
     let item = entry()
-    try OwlTemplateStore.save(OwlTemplateLibrary(entries: [item]), writer: writer)
+    try OwlTemplateStore.save(OwlTemplateLibrary(entries: [item]), dataDir: root)
     let theme = OwlCandidatePanelSettings.live.currentSkin().theme
-    let settings = NSHostingView(rootView: OwlTemplatePage(palette: theme.palette(for: .light), writer: writer))
+    let settings = NSHostingView(rootView: OwlTemplatePage(palette: theme.palette(for: .light), dataDir: root))
     settings.frame = NSRect(x: 0, y: 0, width: 900, height: 700)
     settings.layoutSubtreeIfNeeded()
     XCTAssertGreaterThan(settings.fittingSize.height, 0)

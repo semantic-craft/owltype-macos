@@ -9,13 +9,11 @@ final class OwlTemplateInvocation: ObservableObject {
   enum Intent: Equatable { case insert, resultPreview }
   enum Content: Equatable {
     case plainText(String)
-    case prompt(OwlPromptEntry)
     case template(OwlTemplateEntry)
 
     var body: String {
       switch self {
       case .plainText(let text): return text
-      case .prompt(let entry): return entry.body
       case .template(let entry): return entry.body
       }
     }
@@ -135,9 +133,6 @@ final class OwlTemplateInvocation: ObservableObject {
     case .plainText(let text):
       parsed = OwlTemplateEngine.parse(body: text, bodyType: .plainText)
       usesLegacyKeys = false
-    case .prompt(let entry):
-      parsed = OwlTemplateEngine.parse(body: entry.body, syntax: .legacyDoubleBraces)
-      usesLegacyKeys = true
     case .template(let entry):
       parsed = OwlTemplateEngine.parse(entry)
       usesLegacyKeys = entry.syntax == .legacyDoubleBraces

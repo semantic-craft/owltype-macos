@@ -59,7 +59,7 @@ final class OwlInputController: IMKInputController {
   /// The current composition's Session, vended by `engineRuntime.engine`. `nil` (or `!isValid`)
   /// means "no live session — recreate before use". Swappable so tests can inject a fake.
   /// All access is on the IMK input thread.
-  var engineSession: EngineSession?
+  var engineSession: OwlRustSession?
   // seam: was private; internal so OwlInputController+EngineUpdate.swift / +Lifecycle.swift can reach it across files.
   var preedit: String = ""
   // seam: was private; internal so OwlInputController+EngineUpdate.swift can reach it across files.

@@ -776,67 +776,6 @@ final class OwlResponsesPromptEvaluationLiveTests: XCTestCase {
       return failures
     }
 
-    // 5. All five built-in XML templates, filled through the production variable engine.
-    let templateValues: [String: [String: String]] = [
-      "four": [
-        "背景：为谁做、产出拿来干什么": "给法学院研究助理使用，结果用于实证编码",
-        "目标：要达成什么、怎样算做完": "判断输入句子表达支持还是反对",
-        "约束：该做 / 不该做、边界": "不得补充事实，只回答支持或反对",
-        "待处理的内容": "本研究支持公开数据复核。",
-        "产出形态：形式、篇幅、给谁读": "只输出支持或反对",
-      ],
-      "icx": [
-        "要它做什么": "只输出合同期限",
-        "背景信息": "以下是合同摘要",
-        "待处理内容": "合同期限为三年，自签订之日起计算。",
-      ],
-      "fewshot": [
-        "任务说明": "判断情绪，只输出正面或负面",
-        "示例输入1": "很好",
-        "示例输出1": "正面",
-        "示例输入2": "很糟",
-        "示例输出2": "负面",
-        "真正要处理的输入": "值得推荐",
-      ],
-      "docs": [
-        "来源1，如文件名": "甲文",
-        "文档1正文": "制度自2025年实施。",
-        "来源2": "乙文",
-        "文档2正文": "制度自2026年修订。",
-        "基于以上文档做什么": "只回答哪份文档提到修订年份及年份",
-      ],
-      "role": [
-        "你是谁，如：某领域资深专家": "法律编辑",
-        "要完成的任务": "把输入改成更正式的一句话，只输出结果",
-        "待处理内容": "这个合同没问题。",
-      ],
-    ]
-    let templateExpected: [String: [String]] = [
-      "four": ["支持"],
-      "icx": ["三年"],
-      "fewshot": ["正面"],
-      "docs": ["乙文", "2026"],
-      "role": ["合同"],
-    ]
-    for template in OwlPromptPresets.templates {
-      let rendered = OwlPromptVariables.substitute(
-        template.body, values: templateValues[template.code] ?? [:])
-      await evaluate(
-        "template-\(template.code)",
-        messages: [
-          OwlDeepSeekMessage(role: "system", content: OwlAIContextAssembler.systemPrompt),
-          OwlDeepSeekMessage(role: "user", content: rendered),
-        ]
-      ) { response in
-        var failures: [String] = []
-        if rendered.contains("{{") { failures.append("固定样例仍有未填变量") }
-        for expected in templateExpected[template.code] ?? [] where !response.text.contains(expected) {
-          failures.append("模板输出缺少预期内容：\(expected)")
-        }
-        return failures
-      }
-    }
-
     let reachable = results.filter(\.required)
     let interactiveLatencies = reachable
       .filter { $0.tier == .interactive }
@@ -1027,7 +966,7 @@ final class OwlResponsesPromptEvaluationLiveTests: XCTestCase {
     XCTAssertTrue(geminiTranscript.contains("猫头鹰"), "Gemini gemini-3.5-transcribe output: \(geminiTranscript)")
 
     let deepSeekKey = try OwlLiveKey.deepSeek.value()
-    let polisher = OwlVoiceDeepSeekPolisher(
+    let polisher = OwlVoicePolisher(
       requestTimeout: 10.0,
       apiKeyProvider: { deepSeekKey },
       isEnabledChecker: { true }
@@ -1039,67 +978,6 @@ final class OwlResponsesPromptEvaluationLiveTests: XCTestCase {
     )
     print("KOTONE_LIVE [DeepSeek Polisher \(polisher.model)] -> \(polished)")
     XCTAssertTrue(polished.contains("猫头鹰输入法"), "DeepSeek polisher output: \(polished)")
-  }
-
-  func testVoiceASRLiveOpenAILoginDictation() async throws {
-    OwlVoiceOpenAILoginInspector.clearCachedCredential()
-    defer { OwlVoiceOpenAILoginInspector.clearCachedCredential() }
-
-    guard let executable = OwlVoiceOpenAILoginInspector.resolveCodexExecutable() else {
-      throw XCTSkip("未安装 codex CLI，跳过 ChatGPT 登录听写实盘测试")
-    }
-
-    let credential = try await OwlVoiceOpenAILoginInspector.fetchCredential(forceRefresh: false)
-    print("KOTONE_LIVE [Codex App-Server Auth] -> executable=\(executable.path), plan=\(credential.planType ?? "unknown"), credential=\(credential)")
-
-    let verifyOutcome = await OwlVoiceOpenAILoginInspector.verifyConnection(
-      loginCredentialProvider: { forceRefresh in
-        try await OwlVoiceOpenAILoginInspector.fetchCredential(forceRefresh: forceRefresh)
-      }
-    )
-    print("KOTONE_LIVE [ChatGPT Dictation Verify Silence] -> succeeded=\(verifyOutcome.succeeded), message=\(verifyOutcome.message)")
-    XCTAssertTrue(verifyOutcome.succeeded, "ChatGPT 听写静音连接验证失败: \(verifyOutcome.message)")
-
-    let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
-    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
-    defer { try? FileManager.default.removeItem(at: tempDir) }
-
-    let aiffURL = tempDir.appendingPathComponent("tts.aiff")
-    let rawWavURL = tempDir.appendingPathComponent("raw.wav")
-
-    let sayProc = Process()
-    sayProc.executableURL = URL(fileURLWithPath: "/usr/bin/say")
-    sayProc.arguments = ["-v", "Tingting", "-o", aiffURL.path, "你好，今天天气很好，正在测试猫头鹰输入法的语音识别。"]
-    try sayProc.run()
-    sayProc.waitUntilExit()
-    XCTAssertEqual(sayProc.terminationStatus, 0)
-
-    let convProc = Process()
-    convProc.executableURL = URL(fileURLWithPath: "/usr/bin/afconvert")
-    convProc.arguments = ["-f", "WAVE", "-d", "LEI16@16000", "-c", "1", aiffURL.path, rawWavURL.path]
-    try convProc.run()
-    convProc.waitUntilExit()
-    XCTAssertEqual(convProc.terminationStatus, 0)
-
-    let rawWav = try Data(contentsOf: rawWavURL)
-    let dataMarker = Data([0x64, 0x61, 0x74, 0x61]) // "data"
-    let dataRange = try XCTUnwrap(rawWav.range(of: dataMarker))
-    let pcmStart = dataRange.upperBound + 4
-    let pcmData = rawWav.subdata(in: pcmStart..<rawWav.count)
-    let packedWav = OwlWAVPacker.pack16kMono(pcmData: pcmData)
-
-    let loginClient = OwlVoiceGrokASRClient(
-      providerID: OwlVoiceASRCatalog.openaiLogin.id,
-      endpoint: URL(string: OwlVoiceASRCatalog.openaiLogin.endpoint)!,
-      model: OwlVoiceASRCatalog.openaiLogin.defaultModel,
-      apiKeyProvider: { nil },
-      loginCredentialProvider: { forceRefresh in
-        try await OwlVoiceOpenAILoginInspector.fetchCredential(forceRefresh: forceRefresh)
-      }
-    )
-    let transcript = try await loginClient.transcribe(audioWavData: packedWav, prompt: nil)
-    print("KOTONE_LIVE [ChatGPT Dictation Live Transcript] -> \(transcript)")
-    XCTAssertTrue(transcript.contains("猫头鹰"), "ChatGPT 听写返回文本异常: \(transcript)")
   }
 }
 

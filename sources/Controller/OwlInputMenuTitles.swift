@@ -13,7 +13,6 @@ enum OwlInputMenuTitles {
   static let quickSend = "快捷片段…"
   static let settings = "设置…"
   static let deploy = "应用配置改动"
-  static let migrateLegacyUserData = "迁移旧版输入记录…"
   static let resetUserDict = "重置用户词典…"
   static let onboarding = "欢迎与引导…"
   static let configFolder = "打开猫头鹰配置目录…"

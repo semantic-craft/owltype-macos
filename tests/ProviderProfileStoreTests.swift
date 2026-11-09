@@ -34,9 +34,6 @@ final class ProviderProfileStoreTests: XCTestCase {
     XCTAssertNil(try secrets.secret(named: "isolated-test"))
     XCTAssertThrowsError(try secrets.setSecret("synthetic", named: "isolated-test"))
     XCTAssertThrowsError(try secrets.deleteSecret(named: "isolated-test"))
-    XCTAssertNil(try OwlCloudKeychain.readDeepSeekAPIKey())
-    XCTAssertThrowsError(try OwlCloudKeychain.saveDeepSeekAPIKey("synthetic"))
-    XCTAssertThrowsError(try OwlCloudKeychain.deleteDeepSeekAPIKey())
   }
 
   private final class FailingSecretStore: OwlSecretStoring {
@@ -577,53 +574,6 @@ final class ProviderProfileStoreTests: XCTestCase {
     XCTAssertEqual(try secrets.secret(named: "owltype.provider.x.apiKey"), "k2")
     try secrets.deleteSecret(named: "owltype.provider.x.apiKey")
     XCTAssertNil(try secrets.secret(named: "owltype.provider.x.apiKey"))
-  }
-
-  // MARK: - Legacy migration
-
-  func testLegacyMigrationCreatesDefaultProfileAndCopiesKey() throws {
-    let store = makeStore()
-    let secrets = OwlInMemorySecretStore()
-
-    let migrated = try XCTUnwrap(OwlProviderMigration.migrateLegacyDeepSeekIfNeeded(
-      store: store,
-      secrets: secrets,
-      legacyKeyReader: { "sk-legacy-deepseek" },
-      legacyEndpoint: URL(string: "https://api.deepseek.com/chat/completions")!,
-      legacyModel: "deepseek-v4-flash"
-    ))
-
-    XCTAssertEqual(migrated.displayName, "DeepSeek")
-    XCTAssertTrue(migrated.isDefault)
-    XCTAssertEqual(store.defaultProfile?.id, migrated.id)
-    XCTAssertEqual(try secrets.secret(named: migrated.secretName), "sk-legacy-deepseek",
-                   "the legacy key must be copied into the per-profile secretName")
-    // providers.json holds the profile but not the key.
-    let json = try String(contentsOf: store.fileURL, encoding: .utf8)
-    XCTAssertFalse(json.contains("sk-legacy-deepseek"))
-  }
-
-  func testLegacyMigrationIsIdempotent() throws {
-    let store = makeStore()
-    let secrets = OwlInMemorySecretStore()
-    let reader: () throws -> String? = { "sk-legacy-deepseek" }
-
-    let first = OwlProviderMigration.migrateLegacyDeepSeekIfNeeded(
-      store: store, secrets: secrets, legacyKeyReader: reader)
-    XCTAssertNotNil(first)
-    let second = OwlProviderMigration.migrateLegacyDeepSeekIfNeeded(
-      store: store, secrets: secrets, legacyKeyReader: reader)
-    XCTAssertNil(second, "migration must not run again once a profile exists")
-    XCTAssertEqual(store.profiles().count, 1)
-  }
-
-  func testNoLegacyKeyMeansNoMigration() throws {
-    let store = makeStore()
-    let secrets = OwlInMemorySecretStore()
-    let migrated = OwlProviderMigration.migrateLegacyDeepSeekIfNeeded(
-      store: store, secrets: secrets, legacyKeyReader: { nil })
-    XCTAssertNil(migrated, "a fresh install with no legacy key creates no profile")
-    XCTAssertTrue(store.profiles().isEmpty)
   }
 
   // MARK: - Settings actions (Slice 3)

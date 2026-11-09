@@ -17,7 +17,6 @@ import SwiftUI
 /// 「任意提问」对选区直接下指令兜底；「结构化·加标签」并入「提示词优化」（优化+加标签一次做完）。
 enum OwlSelectionMenuAction: String, Codable, CaseIterable, Sendable {
   case ask
-  case jevReply
   case polish
   case sourceVerification
   case researchAssist
@@ -28,24 +27,19 @@ enum OwlSelectionMenuAction: String, Codable, CaseIterable, Sendable {
 
   var title: String {
     switch self {
-    case .jevReply: return "Kotone 回复建议"
     case .ask: return "任意提问"
     case .polish: return "润色"
     case .sourceVerification: return "来源核验"
     case .researchAssist: return "辅助检索"
     case .translate: return "翻译"
-    // 优化的是「提示词」本身而非普通文字，名字要和「润色」区分开。
     case .promptOptimize: return "提示词优化"
-    // 按「目标七问」把模糊需求整理成 Agent 可独立执行的目标任务书。
     case .goalBrief: return "任务书"
-    // 规范排版：只修中文排版（多余换行/引号/全半角/空格）、内容一字不改。
     case .publishFormatting: return "规范排版"
     }
   }
 
   var symbol: String {
     switch self {
-    case .jevReply: return "bubble.left.and.bubble.right"
     case .ask: return "text.bubble"
     case .polish: return "wand.and.stars"
     case .sourceVerification: return "checkmark.seal"
@@ -57,12 +51,8 @@ enum OwlSelectionMenuAction: String, Codable, CaseIterable, Sendable {
     }
   }
 
-  // menuGroups / menuHint（方案三「朱印」纵向菜单的分组与行尾提示）已随小菜单面板一并删除
-  // （2026-07-26 工具箱重设计）：工具箱按钮行按 enabledActions() 顺序平铺。
-
   static func enabledActions(cloudEnabled: Bool = OwlCloudPreferences.isEnabled) -> [OwlSelectionMenuAction] {
     OwlAIBusinessCore.call("enabledActions", ["cloud": cloudEnabled, "enabled": [
-      "jevReply": OwlSelectionMenuPreferences.jevReplyEnabled,
       "ask": OwlSelectionMenuPreferences.askEnabled, "polish": OwlSelectionMenuPreferences.polishEnabled,
       "sourceVerification": OwlSelectionMenuPreferences.sourceVerificationEnabled,
       "researchAssist": OwlSelectionMenuPreferences.researchAssistEnabled,
@@ -95,7 +85,7 @@ struct OwlSelectionReplacementTarget {
 }
 
 enum OwlSelectionReplacementFlow {
-  /// 回填改写：AX 写回 → 模拟 ⌘V 粘贴 → 仅剪贴板（Vulcan 梯子，见 OwlTextInserter）。
+  /// 回填改写：AX 写回 → 模拟 ⌘V 粘贴 → 仅剪贴板（统一由 OwlTemplateHostDelivery 调度）。
   @MainActor
   static func write(
     _ replacement: String,
@@ -241,11 +231,6 @@ final class OwlSelectionMenuCoordinator {
       Task { @MainActor in
         OwlAIWindow.shared.close()
         OwlVerificationReceiptController.shared.show(selectedText: snapshot.text, anchorBounds: snapshot.bounds)
-      }
-    case "jevReply":
-      Task { @MainActor in
-        OwlAIWindow.shared.close()
-        JEVReplyPanel.shared.show(text: snapshot.text, source: "owltype-selection")
       }
     case "rewrite":
       Task { @MainActor in

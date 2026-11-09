@@ -1,7 +1,5 @@
 //! Raycast schema conversion and review decisions, sharing the library and parser owners.
-use crate::{
-    storage::*, template, template_backup, template_library::*, template_transaction as tx,
-};
+use crate::{storage::*, template, template_library::*, template_transaction as tx};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
@@ -374,11 +372,17 @@ pub fn dispatch<H: Host>(host: &mut H, operation: &str, args: Value) -> Result<V
             if let Some(message) = p.message(&a) {
                 return Err(message);
             }
-            Ok(json!(template_backup::commit(
-                host,
-                &p.library(&a),
-                &p.baseline
-            )?))
+            locked(host, |host| {
+                let existing = tx::load_unlocked(host)?;
+                if !same(&existing, &p.baseline) {
+                    return Err("changed_on_disk".into());
+                }
+                let next = p.library(&a);
+                if !same(&next, &p.baseline) {
+                    tx::save_unlocked(host, &next, None)?;
+                }
+                Ok(json!(next))
+            })
         }
         _ => Err("unknown_operation".into()),
     }

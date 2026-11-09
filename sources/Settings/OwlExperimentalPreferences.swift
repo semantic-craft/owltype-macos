@@ -30,7 +30,7 @@ struct OwlRerankModelDescriptor: Codable, Equatable, Sendable {
   static var keyboard: Self { descriptor(for: .keyboard) }
   static var settled: Self { descriptor(for: .settled) }
   static func descriptor(for kind: OwlRerankModelKind) -> Self {
-    OwlResourceBusiness.catalog.models.first { $0.kind == kind }!
+    OwlRustCompatibleResources.models.first { $0.kind == kind }!
   }
 
   var sha256Prefix: String {
@@ -56,26 +56,25 @@ final class OwlRerankRuntimeStatusRegistry: @unchecked Sendable {
   static let shared = OwlRerankRuntimeStatusRegistry()
 
   private let lock = NSLock()
-  private let core = try! OwlAppSession("resourceModels")
+  private var statuses: [OwlRerankModelKind: OwlRerankRuntimeModelStatus] = [:]
 
   private init() {}
 
   func update(kind: OwlRerankModelKind, state: String, error: String?) {
     lock.lock()
-    let _: [String: OwlRerankRuntimeModelStatus] = core.call("update", ["kind": kind.rawValue, "state": state, "error": error as Any? ?? NSNull()])
+    statuses[kind] = OwlRerankRuntimeModelStatus(state: state, error: error)
     lock.unlock()
   }
 
   func snapshot() -> [OwlRerankModelKind: OwlRerankRuntimeModelStatus] {
     lock.lock()
     defer { lock.unlock() }
-    let values: [String: OwlRerankRuntimeModelStatus] = core.call("snapshot")
-    return Dictionary(uniqueKeysWithValues: values.compactMap { key, value in OwlRerankModelKind(rawValue: key).map { ($0, value) } })
+    return statuses
   }
 
   func reset() {
     lock.lock()
-    let _: [String: OwlRerankRuntimeModelStatus] = core.call("reset")
+    statuses.removeAll()
     lock.unlock()
   }
 }

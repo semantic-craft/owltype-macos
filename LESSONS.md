@@ -5,6 +5,17 @@ that the lesson is in place: which file to read, which command to run, what resu
 and dates observed. Count distinct
 review dates, not retries. Keep deterministic checks in the local gate.
 
+## `codesign -R` inline requirements in package scripts must use `-R'=anchor ...'` without a separator `=`
+
+**Pass inline `SecRequirement` strings to `/usr/bin/codesign` as `-R'=anchor ...'` (one `=`, which marks an inline requirement rather than a file path), never `-R='=anchor ...'`, and validate `-R` syntax against real `/usr/bin/codesign` in `scripts/pkg-leftovers.selftest.sh`.**
+
+- Reason: on 2026-11-08 installing `package/Owltype-update.pkg` via `/usr/sbin/installer -pkg ... -target /` failed in `./postinstall` with `error: invalid or corrupted code requirement(s)` / `line 1:1: unexpected token: =`. Commit `678ffa2` (#414) wrote `-R='=anchor ...'` in `scripts/postinstall` (whereas `Installer.swift` wrote `-R'=anchor ...'`). Because `-R` is a short `getopt` option, `-R='=anchor ...'` passed `==anchor ...` as `optarg`, leaving a leading `=` in the requirement expression after `codesign` stripped the inline prefix. `scripts/pkg-leftovers.selftest.sh` had mocked `/usr/bin/codesign` as `exit 0` without checking `-R` syntax.
+- Prevention: use `-R'=anchor ...'` in [postinstall](scripts/postinstall), matching [Installer.swift](installer/Sources/Installer.swift), and have the mock `codesign` in [pkg-leftovers.selftest.sh](scripts/pkg-leftovers.selftest.sh) forward any `-R*` argument to `/usr/bin/codesign --verify "$arg" /bin/ls` and fail on `invalid or corrupted code requirement`.
+- Regression: [pkg-leftovers.selftest.sh](scripts/pkg-leftovers.selftest.sh) fails closed on `-R='=anchor ...'` and passes on `-R'=anchor ...'`.
+- Scope: `scripts/postinstall` and `scripts/pkg-leftovers.selftest.sh`.
+- Verify (验证点): `bash scripts/pkg-leftovers.selftest.sh` passes (`19 passed, 0 failed`) and `rg -n -- "-R='=" scripts/ installer/ sources/` prints nothing.
+- Seen on 1 distinct date: 2026-11-08.
+
 ## Input-menu PDF icons must use pure vector paths without SVG masks and be verified through AppKit
 
 **Author `resources/OwlMenuIcon.svg` with `fill-rule="evenodd"` vector subpaths rather than `<mask>`, and verify the generated `OwlMenuIcon.pdf` by drawing it through `NSImage` in AppKit.**

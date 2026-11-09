@@ -42,7 +42,7 @@ if (( native_only == 1 )); then
   cargo build \
     --locked \
     --manifest-path "$manifest_path" \
-    --package owl-msime-ffi --package owl-app-ffi \
+    --package owl-msime-ffi \
     --release \
     --target "$rust_target"
   cargo build \
@@ -52,7 +52,6 @@ if (( native_only == 1 )); then
     --bin owltype-mcp \
     --release \
     --target "$rust_target"
-  cp "$target_dir/$rust_target/release/libowl_app_ffi.a" "$REPO_ROOT/lib/libowl_app_ffi.a"
   cp "$target_dir/$rust_target/release/libowl_msime_ffi.a" "$REPO_ROOT/lib/libowl_msime_ffi.a"
   cp "$target_dir/$rust_target/release/owltype-mcp" "$REPO_ROOT/bin/owltype-mcp"
 else
@@ -60,7 +59,7 @@ else
     cargo build \
       --locked \
       --manifest-path "$manifest_path" \
-      --package owl-msime-ffi --package owl-app-ffi \
+      --package owl-msime-ffi \
       --release \
       --target "$rust_target"
     cargo build \
@@ -71,10 +70,6 @@ else
       --release \
       --target "$rust_target"
   done
-  lipo -create \
-    "$target_dir/aarch64-apple-darwin/release/libowl_app_ffi.a" \
-    "$target_dir/x86_64-apple-darwin/release/libowl_app_ffi.a" \
-    -output "$REPO_ROOT/lib/libowl_app_ffi.a"
   lipo -create \
     "$target_dir/aarch64-apple-darwin/release/libowl_msime_ffi.a" \
     "$target_dir/x86_64-apple-darwin/release/libowl_msime_ffi.a" \
@@ -89,7 +84,7 @@ cp "$REPO_ROOT/rust/crates/owl-msime-ffi/include/owl_msime_ffi.h" "$REPO_ROOT/in
 
 strip -x "$REPO_ROOT/bin/owltype-mcp"
 
-python3 - "$REPO_ROOT/lib/libowl_app_ffi.a" "$REPO_ROOT/lib/libowl_msime_ffi.a" "$REPO_ROOT/bin/owltype-mcp" <<'PYEOF'
+python3 - "$REPO_ROOT/lib/libowl_msime_ffi.a" "$REPO_ROOT/bin/owltype-mcp" <<'PYEOF'
 import pathlib
 import sys
 

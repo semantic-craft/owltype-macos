@@ -79,6 +79,10 @@ enum OwlKeyboardSwitch: Int, CaseIterable, Sendable {
     }
   }
 
+  private static let metadataByID: [String: OwlAppCore.KeyboardSwitch] = Dictionary(
+    uniqueKeysWithValues: OwlAppCore.keyboardCatalog.switches.map { ($0.id, $0) }
+  )
+
   /// Built once: hot-path readers index this table instead of rebuilding a row per read.
   private static let rows = allCases.map(\.makeRow)
 
@@ -86,10 +90,11 @@ enum OwlKeyboardSwitch: Int, CaseIterable, Sendable {
   var key: String { row.key }
   var defaultValue: Bool { row.defaultValue }
 
-  // Native bindings only; metadata is decoded once from the linked Rust catalog.
+  // Native bindings only; metadata is decoded once from the linked Rust catalog by string ID.
   private var makeRow: Row {
-    let metadata = OwlAppCore.keyboardCatalog.switches[rawValue]
-    precondition(metadata.id == String(describing: self), "Incompatible keyboard catalog binding")
+    guard let metadata = Self.metadataByID[String(describing: self)] else {
+      preconditionFailure("Missing keyboard catalog entry for \(self)")
+    }
     let application: Application
     switch metadata.application {
     case "engine": application = .engineOption(metadata.option)

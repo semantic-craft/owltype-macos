@@ -1,8 +1,0 @@
-[
-    "Rime commits 与 Rust weight 不是同一计量；本次按 commits 取舍并映射，weight 限制在 1...100000000。",
-    "Rime decay 与 tick 未导入 Rust dictionary-state，不能声称保留了全部统计内部状态。",
-    "Rime 负 commits 转成 Rust 删除记录，保留删除结果但不保留原负值。",
-    "Rime 快照不区分用户自造词与学习调权；本次全部按 user_inserted=false 的学习 overlay 迁移，自造词的个人词库队列语义未保留。",
-    "旧置顶继续由 owl_pinned_words 保存；pinned_candidates 每个上下文只能保存一个值，不能无损替代简繁标记和顺序。",
-    "只读取 sync/<installation>/*.userdb.txt；不读取运行中的 LevelDB。"
-  ]

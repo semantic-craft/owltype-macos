@@ -568,11 +568,10 @@ final class OwlAutomaticExpansionTests: XCTestCase {
     defaults.set(true, forKey: OwlAutomaticExpansionRuntime.enabledKey)
     let runtime = OwlAutomaticExpansionRuntime()
     try runtime.reload(dataDir: root, defaults: defaults)
-    let writer = OwlConfigWriter(dataDir: root)
     var item = entry(";;a")
     for mode in [OwlTemplateEntry.ExpansionMode.immediate, .delimiterKeep, .delimiterDrop] {
       item.expansionMode = mode
-      try OwlTemplateStore.save(.init(entries: [item]), writer: writer)
+      try OwlTemplateStore.save(.init(entries: [item]), dataDir: root)
       XCTAssertEqual(try OwlTemplateStore.load(dataDir: root).entries.first?.expansionMode, mode)
       let recognizer = OwlAutomaticExpansionRecognizer()
       let step = type(";;a", into: recognizer, index: runtime.index)
@@ -585,7 +584,7 @@ final class OwlAutomaticExpansionTests: XCTestCase {
     let revision = runtime.revision
     var conflict = item
     conflict.expansionMode = .immediate
-    XCTAssertThrowsError(try OwlTemplateStore.save(.init(entries: [conflict, entry(";;ab")]), writer: writer))
+    XCTAssertThrowsError(try OwlTemplateStore.save(.init(entries: [conflict, entry(";;ab")]), dataDir: root))
     XCTAssertEqual(try OwlTemplateStore.load(dataDir: root).entries, [item])
     XCTAssertEqual(runtime.revision, revision)
     XCTAssertTrue(runtime.allows(bundleID: "test.host"))

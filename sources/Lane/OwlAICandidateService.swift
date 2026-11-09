@@ -65,7 +65,7 @@ final class OwlAICandidateService: OwlAICandidateServiceProtocol, @unchecked Sen
         let gate = OwlProviderAuthGate(
           profileProvider: { OwlProviderProfileStore.shared.defaultProfile },
           profileSecretProvider: { try OwlProviderKeychain().secret(named: $0) },
-          legacyKeyProvider: OwlCloudKeychain.readDeepSeekAPIKey
+          legacyKeyProvider: nil
         )
         return gate.resolve()
       }

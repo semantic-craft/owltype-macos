@@ -333,7 +333,7 @@ final class OwlTemplateTemporalTests: XCTestCase {
       template.trigger = "day"
       template.candidateAliases = ["vday"]
       template.invocationMode = .candidate
-      try OwlTemplateStore.save(.init(entries: [template]), writer: OwlConfigWriter(dataDir: root))
+      try OwlTemplateStore.save(.init(entries: [template]), dataDir: root)
       let library = try OwlTemplateStore.load(dataDir: root)
       XCTAssertEqual(library.entries.first?.body, template.body)
       var picker = OwlPickerPanelModel(rows: library.entries.map(OwlPickerRow.template))

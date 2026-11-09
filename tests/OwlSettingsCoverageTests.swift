@@ -34,20 +34,15 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "sources/Settings/OwlKeyboardPreferences.swift",
     "sources/Settings/OwlSettingsPages.swift",
     "sources/Settings/OwlSkinPage.swift",
-    "sources/Settings/OwlQuickSendPage.swift",
     "sources/Settings/OwlClipboardPage.swift",
     "sources/Settings/OwlSkillsPage.swift",
     "sources/Settings/OwlAIPage.swift",
-    "sources/Settings/OwlPromptPage.swift",
     "sources/Settings/OwlEmojiPreferences.swift",
     "sources/Settings/OwlFuzzySheet.swift",
     "sources/Settings/OwlAppEnglishSheet.swift",
-    "sources/Settings/OwlWritePreviewSheet.swift",
   ]
 
   private static let expectedControlLabels: Set<String> = [
-    // Opt-in/cloud gate: OwlSettingsActionTests.testJEVReplyIsOptInAndHonorsCloudGate.
-    "Kotone 回复建议",
     // OwlSegmentedControl option labels (replaced the old `Picker(.segmented)` titles).
     // 浅色/深色 dropped: 外观模式 + 皮肤预览 removed from 候选窗设置 (明暗 lives on 皮肤外观, uses 亮/暗).
     "跟随系统",
@@ -81,7 +76,6 @@ final class OwlSettingsCoverageTests: XCTestCase {
     // 重置用户词典…（#37）：备份+删除+还原全链路覆盖在 OwlUserDictResetTests，
     // 确认弹窗默认按钮同处断言。
     "OwlInputMenuTitles.resetUserDict",
-    "OwlInputMenuTitles.migrateLegacyUserData",
     "https 端点",
     // 辅助功能权限：状态即入口的单一按钮，accessibilityLabel 随授权态切换。
     "辅助功能已授权，点此打开权限设置",
@@ -141,7 +135,6 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "下载 Noto Serif SC 字体",
     "下载 Maple Mono CN 字体包",
     "保存修改",
-    "我已了解：写入会修改 ~/Library/Application Support/Owltype（需真机；备份+manifest 已就绪，可回滚）",
     "候选条动画",
     "候选窗显示输入串",
     // Actual runtime toggles are covered by the existing Wubi commit and hint/wildcard tests.
@@ -151,8 +144,6 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "z 通配",
     // 候选个数 is now a OwlSegmentedControl (was a Stepper); its option labels are 3…9.
     "3", "4", "5", "6", "7", "8", "9",
-    "关闭",
-    "写入并应用配置（需真机）",
     "减号等号翻页",
     // 场景词库/术语规则设置 UI 已在 ccda902「audit privacy and remove dead code」中移除；
     // 其全部标签与源码标记于 2026-07-24 单仓合并时确认出册（deliberate ack）。
@@ -173,17 +164,14 @@ final class OwlSettingsCoverageTests: XCTestCase {
     // Real settings toggle → persisted preference → queued live engine ON/OFF is covered by
     // OwlRustEngineTests.testNativeQuickPhrasePreferencePreservesLiveComposition.
     "普通候选中显示快捷短语",
-    "回滚最近写入",
     "完成",
     "左右中括号翻页",
     "捕获当前剪贴板",
     "检查更新",
-    "添加短语",
     "添加…",                          // App 默认英文 管理弹窗：选应用
     "管理…",                          // App 默认英文：打开管理弹窗
     "移除",                           // App 默认英文 管理弹窗：删一项
 
-    "清空",
     "清空记录",
     "来源核验",
     "规范排版",
@@ -196,9 +184,7 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "提示词优化",
     "任务书",                          // 目标七问：模糊需求整理成 Agent 可执行的目标任务书
     "记住我常用的词（个性化）",
-    "短语",
     "空码自动清码",
-    "编码，如 mty 或 mtycs",
     "输入中文时 “/” 弹出符号选单",
     // 「<」与「/」符号选单的 patch coverage 在 OwlKeyboardPatchBuilderTests。
     "输入中文时 “<” 弹出符号选单",
@@ -208,33 +194,11 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "逗号句号翻页",
     "设置模糊拼音",
     "方案与状态", "拼音设置", "五笔设置", "标点与习惯",
-    // 完整词库卡（方案B dict-pack）：Rust 后端先把 generation 准备成候选，用户再显式启用或回退；
-    // legacy Rime 后端仍走下载后 deploy。事务与不自动切换由 OwlRustResourceTransactionTests、
-    // OwlRustEngineTests 和 OwlDictPackTests 的中心层门控覆盖。
-    "立即下载（约 90 MB）",
-    "重试",
-    "启用",
-    "回退到 v\\(target)",
     "辅助检索",
     "分号引号选 2/3 位",
     // 「唤起热键」不再列入：快捷短语面板与划词菜单都改用 UI 层的 OwlHotKeyRecorderRow 录制器，
     // 标签随之离开 settings- 源文件（与录制器其余文案同一策略）。
     "粘贴",
-    // 提示词管理面板 (OwlPromptPage)：master-detail 控件标签。
-    // 方案 A（07-21）：三个字段改常驻标签 + 描述性 placeholder，两组都会被提取、都登记。
-    "提示词",
-    "触发码",
-    "标题",
-    "分类",
-    "如 docs",
-    "显示在候选条上的名字",
-    "可空；用于左列分组",
-    "正文",
-    "新建",
-    "删除",
-    "保存并应用",
-    "搜索",
-    "变量",
     // 语音输入 · 云端语音识别：预设、端点、模型、拉取模型、ASR API Key 存取与 OpenAI 账号登录状态/验证，
     // 行为由 OwlAIVoiceTests 与 OwlVoiceGrokASRClientTests 覆盖。
     "已设置 ●●●●●●（输入新 Key 可覆盖）",
@@ -246,9 +210,6 @@ final class OwlSettingsCoverageTests: XCTestCase {
     "选择语音识别模型",
     "拉取模型",
     "ASR API Key（写入 Keychain，同名供应商自动复用）",
-    "刷新状态",
-    "复制命令",
-    "验证连接",
   ]
 
   private static let expectedSourceMarkers = [

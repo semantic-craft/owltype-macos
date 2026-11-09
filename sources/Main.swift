@@ -26,12 +26,6 @@ enum OwlPrivateStorage {
 
 enum OwlEngineIdentity {
   static let appName = "rime.owltype"
-  static let builderAppName = "rime.owltype-builder"
-  static let baseConfig = "owltype"
-  static let configFile = "owltype.yaml"
-  static let customConfigFile = "owltype.custom.yaml"
-  static let legacyCustomConfigFile = "squirrel.custom.yaml"
-  static let seedMarkerFile = ".owl-seed-v2"
 }
 
 @main
@@ -85,31 +79,6 @@ struct OwlApp {
     return roots.contains(parent)
   }
 
-  static let retiredCLIArguments: Set<String> = [
-    "--apply-keyboard-patch",
-    "--build",
-    "--diagnose-rime-config",
-    "--sync",
-  ]
-
-  private static func failRetiredCLI(_ argument: String) -> Never {
-    let replacement: String
-    switch argument {
-    case "--apply-keyboard-patch":
-      replacement = "请在设置窗口修改键盘输入；保存后会直接应用到 Rust 引擎。"
-    case "--build":
-      replacement = "Rust 词库会在 App 启动或“设置 → 维护与诊断 → 应用配置改动”时准备，不再构建 Rime 方案。"
-    case "--diagnose-rime-config":
-      replacement = "Rime 配置诊断已退役；Rust 引擎问题请查看“设置 → 维护与诊断 → 查看诊断日志”。"
-    case "--sync":
-      replacement = "Rust 学习库不提供旧 Rime 同步导出；旧快照请用“迁移旧版输入记录”导入。"
-    default:
-      replacement = "请在设置窗口执行对应操作。"
-    }
-    fputs("\(argument) 已退役，未执行。\(replacement)\n", stderr)
-    exit(64)
-  }
-
   // swiftlint:disable:next cyclomatic_complexity
   static func main() {
     let handled = autoreleasepool {
@@ -129,8 +98,6 @@ struct OwlApp {
           // deliverImmediately 无视挂起态直接送达所有 observer。下面各 CLI post 同理。
           DistributedNotificationCenter.default().postNotificationName(.init("OwlReloadNotification"), object: nil, userInfo: nil, deliverImmediately: true)
           return true
-        case "--apply-keyboard-patch":
-          failRetiredCLI("--apply-keyboard-patch")
         case "--register-input-source", "--install":
           installer.register()
           return true
@@ -226,8 +193,6 @@ struct OwlApp {
             print(OwlInstaller.activationStatusText())
           }
           return true
-        case "--diagnose-rime-config":
-          failRetiredCLI("--diagnose-rime-config")
         case "--diagnose-tis":
           // W1.4: read-only six-layer TIS diagnosis as JSON (register/enumerate/enable/select/menu/
           // client-attach + OWL-* codes + install identity + data-root + who else claims the
@@ -240,10 +205,6 @@ struct OwlApp {
             print(json)
           }
           return true
-        case "--build":
-          failRetiredCLI("--build")
-        case "--sync":
-          failRetiredCLI("--sync")
         case "--ascii":
           DistributedNotificationCenter.default().postNotificationName(.init("OwlToggleASCIIModeNotification"), object: "ascii", userInfo: nil, deliverImmediately: true)
           return true
@@ -334,9 +295,6 @@ struct OwlApp {
         delegate.setupEngine()
         delegate.runtime.start(fullCheck: false)  // maintenance, then the config cache
         OwlPerf.since(perfEngine, "coldstart.rime")  // heavy: start_maintenance — dict + octagram load
-        // 方案B：公开包只带清洁室词库种子；完整词库在用户知情同意后按 pin 拉取（不阻塞冷启动，
-        // 下载完成后自动 deploy() 编译）。已装 / 用户自备 / 已提示过时这里只刷新状态。
-        OwlDictPackCenter.shared.promptOrFetchIfNeeded()
         // Agent access (#208): listens only while its switch is on; off by default.
         OwlAgentAccess.shared.start()
         OwlPerf.since(perfColdStart, "coldstart.total")

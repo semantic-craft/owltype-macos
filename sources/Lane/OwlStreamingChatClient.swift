@@ -283,7 +283,7 @@ final class OwlStreamingChatService {
     responsesClient: OwlResponsesStreaming? = nil,
     profileProvider: @escaping () -> OwlProviderProfile? = { OwlProviderProfileStore.shared.defaultProfile },
     profileSecretProvider: @escaping (String) throws -> String? = { try OwlProviderKeychain().secret(named: $0) },
-    legacyKeyProvider: @escaping () throws -> String? = OwlCloudKeychain.readDeepSeekAPIKey
+    legacyKeyProvider: @escaping () throws -> String? = { nil }
   ) {
     let gate = OwlProviderAuthGate(
       profileProvider: profileProvider,

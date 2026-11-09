@@ -10,13 +10,11 @@ import XCTest
 @testable import Owltype
 
 final class OwlCLIEntryPointTests: XCTestCase {
-  func testRetiredRimeCommandsAreRejectedAndNotAdvertised() {
-    XCTAssertEqual(
-      OwlApp.retiredCLIArguments,
-      Set(["--apply-keyboard-patch", "--build", "--diagnose-rime-config", "--sync"])
-    )
-    for argument in OwlApp.retiredCLIArguments {
+  func testHelpDocAdvertisesOnlySupportedCommands() {
+    for argument in ["--apply-keyboard-patch", "--build", "--diagnose-rime-config", "--sync"] {
       XCTAssertFalse(OwlApp.helpDoc.contains(argument), argument)
     }
+    XCTAssertTrue(OwlApp.helpDoc.contains("--diagnose-tis"))
+    XCTAssertTrue(OwlApp.helpDoc.contains("--ui-test-show-settings"))
   }
 }

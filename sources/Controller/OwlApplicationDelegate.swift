@@ -33,11 +33,6 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   /// Default is the production `.shared` service; swappable so tests can return scripted
   /// rewrites without DeepSeek or the keychain.
   var selectionPolish: SelectionPolishing = OwlSelectionPolishService.shared
-  /// The controller's prompt-commit resolver, behind the narrow `PromptResolving` port. Given the
-  /// originating trigger code + committed candidate title, returns the matching 提示词 entry (or
-  /// nil). Default is the production `.shared` resolver (reads owl_prompts.json on a 📝 commit);
-  /// swappable so tests can return a scripted entry without disk.
-  var promptStore: PromptResolving = OwlPromptResolver.shared
   /// Central host-client compatibility policy. Pure and swappable in tests; controller code asks
   /// it before risky IMK/AX host reads.
   var clientCapabilityPolicy = OwlClientCapabilityPolicy()
@@ -224,7 +219,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   // MARK: - 快捷短语面板 (quick-phrase picker)
 
   /// The floating quick-phrase panel, created lazily on first open.
-  private var owlQuickSendPanel: OwlQuickSendPanel?
+  private var owlQuickSendPanel: OwlTemplatePickerPanel?
 
   /// The controller binds this adapter to its original IMK client. The picker transfers its
   /// captured focus to the selected invocation, including when a fill window follows.
@@ -235,7 +230,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     let trace = OwlLatencyTrace.begin("window.open.quickSend")
     defer { OwlLatencyTrace.end("window.open.quickSend", trace) }
     OwlPromptFillSheet.shared.dismissForNewInvocation()
-    let panel = owlQuickSendPanel ?? OwlQuickSendPanel()
+    let panel = owlQuickSendPanel ?? OwlTemplatePickerPanel()
     owlQuickSendPanel = panel
     OwlLatencyTrace.event("window.quickSend.controllerSelected")
     panel.invocationHandler = onInvoke
@@ -359,10 +354,6 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
         try self?.runtime.applyKeyboardSettings(.fuzzy) ?? .init(written: [], succeeded: false)
       },
       userDataActions: .init(
-        migrateLegacy: { [weak self] in
-          guard let self, OwlUserMigrationPrompt.confirm() else { return }
-          state.statusMessage = self.runtime.migrateLegacyUserData()
-        },
         resetUserDict: { [weak self] in
           guard let self, OwlUserDictResetPrompt.confirm() else { return }
           state.statusMessage = self.runtime.resetUserDict()
@@ -382,8 +373,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
         self.runtime.applyPanelPreferences()
         self.owlPanel?.refreshPreferences()
         OwlInputStatusPanel.shared.refreshPreferences()
-      },
-      writesConfigPatches: false
+      }
     )
     OwlLatencyTrace.event("window.settings.firstVisible")
   }
@@ -404,7 +394,6 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
       onApplyKeyboardConfigFast: { .init(written: [], succeeded: true) },
       onApplyFuzzyConfigFast: { .init(written: [], succeeded: true) },
       userDataActions: .init(
-        migrateLegacy: {},
         resetUserDict: {}
       ),
       onOpenDataFolder: {},
@@ -499,24 +488,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
       requested: id, engineSelected: engineSelected, liveResult: result
     )
     if let failedID {
-      // 方案B 分流：失败若是「该方案的词库根本没随包分发」（dict-pack 未装），下面那条通知是**误导**
-      // ——它叫用户去「应用配置改动」，可方案文件压根不在磁盘上，照做也没用。改弹版权说明并引导下载。
-      // 这里只做纯 manifest 判定（本方法 nonisolated）；读运行期状态与弹窗都在主线程做，
-      // 已装却选失败（真·未编译）时由 handleAbsentSchema 返回 false 补发原通知。必须同时
-      // 检查 transient engine 的返回值：设置窗打开但没有活动输入框时 result == nil，过去
-      // 正是在这里把全新安装的缺词库失败静默吞掉了。
-      if OwlDictPackPrompt.isDictPackManagedSchema(failedID) {
-        Task { @MainActor in
-          // A newer picker action may have replaced this failed request before the task runs.
-          // Do not let an obsolete Wubi failure pop over a later successful Pinyin selection.
-          guard OwlKeyboardPreferences.preferredSchemaID == failedID else { return }
-          if !OwlDictPackPrompt.handleAbsentSchema(failedID) {
-            Self.notifySchemaNotCompiled(failedID)
-          }
-        }
-      } else {
-        Self.notifySchemaNotCompiled(failedID)
-      }
+      Self.notifySchemaNotCompiled(failedID)
     }
     runtime.loadSettings()
     runtime.loadSettings(for: id)
@@ -607,36 +579,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
       createDirIfNotExist(path: OwlApp.userDir)
     }
     createDirIfNotExist(path: OwlApp.logDir)
-    // Recover before any seed/managed patch can change the shared rollback manifest.
-    // Failure leaves originals and the durable journal intact; the settings route exposes retry.
-    var templateRecoveryReady = true
-    do { try OwlTemplateMigration(dataDir: OwlApp.userDir).recoverIfNeeded() }
-    catch { templateRecoveryReady = false }
-    if templateRecoveryReady { seedUserDirIfNeeded() }
-    // Bug fix: the seeded `default.custom.yaml` is bare (schema_list + page_size only) and the
-    // Owltype managed keyboard blocks (both Shift_L AND Shift_R = commit_code, key_binder paging/
-    // select, punctuator, switcher/save_options) used to be written ONLY when the user round-tripped
-    // a settings toggle. On a fresh install (or upgrade) that left right-Shift on rime-ice's
-    // `Shift_R: noop` default and the Owltype keyboard defaults inactive OOTB. Write the managed
-    // blocks from the CURRENT prefs here — AFTER the seed, BEFORE the initial deploy (`runtime.start` in
-    // Main.swift / `redeploy()`) — so the first `start_maintenance` compiles them into build/. The
-    // managed blocks are marker-delimited, so this is idempotent and runs cheaply on every launch
-    // (not gated by the seed marker), which also fixes existing upgraders.
-    if templateRecoveryReady {
-      // Only valid, conflict-free raw data is migrated automatically. Never replay a tolerant
-      // legacy loader into its source JSON before this audit.
-      _ = try? OwlTemplateMigration(dataDir: OwlApp.userDir).runAutomatically()
-      if !OwlTemplateMigration.hasPendingRecovery(dataDir: OwlApp.userDir) {
-        _ = try? OwlManagedKeyboardPatchPlan.apply(snapshot: OwlKeyboardSnapshot.current())
-      }
-    }
-    // Bind the committed template directory after migration/recovery. reload closes the
-    // in-memory index on unavailable/legacy state; UI tests use the isolated defaults source.
     _ = try? OwlAutomaticExpansionRuntime.shared.reload(dataDir: OwlApp.userDir, defaults: OwlDefaults.standard)
-    // B1: one-shot, idempotent migration of a legacy single-DeepSeek setup into a default provider
-    // profile. No-op on a fresh install (no legacy key) or once a profile already exists. Off the
-    // IMK hot path — runs only here at app launch.
-    OwlProviderMigration.migrateLegacyDeepSeekIfNeeded()
     runtime.engine.setNotificationHandler { [weak self] sessionID, messageType, messageValue in
       guard let self else { return }
       notificationHandler(
@@ -658,48 +601,6 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
       )
     )
   }
-
-  /// ADR-0004 cycle 3: on first run, seed Owltype's OWN `user_data_dir`
-  /// (`~/Library/Application Support/Owltype`) from the bundled `SharedSupport/_user_seed`
-  /// (`*.custom.yaml` selecting the 猫头鹰 schema_list / 深大红 / 法学 opt-in), so the next
-  /// `runtime.redeploy()` compiles them against the bundled rime-ice + 五笔 shared data. Idempotent
-  /// via a version marker; never overwrites a file the user already has. Writes ONLY to
-  /// Owltype's own dir — never the user's `~/Library/Rime` (ADR-0004).
-  private func seedUserDirIfNeeded() {
-    let fm = FileManager.default
-    guard let sharedSupport = Bundle.main.sharedSupportPath else { return }
-    let seedDir = URL(fileURLWithPath: sharedSupport).appending(component: "_user_seed", directoryHint: .isDirectory)
-    migrateLegacyOwltypeCustomConfigIfNeeded()
-    let marker = OwlApp.userDir.appending(component: OwlEngineIdentity.seedMarkerFile, directoryHint: .notDirectory)
-    guard fm.fileExists(atPath: seedDir.path), !fm.fileExists(atPath: marker.path) else { return }
-    do {
-      for src in try fm.contentsOfDirectory(at: seedDir, includingPropertiesForKeys: nil) {
-        let dst = OwlApp.userDir.appending(component: src.lastPathComponent, directoryHint: .notDirectory)
-        if !fm.fileExists(atPath: dst.path) {
-          try fm.copyItem(at: src, to: dst)
-        }
-      }
-      try? Data("owltype seed v1\n".utf8).write(to: marker)
-      print("Owltype: seeded user_data_dir from bundled _user_seed.")
-    } catch {
-      print("Owltype: user-dir seed failed: \(error)")
-    }
-  }
-
-  private func migrateLegacyOwltypeCustomConfigIfNeeded() {
-    let fm = FileManager.default
-    let legacy = OwlApp.userDir.appending(component: OwlEngineIdentity.legacyCustomConfigFile, directoryHint: .notDirectory)
-    let current = OwlApp.userDir.appending(component: OwlEngineIdentity.customConfigFile, directoryHint: .notDirectory)
-    guard fm.fileExists(atPath: legacy.path), !fm.fileExists(atPath: current.path) else { return }
-    do {
-      try fm.copyItem(at: legacy, to: current)
-      print("Owltype: migrated legacy \(OwlEngineIdentity.legacyCustomConfigFile) to \(OwlEngineIdentity.customConfigFile) in Owltype user_data_dir.")
-    } catch {
-      print("Owltype: legacy custom config migration failed: \(error)")
-    }
-  }
-
-
 
   /// Feature 1: apply 简↔繁 to the live session right away from the settings UI — no redeploy.
   /// Sets the FULL simplification/traditional option set (`transcription` for 全拼/双拼,

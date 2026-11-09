@@ -77,10 +77,6 @@ extension OwlSettingsActions {
     let status: String
   }
 
-  /// Save the voice ASR configuration (provider preset, https endpoint, model ID, and write-only
-  /// ASR API Key in `OwlVoiceKeychain`). When `isKeyAlreadyConfigured` is true and `apiKey` is
-  /// blank, the existing Keychain key (or shared provider profile key) is preserved while
-  /// endpoint/model changes are saved.
   static func saveVoiceASRSettings(
     providerID: String = OwlVoiceSettings.asrProviderID,
     endpoint: String,
@@ -91,18 +87,6 @@ extension OwlSettingsActions {
     defaults: UserDefaults = OwlDefaults.standard
   ) -> VoiceASRSaveResult {
     let preset = OwlVoiceASRCatalog.preset(id: providerID)
-    if preset.isOpenAILogin {
-      defaults.set(preset.id, forKey: OwlVoiceSettings.asrProviderIDKey)
-      defaults.set(preset.endpoint, forKey: OwlVoiceSettings.asrEndpointKey)
-      defaults.set(preset.defaultModel, forKey: OwlVoiceSettings.asrModelKey)
-      return VoiceASRSaveResult(
-        input: "",
-        endpoint: preset.endpoint,
-        model: preset.defaultModel,
-        status: "已启用 \(preset.displayName)（复用本机 Codex 登录态）。"
-      )
-    }
-
     let trimmedEndpoint = OwlProviderCore.call("trim", ["text": endpoint]) as String
     let effectiveEndpoint = trimmedEndpoint.isEmpty ? preset.endpoint : trimmedEndpoint
     guard let url = URL(string: effectiveEndpoint), OwlProviderRegistry.isHTTPS(url) else {
@@ -122,7 +106,7 @@ extension OwlSettingsActions {
         if let saveKey {
           try saveKey(trimmedKey)
         } else {
-          try OwlVoiceKeychain.saveAPIKey(trimmedKey, forProviderID: preset.id)
+          try OwlVoiceSettings.saveASRAPIKey(trimmedKey, forProviderID: preset.id)
         }
       } catch {
         return VoiceASRSaveResult(
@@ -149,7 +133,7 @@ extension OwlSettingsActions {
       if let deleteKey {
         try deleteKey()
       } else {
-        try OwlVoiceKeychain.deleteAPIKey(forProviderID: preset.id)
+        try OwlVoiceSettings.deleteASRAPIKey(forProviderID: preset.id)
       }
       return "已清除 \(preset.keyLabel)。"
     } catch {
@@ -187,29 +171,6 @@ extension OwlSettingsActions {
     return true
   }
 
-  static func copyPreviewText(_ text: String, copy: (String) -> Void) {
-    copy(text)
-  }
-
-  static func applyWritePreview(
-    confirmed: Bool,
-    files: [OwlManagedPatchFile],
-    timestamp: String,
-    apply: (OwlManagedPatchFile, String) throws -> Void,
-    redeploy: () -> Bool
-  ) -> String? {
-    runWritePreview(confirmed: confirmed, files: files.map(\.fileName), rollback: false,
-      perform: { index in try apply(files[index], timestamp) }, redeploy: redeploy)
-  }
-
-  static func rollbackWritePreview(
-    confirmed: Bool,
-    rollback: () throws -> Void,
-    redeploy: () -> Bool
-  ) -> String? {
-    runWritePreview(confirmed: confirmed, files: [], rollback: true,
-      perform: { _ in try rollback() }, redeploy: redeploy)
-  }
   private struct CredentialForm: Decodable {
     let status: String
     let input: String
@@ -220,23 +181,6 @@ extension OwlSettingsActions {
                                      present: Bool = false, failure: Bool = false) -> CredentialForm {
     OwlAIBusinessCore.call("credentialForm", ["action": action, "text": text, "doubao": doubao,
       "present": present, "failure": failure])
-  }
-  private static func runWritePreview(confirmed: Bool, files: [String], rollback: Bool,
-                                      perform: (Int) throws -> Void, redeploy: () -> Bool) -> String? {
-    struct Step: Decodable { let action: String; let index: Int; let status: String? }
-    let core = try! OwlAppSession("writePreview", args: ["confirmed": confirmed, "files": files, "rollback": rollback])
-    var step: Step = core.call("next")
-    while true {
-      switch step.action {
-      case "apply", "rollback":
-        do { try perform(step.index); step = core.call("success") }
-        catch OwlConfigWriteError.refusedNeverTouch(let name) {
-          step = core.call("failure", ["protected": name, "message": OwlConfigWriteError.refusedNeverTouch(name).localizedDescription])
-        } catch { step = core.call("failure", ["message": error.localizedDescription]) }
-      case "redeploy": step = core.call("redeployed", ["success": redeploy()])
-      default: return step.status
-      }
-    }
   }
 
 }

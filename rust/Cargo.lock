@@ -931,6 +931,8 @@ version = "0.1.0"
 dependencies = [
  "base64",
  "icu_normalizer",
+ "libc",
+ "msime-path-trust",
  "regex",
  "rusqlite",
  "serde",
@@ -941,15 +943,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "owl-app-ffi"
-version = "0.1.0"
-dependencies = [
- "owl-app-core",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "owl-msime-ffi"
 version = "0.1.0"
 dependencies = [
@@ -957,6 +950,7 @@ dependencies = [
  "msime-engine",
  "msime-input-runtime",
  "msime-path-trust",
+ "owl-app-core",
  "rusqlite",
  "serde",
  "serde_json",

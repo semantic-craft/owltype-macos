@@ -230,9 +230,6 @@ struct OwlAgentPage: View {
         library = nil
         libraryNote = "模板库暂时读不出来：\((error as? LocalizedError)?.errorDescription ?? String(describing: error))"
       }
-    case .legacy:
-      library = nil
-      libraryNote = "请先在「快捷片段」页完成模板迁移，再选择要开放的模板。"
     case .unavailable(let message):
       library = nil
       libraryNote = message

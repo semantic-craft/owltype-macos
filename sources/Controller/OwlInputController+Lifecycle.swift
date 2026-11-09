@@ -104,7 +104,7 @@ extension OwlInputController {
     // Native finish performs the selection and learning, preserving focus-loss local-mode rules.
     // A missing session or a refused native action retains the converted-preview/raw fallback.
     // Every path clears the snapshot registry, even when no composition remains (#37).
-    let live: EngineSession? = (engineSession?.isValid == true) ? engineSession : nil
+    let live: OwlRustSession? = (engineSession?.isValid == true) ? engineSession : nil
     if let live, live.finishNativeComposition(onFocusLoss: true) {
       if let text = live.takeCommit(), !text.isEmpty { commit(string: text) }
       MainActor.assumeIsolated { NSApp.owlAppDelegate.snapshotEmitter.emitCleared() }

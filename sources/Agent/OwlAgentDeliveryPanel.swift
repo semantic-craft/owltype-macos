@@ -13,7 +13,7 @@
 import AppKit
 import Darwin
 
-final class OwlAgentDeliveryPanel: NSPanel, OwlAgentDeliveryPreview {
+final class OwlAgentDeliveryPanel: OwlFloatingPanel, OwlAgentDeliveryPreview {
   private final class FirstClickButton: NSButton {
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
   }
@@ -30,15 +30,13 @@ final class OwlAgentDeliveryPanel: NSPanel, OwlAgentDeliveryPreview {
   private var delayPassed = false
 
   init() {
-    super.init(contentRect: NSRect(x: 0, y: 0, width: 440, height: 300),
-               styleMask: [.nonactivatingPanel, .titled, .fullSizeContentView], backing: .buffered, defer: false)
-    isReleasedWhenClosed = false
-    isFloatingPanel = true
-    level = .floating
-    hidesOnDeactivate = false
+    super.init(
+      contentRect: NSRect(x: 0, y: 0, width: 440, height: 300),
+      styleMask: [.nonactivatingPanel, .titled, .fullSizeContentView],
+      transparentChrome: false
+    )
     titleVisibility = .hidden
     titlebarAppearsTransparent = true
-    collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
     standardWindowButton(.closeButton)?.isHidden = true
     standardWindowButton(.miniaturizeButton)?.isHidden = true
     standardWindowButton(.zoomButton)?.isHidden = true
@@ -90,9 +88,6 @@ final class OwlAgentDeliveryPanel: NSPanel, OwlAgentDeliveryPreview {
     ])
     contentView = content
   }
-
-  override var canBecomeKey: Bool { false }
-  override var canBecomeMain: Bool { false }
 
   func show(text: String, agentName: String, decide: @escaping (Bool) -> Void) {
     self.decide = decide

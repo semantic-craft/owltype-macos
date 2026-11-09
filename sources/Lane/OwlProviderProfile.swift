@@ -294,9 +294,9 @@ protocol OwlSecretStoring {
   func deleteSecret(named name: String) throws
 }
 
-/// Live Keychain impl, keyed on the profile's `secretName`. Same upsert + not-found handling as
-/// `OwlCloudKeychain`, with `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` (device-only,
-/// survives reboot, never synced to iCloud).
+/// Live Keychain impl, keyed on the profile's `secretName`, with
+/// `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` (device-only, survives reboot, never synced
+/// to iCloud).
 struct OwlProviderKeychain: OwlSecretStoring {
   static let service = "im.owltype.inputmethod.Owltype.providers"
 
@@ -407,29 +407,6 @@ final class OwlProviderProfileStore {
     let _: [OwlProviderProfile] = try host.call("default", ["id": id])
   }
 
-}
-
-// MARK: - Legacy migration
-
-/// One-shot, idempotent migration of the legacy single-DeepSeek setup into a default profile.
-/// Runs only when there are no profiles yet AND a legacy DeepSeek key is actually present (a fresh
-/// install just has no providers; the user adds one in settings). The legacy key is copied into the
-/// new per-profile `secretName`; the old `OwlCloudKeychain` entry is left intact as a fallback.
-enum OwlProviderMigration {
-  @discardableResult
-  static func migrateLegacyDeepSeekIfNeeded(
-    store: OwlProviderProfileStore = .shared,
-    secrets: OwlSecretStoring = OwlProviderKeychain(),
-    legacyKeyReader: () throws -> String? = OwlCloudKeychain.readDeepSeekAPIKey,
-    legacyEndpoint: URL = OwlCloudPreferences.deepSeekEndpoint,
-    legacyModel: String = OwlCloudPreferences.deepSeekModel
-  ) -> OwlProviderProfile? {
-    withoutActuallyEscaping(legacyKeyReader) { reader in
-      let host = OwlProviderHost(store: store, secrets: secrets)
-      host.legacyReader = reader
-      return host.required("legacyMigrate", ["endpoint": legacyEndpoint.absoluteString, "model": legacyModel])
-    }
-  }
 }
 
 // MARK: - Model list fetch

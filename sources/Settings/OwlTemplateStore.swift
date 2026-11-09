@@ -10,17 +10,25 @@ struct OwlTemplateParameter: Codable, Equatable, Sendable {
   var options: [String] = []
 }
 
-struct OwlTemplateMigrationSource: Codable, Equatable, Sendable {
-  enum CodingKeys: String, CodingKey, CaseIterable { case sourceFile, record, originalCode }
-  var sourceFile: String
-  var record: Int
-  var originalCode: String
+enum OwlPromptVariables {
+  static func extract(from body: String) -> [String] {
+    OwlTemplateEngine.parse(body: body, syntax: .legacyDoubleBraces).parameters.map(\.key)
+  }
+
+  static func substitute(in body: String, values: [String: String], clipboard: String = "") -> String {
+    let parsed = OwlTemplateEngine.parse(body: body, syntax: .legacyDoubleBraces)
+    return OwlTemplateEngine.render(
+      parsed, values: values,
+      context: .init(clipboard: .text(clipboard)),
+      decisions: .init(allowEmptyClipboard: true)
+    ).previewText
+  }
 }
 
 struct OwlTemplateEntry: Identifiable, Codable, Equatable, Sendable {
   enum CodingKeys: String, CodingKey, CaseIterable {
     case id, title, body, bodyType, syntax, candidateAliases, trigger, tags, isPinned, category
-    case parameters, invocationMode, expansionMode, migrationSource, importSource, reviewState, exposedToAgents
+    case parameters, invocationMode, expansionMode, importSource, reviewState, exposedToAgents
   }
   enum ReviewState: String, Codable, Sendable { case pending }
   enum BodyType: String, Codable, Sendable { case plainText, template }
@@ -42,7 +50,6 @@ struct OwlTemplateEntry: Identifiable, Codable, Equatable, Sendable {
   var parameters: [OwlTemplateParameter] = []
   var invocationMode: InvocationMode = .searchOnly
   var expansionMode: ExpansionMode = .delimiterDrop
-  var migrationSource: OwlTemplateMigrationSource?
   var importSource: OwlTemplateImportSource?
   var reviewState: ReviewState?
   /// Offered to local agents through Agent access (#208). Absent means not exposed; a copy is
@@ -79,18 +86,14 @@ struct OwlTemplateLibrary: Codable, Equatable, Sendable {
   var entries: [OwlTemplateEntry] = []
 }
 
-enum OwlTemplateError: LocalizedError {
+enum OwlTemplateError: LocalizedError, Equatable {
   case invalid(String)
-  case legacyRequiresMigration
   case changedOnDisk
-  case recoveryFailed
 
   var errorDescription: String? {
     switch self {
     case .invalid(let message): return message
-    case .legacyRequiresMigration: return "现有短语和提示词尚未迁移，请继续使用原入口。"
     case .changedOnDisk: return "模板库已被其他窗口修改，请重新打开后再保存。"
-    case .recoveryFailed: return "保存失败且未能完整恢复，请保留备份并检查文件权限。"
     }
   }
 }
@@ -98,18 +101,16 @@ enum OwlTemplateError: LocalizedError {
 /// DTO facade for the single Rust library owner. Native APIs retain their established seams.
 enum OwlTemplateStore {
   static let fileName = "owl_templates.json"
-  static let dictFileName = "owl_templates.txt"
-  static let stateFileName = "owl_templates_state.json"
   static let candidatePrefix = "🦉["
-  enum Mode: Equatable { case empty, legacy, unified, unavailable(String) }
+  enum Mode: Equatable { case empty, unified, unavailable(String) }
   static func core<T: Decodable>(_ operation: String, _ args: [String: Any] = [:]) -> T {
     OwlAppCore.required(["operation": "template_rule", "rule": operation, "args": args])
   }
   static func exclusively<T>(_ action: () throws -> T) rethrows -> T { try OwlStorageHost.exclusively(action) }
   static func mode(dataDir: URL = OwlApp.userDir) -> Mode {
     struct State: Decodable { let kind: String; let message: String? }
-    guard let value: State = try? OwlStorageHost(dataDir: dataDir).call("library_mode") else { return .unavailable("模板库无法读取，请保留原件并恢复备份。") }
-    switch value.kind { case "empty": return .empty; case "legacy": return .legacy; case "unified": return .unified; default: return .unavailable(value.message ?? "模板库无法读取，请保留原件并恢复备份。") }
+    guard let value: State = try? OwlStorageHost(dataDir: dataDir).call("library_mode") else { return .unavailable("模板库无法读取。") }
+    switch value.kind { case "empty": return .empty; case "unified": return .unified; default: return .unavailable(value.message ?? "模板库无法读取。") }
   }
   static func load(dataDir: URL = OwlApp.userDir) throws -> OwlTemplateLibrary {
     try exclusively { try OwlStorageHost(dataDir: dataDir).call("library_load") }
@@ -125,7 +126,6 @@ enum OwlTemplateStore {
   static func tags(in entries: [OwlTemplateEntry]) -> [String] { core("library_tags", ["entries": OwlAppCore.payload(entries)]) }
   static func candidateText(_ entry: OwlTemplateEntry) -> String { core("library_candidate", ["entry": OwlAppCore.payload(entry)]) }
   static func candidateID(_ text: String) -> UUID? {
-    // Optional response is wrapped because transport success must distinguish JSON null.
     struct Identifier: Decodable { let id: UUID? }
     let value: Identifier = core("library_candidate_id", ["text": text]); return value.id
   }
@@ -140,28 +140,25 @@ enum OwlTemplateStore {
     let result: Resolution = core("library_resolve", ["code": code, "text": text, "library": OwlAppCore.payload(library)])
     return result.entry
   }
-  static func save(_ library: OwlTemplateLibrary, writer: OwlConfigWriter = OwlConfigWriter(), expectedLibrary: OwlTemplateLibrary? = nil, beforeWrite: (String) throws -> Void = { _ in }) throws {
+  static func save(_ library: OwlTemplateLibrary, dataDir: URL = OwlApp.userDir, expectedLibrary: OwlTemplateLibrary? = nil, beforeWrite: (String) throws -> Void = { _ in }) throws {
     try withoutActuallyEscaping(beforeWrite) { checkpoint in
-      let _: Bool = try OwlStorageHost(dataDir: writer.dataDir, checkpoint: checkpoint, writerCheckpoint: writer.writeCheckpoint).call("library_save",
+      let _: Bool = try OwlStorageHost(dataDir: dataDir, checkpoint: checkpoint).call("library_save",
         ["library": OwlAppCore.payload(library), "expected": expectedLibrary.map(OwlAppCore.payload) ?? NSNull()])
     }
-    notifyCommittedLibrary(dataDir: writer.dataDir)
+    notifyCommittedLibrary(dataDir: dataDir)
+  }
+  static func delete(id: UUID, expected: OwlTemplateLibrary, dataDir: URL = OwlApp.userDir, beforeWrite: (String) throws -> Void = { _ in }) throws -> OwlTemplateLibrary {
+    let result: OwlTemplateLibrary = try withoutActuallyEscaping(beforeWrite) { checkpoint in
+      try OwlStorageHost(dataDir: dataDir, checkpoint: checkpoint).call("library_delete",
+        ["id": id.uuidString, "expected": OwlAppCore.payload(expected)])
+    }
+    notifyCommittedLibrary(dataDir: dataDir)
+    return result
   }
   static let libraryDidCommit = Notification.Name("OwlTemplateLibraryDidCommit")
   static func notifyCommittedLibrary(dataDir: URL) { NotificationCenter.default.post(name: libraryDidCommit, object: dataDir.standardizedFileURL) }
   static func encoded(_ library: OwlTemplateLibrary) throws -> Data {
     let bytes: [UInt8] = try OwlAppCore.call(["operation": "template_encode", "library": OwlAppCore.payload(library)])
     return Data(bytes)
-  }
-  struct PreparedWrite: Codable { let fileName: String; let contents: String; let marker: String }
-  static func prepareWrites(_ library: OwlTemplateLibrary, writer: OwlConfigWriter) throws -> [PreparedWrite] {
-    try OwlStorageHost(dataDir: writer.dataDir).call("library_prepare_writes", ["library": OwlAppCore.payload(library)])
-  }
-  static func commitPreparedWrites(_ writes: [PreparedWrite], library: OwlTemplateLibrary, writer: OwlConfigWriter,
-                                   beforeWrite: (String) throws -> Void = { _ in }, batchTimestamp: String? = nil, restoreOnFailure: Bool = true) throws {
-    try withoutActuallyEscaping(beforeWrite) { checkpoint in
-      let _: Bool = try OwlStorageHost(dataDir: writer.dataDir, checkpoint: checkpoint, writerCheckpoint: writer.writeCheckpoint).call("library_batch",
-        ["writes": OwlAppCore.payload(writes), "library": OwlAppCore.payload(library), "timestamp": batchTimestamp as Any? ?? NSNull(), "restore": restoreOnFailure])
-    }
   }
 }

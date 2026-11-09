@@ -16,11 +16,10 @@ public final class OwlVoiceGrokASRClient: OwlVoiceASRServiceProtocol, @unchecked
   private let explicitEndpoint: URL?
   private let explicitModel: String?
   public var providerID: String { explicitProviderID ?? OwlVoiceSettings.asrProviderID }
-  public var endpoint: URL { explicitEndpoint ?? OwlVoiceSettings.asrEndpointURL }
-  public var model: String { explicitModel ?? OwlVoiceSettings.asrModel }
+  public var endpoint: URL { explicitEndpoint ?? OwlVoiceSettings.resolvedASREndpointURL }
+  public var model: String { explicitModel ?? OwlVoiceSettings.resolvedASRModel }
   public let transport: OwlVoiceNetworkTransport
   public let apiKeyProvider: @Sendable () throws -> String?
-  let loginCredentialProvider: @Sendable (_ forceRefresh: Bool) async throws -> OwlVoiceOpenAILoginCredential
   public var requestTimeout: TimeInterval
 
   public init(
@@ -29,37 +28,16 @@ public final class OwlVoiceGrokASRClient: OwlVoiceASRServiceProtocol, @unchecked
     model: String? = nil,
     transport: OwlVoiceNetworkTransport = OwlURLSessionVoiceTransport(),
     requestTimeout: TimeInterval = 15.0,
-    apiKeyProvider: @escaping @Sendable () throws -> String? = {
-      try OwlVoiceKeychain.readActiveASRAPIKey()
-    }
+    apiKeyProvider: (@Sendable () throws -> String?)? = nil
   ) {
     self.explicitProviderID = providerID
     self.explicitEndpoint = endpoint
     self.explicitModel = model
     self.transport = transport
     self.requestTimeout = requestTimeout
-    self.apiKeyProvider = apiKeyProvider
-    self.loginCredentialProvider = { forceRefresh in
-      try await OwlVoiceOpenAILoginInspector.fetchCredential(forceRefresh: forceRefresh)
+    self.apiKeyProvider = apiKeyProvider ?? {
+      try OwlVoiceSettings.readActiveASRAPIKey()
     }
-  }
-
-  init(
-    providerID: String?,
-    endpoint: URL? = nil,
-    model: String? = nil,
-    transport: OwlVoiceNetworkTransport = OwlURLSessionVoiceTransport(),
-    requestTimeout: TimeInterval = 15.0,
-    apiKeyProvider: @escaping @Sendable () throws -> String? = { nil },
-    loginCredentialProvider: @escaping @Sendable (_ forceRefresh: Bool) async throws -> OwlVoiceOpenAILoginCredential
-  ) {
-    self.explicitProviderID = providerID
-    self.explicitEndpoint = endpoint
-    self.explicitModel = model
-    self.transport = transport
-    self.requestTimeout = requestTimeout
-    self.apiKeyProvider = apiKeyProvider
-    self.loginCredentialProvider = loginCredentialProvider
   }
 
   public func transcribe(audioWavData: Data, prompt: String?) async throws -> String {
@@ -70,10 +48,6 @@ public final class OwlVoiceGrokASRClient: OwlVoiceASRServiceProtocol, @unchecked
     }
 
     let preset = OwlVoiceASRCatalog.preset(id: providerID)
-    if preset.isOpenAILogin {
-      return try await transcribeViaOpenAILogin(audioWavData: audioWavData)
-    }
-
     guard let apiKey = try apiKeyProvider()?.trimmingCharacters(in: .whitespacesAndNewlines), !apiKey.isEmpty else {
       throw OwlVoiceError.missingAPIKey
     }
@@ -172,98 +146,6 @@ public final class OwlVoiceGrokASRClient: OwlVoiceASRServiceProtocol, @unchecked
     return try Self.decodeTranscript(from: data, isGeminiGenerateContent: true)
   }
 
-  // MARK: - Route 3: OpenAI Login (ChatGPT Dictation via Codex CLI)
-
-  private func transcribeViaOpenAILogin(audioWavData: Data) async throws -> String {
-    let trimmed = try await recognizeViaOpenAILogin(audioWavData: audioWavData)
-    guard !trimmed.isEmpty else {
-      throw OwlVoiceError.emptyTranscript
-    }
-    return trimmed
-  }
-
-  /// 执行 ChatGPT 听写请求并返回去除首尾空白的原始文本（静音允许返回空字符串，供连接验证复用）。
-  func recognizeViaOpenAILogin(audioWavData: Data, language: String = "zh") async throws -> String {
-    let boundary = "Boundary-\(UUID().uuidString)"
-    let payload = Self.buildChatGPTDictationMultipartBody(
-      audioData: audioWavData,
-      language: language,
-      boundary: boundary
-    )
-
-    for attempt in 0..<2 {
-      let forceRefresh = attempt > 0
-      let credential = try await loginCredentialProvider(forceRefresh)
-      try Task.checkCancellation()
-
-      var request = URLRequest(url: endpoint)
-      request.httpMethod = "POST"
-      request.timeoutInterval = requestTimeout
-      request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-      request.setValue("application/json", forHTTPHeaderField: "Accept")
-      request.setValue("Owltype/2.4.1", forHTTPHeaderField: "User-Agent")
-      request.setValue("https://chatgpt.com", forHTTPHeaderField: "Origin")
-      request.setValue("https://chatgpt.com/", forHTTPHeaderField: "Referer")
-      var currentToken = ""
-      credential.withBearerRouting { token, accountId in
-        currentToken = token
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-        request.setValue(accountId, forHTTPHeaderField: "ChatGPT-Account-Id")
-      }
-      request.httpBody = payload
-
-      let (data, response) = try await transport.send(request)
-      try Task.checkCancellation()
-
-      guard let httpResponse = response as? HTTPURLResponse else {
-        throw OwlVoiceError.badHTTPStatus(status: 0, message: "非 HTTP 协议响应")
-      }
-
-      let code = httpResponse.statusCode
-      if code == 401 {
-        if attempt == 0 {
-          continue
-        }
-        OwlVoiceOpenAILoginInspector.clearCachedCredential()
-        let parsedMessage = Self.parseErrorMessage(from: data, removing: currentToken)
-          ?? "ChatGPT 登录已失效。请在终端运行 codex login 重新登录。"
-        throw OwlVoiceError.invalidToken(status: 401, message: parsedMessage)
-      }
-
-      if code == 403 {
-        let parsedMessage = Self.parseErrorMessage(from: data, removing: currentToken)
-          ?? "ChatGPT 拒绝了听写请求（HTTP 403）：账号可能受限，或接口已调整。"
-        throw OwlVoiceError.invalidToken(status: 403, message: parsedMessage)
-      }
-
-      if code == 429 {
-        let parsedMessage = Self.parseErrorMessage(from: data, removing: currentToken)
-          ?? "ChatGPT 听写请求过多（HTTP 429），请稍后再试。"
-        throw OwlVoiceError.badHTTPStatus(status: 429, message: parsedMessage)
-      }
-
-      if (300..<400).contains(code) || code == 404 || code == 405 || code == 410 {
-        throw OwlVoiceError.badHTTPStatus(
-          status: code,
-          message: "ChatGPT 听写接口返回异常，可能已调整，暂不可用。"
-        )
-      }
-
-      if code != 200 {
-        let parsedMessage = Self.parseErrorMessage(from: data, removing: currentToken)
-          ?? ((500..<600).contains(code)
-            ? "ChatGPT 听写服务暂时不可用（HTTP \(code)），请稍后再试。"
-            : "ChatGPT 听写请求失败（HTTP \(code)）。")
-        throw OwlVoiceError.badHTTPStatus(status: code, message: parsedMessage)
-      }
-
-      return try Self.decodeRawOpenAITranscript(from: data)
-    }
-
-    OwlVoiceOpenAILoginInspector.clearCachedCredential()
-    throw OwlVoiceError.invalidToken(status: 401, message: "ChatGPT 登录已失效。请在终端运行 codex login 重新登录。")
-  }
-
   // MARK: - Pure Boundary Builders & Parsers
 
   public static func buildMultipartBody(
@@ -297,22 +179,6 @@ public final class OwlVoiceGrokASRClient: OwlVoiceASRServiceProtocol, @unchecked
     body.append(Data("\r\n".utf8))
 
     // Closing boundary
-    body.append(Data("--\(boundary)--\r\n".utf8))
-    return body
-  }
-
-  public static func buildChatGPTDictationMultipartBody(
-    audioData: Data,
-    language: String = "zh",
-    boundary: String
-  ) -> Data {
-    var body = Data()
-    body.append(Data("--\(boundary)\r\n".utf8))
-    body.append(Data("Content-Disposition: form-data; name=\"file\"; filename=\"dictation.wav\"\r\n".utf8))
-    body.append(Data("Content-Type: audio/wav\r\n\r\n".utf8))
-    body.append(audioData)
-    body.append(Data("\r\n--\(boundary)\r\n".utf8))
-    body.append(Data("Content-Disposition: form-data; name=\"language\"\r\n\r\n\(language)\r\n".utf8))
     body.append(Data("--\(boundary)--\r\n".utf8))
     return body
   }
@@ -362,9 +228,6 @@ public final class OwlVoiceGrokASRClient: OwlVoiceASRServiceProtocol, @unchecked
   }
 
   public static func decodeTranscript(from data: Data, isGeminiGenerateContent: Bool) throws -> String {
-    struct OpenAIResponseDTO: Decodable {
-      let text: String
-    }
     struct GeminiResponseDTO: Decodable {
       struct Candidate: Decodable {
         struct Content: Decodable {

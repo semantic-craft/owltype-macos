@@ -7,28 +7,27 @@ final class OwlTemplateEditorModel: ObservableObject {
   @Published var draft = OwlTemplateEntry()
   @Published var status = ""
   @Published var canEdit = true
-  @Published var lastBackupURL: URL?
   @Published private(set) var automaticEnabled: Bool
   @Published private(set) var disabledBundleIDs: [String]
   private let defaults: UserDefaults
   private let automaticRuntime: OwlAutomaticExpansionRuntime
-  let writer: OwlConfigWriter
+  let dataDir: URL
   private let write: (OwlTemplateLibrary, OwlTemplateLibrary) throws -> Void
 
-  init(writer: OwlConfigWriter = OwlConfigWriter(), defaults: UserDefaults = OwlDefaults.standard,
+  init(dataDir: URL = OwlApp.userDir, defaults: UserDefaults = OwlDefaults.standard,
        automaticRuntime: OwlAutomaticExpansionRuntime = .shared,
        write: ((OwlTemplateLibrary, OwlTemplateLibrary) throws -> Void)? = nil) {
-    self.writer = writer
+    self.dataDir = dataDir
     self.defaults = defaults
     self.automaticRuntime = automaticRuntime
     automaticEnabled = defaults.bool(forKey: OwlAutomaticExpansionRuntime.enabledKey)
     disabledBundleIDs = defaults.stringArray(forKey: OwlAutomaticExpansionRuntime.disabledBundleIDsKey) ?? []
-    self.write = write ?? { try OwlTemplateStore.save($0, writer: writer, expectedLibrary: $1) }
+    self.write = write ?? { try OwlTemplateStore.save($0, dataDir: dataDir, expectedLibrary: $1) }
   }
 
   func reload() {
     do {
-      library = try OwlTemplateBackup(dataDir: writer.dataDir).currentLibrary()
+      library = try OwlTemplateStore.load(dataDir: dataDir)
       canEdit = true
       status = ""
     } catch {
@@ -48,7 +47,7 @@ final class OwlTemplateEditorModel: ObservableObject {
   }
 
   func reloadAutomaticConfiguration() {
-    do { try automaticRuntime.reload(dataDir: writer.dataDir, defaults: defaults) }
+    do { try automaticRuntime.reload(dataDir: dataDir, defaults: defaults) }
     catch { status = "自动展开暂不可用：" + error.localizedDescription }
   }
 
@@ -61,7 +60,7 @@ final class OwlTemplateEditorModel: ObservableObject {
   @discardableResult
   func addDisabledBundleID(_ text: String) -> Bool {
     do {
-      disabledBundleIDs = try OwlStorageHost(dataDir: writer.dataDir).call("editor_disabled_apps", ["values": disabledBundleIDs, "text": text, "remove": false])
+      disabledBundleIDs = try OwlStorageHost(dataDir: dataDir).call("editor_disabled_apps", ["values": disabledBundleIDs, "text": text, "remove": false])
       defaults.set(disabledBundleIDs, forKey: OwlAutomaticExpansionRuntime.disabledBundleIDsKey)
       reloadAutomaticConfiguration()
       return true
@@ -80,7 +79,7 @@ final class OwlTemplateEditorModel: ObservableObject {
     struct Result: Decodable { let draft: OwlTemplateEntry; let status: String? }
     var args = values; args["action"] = action; args["draft"] = OwlAppCore.payload(draft)
     do {
-      let result: Result = try OwlStorageHost(dataDir: writer.dataDir).call("editor_edit", args)
+      let result: Result = try OwlStorageHost(dataDir: dataDir).call("editor_edit", args)
       draft = result.draft
       if let message = result.status { status = message }
       return true
@@ -95,24 +94,15 @@ final class OwlTemplateEditorModel: ObservableObject {
 
   func delete(_ entry: OwlTemplateEntry) -> Bool {
     do {
-      let outcome = try OwlTemplateBackup(dataDir: writer.dataDir).delete(id: entry.id, expected: library)
-      library = outcome.library; lastBackupURL = outcome.backupURL
+      library = try OwlTemplateStore.delete(id: entry.id, expected: library, dataDir: dataDir)
       if draft.id == entry.id { newDraft(category: entry.category) }
-      status = "已删除，完整库备份已保留，可从备份恢复。"
+      status = "已删除。"
       return true
     } catch { status = error.localizedDescription; return false }
   }
 
-  func restore(_ preview: OwlTemplateBackup.Preview) throws {
-    let outcome = try OwlTemplateBackup(dataDir: writer.dataDir).restore(preview)
-    library = outcome.library; lastBackupURL = outcome.backupURL
-    if let updated = library.entries.first(where: { $0.id == draft.id }) { draft = updated }
-    status = "恢复完成，当前库其他条目已保留。候选调用在重新部署后生效。"
-  }
-
   func importRaycast(_ preview: OwlRaycastImport.Preview) throws {
-    let outcome = try OwlRaycastImport(dataDir: writer.dataDir).commit(preview)
-    library = outcome.library; lastBackupURL = outcome.backupURL
+    library = try OwlRaycastImport(dataDir: dataDir).commit(preview)
     if let first = preview.selectedIndices.first, let entry = preview.rows[first].entry { draft = entry }
     status = "已导入 \(preview.selectedCount) 项（待处理 \(preview.pendingCount) 项）。默认仅搜索，未启用自动展开。"
   }
@@ -155,7 +145,7 @@ final class OwlTemplateEditorModel: ObservableObject {
     guard canEdit else { return false }
     struct Result: Decodable { let draft: OwlTemplateEntry; let library: OwlTemplateLibrary; let status: String }
     do {
-      let result: Result = try OwlStorageHost(dataDir: writer.dataDir).call("editor_save", ["draft": OwlAppCore.payload(draft), "library": OwlAppCore.payload(library)])
+      let result: Result = try OwlStorageHost(dataDir: dataDir).call("editor_save", ["draft": OwlAppCore.payload(draft), "library": OwlAppCore.payload(library)])
       try write(result.library, library)
       library = result.library; draft = result.draft; status = result.status
       return true
@@ -178,7 +168,6 @@ struct OwlTemplatePage: View {
   @State private var disabledBundleIDInput = ""
   @State private var filePanelHost = OwlTemplateFilePanelHost()
   @State private var importPreview: OwlRaycastImport.Preview?
-  @State private var restorePreview: OwlTemplateBackup.Preview?
   @State private var deletion: OwlTemplateEntry?
   @State private var showingDelete = false
   @State private var pendingAction: (() -> Void)?
@@ -192,11 +181,11 @@ struct OwlTemplatePage: View {
   @State private var diagnosticSelection: NSRange?
 
   init(palette: OwlCandidatePalette, promptOnly: Bool = false,
-       writer: OwlConfigWriter = OwlConfigWriter(), onRedeploy: (() -> Void)? = nil) {
+       dataDir: URL = OwlApp.userDir, onRedeploy: (() -> Void)? = nil) {
     self.palette = palette
     _promptOnly = State(initialValue: promptOnly)
     self.onRedeploy = onRedeploy
-    _model = StateObject(wrappedValue: OwlTemplateEditorModel(writer: writer))
+    _model = StateObject(wrappedValue: OwlTemplateEditorModel(dataDir: dataDir))
   }
 
   private var entries: [OwlTemplateEntry] {
@@ -266,16 +255,13 @@ struct OwlTemplatePage: View {
     }
     .alert("删除这个模板？", isPresented: $showingDelete, presenting: deletion) { entry in
       Button("取消", role: .cancel) { deletion = nil }
-      Button("备份并删除", role: .destructive) { if model.delete(entry) { onRedeploy?() }; deletion = nil }
+      Button("删除", role: .destructive) { if model.delete(entry) { onRedeploy?() }; deletion = nil }
     } message: { entry in
       Text(entry.title + " · " + String(entry.id.uuidString.prefix(8)) + "\n" + (entry.trigger ?? "仅搜索") +
-        " · " + entry.tags.joined(separator: "、") + "\n" + String(entry.body.prefix(160)) + "\n删除前会备份整个已保存库。")
+        " · " + entry.tags.joined(separator: "、") + "\n" + String(entry.body.prefix(160)))
     }
     .sheet(item: $importPreview) { preview in
       OwlRaycastImportView(preview: preview) { selection in try model.importRaycast(selection); onRedeploy?() }
-    }
-    .sheet(item: $restorePreview) { preview in
-      OwlTemplateRestoreView(preview: preview) { selection in try model.restore(selection); onRedeploy?() }
     }
   }
 
@@ -292,13 +278,8 @@ struct OwlTemplatePage: View {
       automaticSettings
       Button("导入 Raycast JSON…") { withSavedDraft { chooseRaycastImport() } }
         .disabled(!model.canEdit).accessibilityIdentifier("template-import-raycast")
-      Menu("导出与恢复") {
-        Button("导出完整原生备份…", action: exportBackup)
-        Button("从原生备份恢复…") { withSavedDraft { chooseRestore() } }
-        Button("打开本地备份文件夹") {
-          NSWorkspace.shared.open(model.writer.dataDir.appendingPathComponent(".owl-backup"))
-        }
-      }.disabled(!model.canEdit)
+      Button("导出模板库 JSON…", action: exportBackup)
+        .disabled(!model.canEdit)
       if entries.isEmpty { Text(model.library.entries.isEmpty ? "尚无模板" : "无匹配条目").font(.caption).foregroundStyle(.secondary) }
       ScrollView {
         LazyVStack(alignment: .leading, spacing: 8) {
@@ -562,9 +543,6 @@ struct OwlTemplatePage: View {
           .buttonStyle(OwlTemplateSecondaryButtonStyle(palette: palette))
         Spacer()
       }
-      if let backupURL = model.lastBackupURL {
-        Button("查看本次操作前的备份") { NSWorkspace.shared.activateFileViewerSelecting([backupURL]) }.font(.caption)
-      }
       if !model.status.isEmpty { Text(model.status).font(.caption).foregroundStyle(palette.ink2).fixedSize(horizontal: false, vertical: true) }
     }
   }
@@ -588,8 +566,12 @@ struct OwlTemplatePage: View {
     panel.message = "导出整个已保存库（包含所有标签和参数）；未保存草稿不包含在内。"
     presentFilePanel(panel) { [weak model] url in
       guard let model else { return }
-      do { try OwlTemplateBackup(dataDir: model.writer.dataDir).export(to: url); model.status = "完整原生备份已导出。" }
-      catch { model.status = error.localizedDescription }
+      do {
+        var bytes = try OwlTemplateStore.encoded(model.library)
+        bytes.append(0x0A)
+        try bytes.write(to: url, options: .atomic)
+        model.status = "模板库 JSON 已导出。"
+      } catch { model.status = error.localizedDescription }
     }
   }
 
@@ -599,17 +581,7 @@ struct OwlTemplatePage: View {
     panel.message = "选择 Raycast 基础 JSON；下一步预览并选择要导入的条目。"
     presentFilePanel(panel) { [weak model] url in
       guard let model else { return }
-      do { importPreview = try OwlRaycastImport(dataDir: model.writer.dataDir).preview(data: Data(contentsOf: url)) }
-      catch { model.status = error.localizedDescription }
-    }
-  }
-
-  private func chooseRestore() {
-    let panel = NSOpenPanel()
-    panel.allowedContentTypes = [.json]; panel.allowsMultipleSelection = false; panel.canChooseDirectories = false
-    presentFilePanel(panel) { [weak model] url in
-      guard let model else { return }
-      do { restorePreview = try OwlTemplateBackup(dataDir: model.writer.dataDir).preview(data: Data(contentsOf: url)) }
+      do { importPreview = try OwlRaycastImport(dataDir: model.dataDir).preview(data: Data(contentsOf: url)) }
       catch { model.status = error.localizedDescription }
     }
   }

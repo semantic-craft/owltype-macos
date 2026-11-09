@@ -257,7 +257,6 @@ final class OwlSettingsState {
   /// AI 对话面板 (mirror of `OwlAIWritingSettings.isEnabled`). Default false.
   var aiWritingPanelEnabled: Bool = OwlAIWritingSettings.isEnabled
   /// 划词菜单总开关 + 划词工具箱页内置技能 mirrors.
-  var jevReplySkillEnabled = OwlSelectionMenuPreferences.jevReplyEnabled
   var selectionMenuEnabled: Bool = OwlSelectionMenuPreferences.isEnabled
   var askAnythingSkillEnabled: Bool = OwlSelectionMenuPreferences.askEnabled
   var polishSkillEnabled: Bool = OwlSelectionMenuPreferences.polishEnabled
@@ -278,12 +277,6 @@ final class OwlSettingsState {
 // （OwlSkillPolishVariantsEnabled）、润色·仿我的范例（OwlSkillPolishStyleMatchEnabled）、
 // 结构化·加标签（OwlSkillPromptStructureEnabled）四个技能已删；旧偏好键成死数据，不迁移不解码。
 enum OwlSelectionMenuPreferences {
-  static let jevReplyEnabledKey = "OwlSkillJEVReplyEnabled"
-  static var jevReplyEnabled: Bool {
-    get { bool(jevReplyEnabledKey, default: false) }
-    set { OwlDefaults.standard.set(newValue, forKey: jevReplyEnabledKey) }
-  }
-
   static let enabledKey = "OwlSelectionMenuEnabled"
   static let askEnabledKey = "OwlSkillAskAnythingEnabled"
   static let polishEnabledKey = "OwlSkillPolishEnabled"
@@ -342,7 +335,6 @@ enum OwlSelectionMenuPreferences {
   }
 
   static func resetForTesting() {
-    OwlDefaults.standard.removeObject(forKey: jevReplyEnabledKey)
     OwlDefaults.standard.removeObject(forKey: enabledKey)
     OwlDefaults.standard.removeObject(forKey: askEnabledKey)
     OwlDefaults.standard.removeObject(forKey: polishEnabledKey)
@@ -358,37 +350,6 @@ enum OwlSelectionMenuPreferences {
     guard OwlDefaults.standard.object(forKey: key) != nil else { return defaultValue }
     return OwlDefaults.standard.bool(forKey: key)
   }
-}
-
-struct OwlSyncSettings {
-  let dataDir: URL
-
-  init(dataDir: URL = OwlApp.userDir) {
-    self.dataDir = dataDir
-  }
-
-  var installationURL: URL {
-    dataDir.appendingPathComponent("installation.yaml")
-  }
-
-  func currentSyncDirectory() -> URL {
-    guard let text = try? String(contentsOf: installationURL, encoding: .utf8),
-          let raw = Self.topLevelValue("sync_dir", in: text),
-          !raw.isEmpty else {
-      return dataDir.appendingPathComponent("sync", isDirectory: true)
-    }
-    return URL(
-      fileURLWithPath: (raw as NSString).expandingTildeInPath,
-      isDirectory: true
-    ).standardizedFileURL
-  }
-
-  static func topLevelValue(_ key: String, in text: String) -> String? {
-    struct Result: Decodable { let value: String? }
-    let result: Result = OwlTemplateStore.core("writer_top_level", ["key": key, "text": text])
-    return result.value
-  }
-
 }
 
 enum OwlSettingsActions {
@@ -471,27 +432,6 @@ enum OwlSettingsActions {
     state.keyboardAppEnglishBundleIDsText = text
     OwlKeyboardPreferences.appEnglishBundleIDs =
       OwlKeyboardPreferences.normalizedAppEnglishBundleIDs(from: text)
-  }
-
-  static func saveQuickSendEntry(
-    phrase: String,
-    code: String,
-    editingCode: String?,
-    entries: [OwlQuickSendEntry],
-    persist: ([OwlQuickSendEntry]) throws -> ([OwlQuickSendEntry], Bool)
-  ) throws -> (entries: [OwlQuickSendEntry], phrase: String, code: String, editingCode: String?, status: String) {
-    let next: [OwlQuickSendEntry] = try OwlAppCore.call(["operation": "quick_edit", "entry": OwlAppCore.payload(OwlQuickSendEntry(text: phrase, code: code)), "entries": OwlAppCore.payload(entries), "editing": editingCode as Any? ?? NSNull(), "delete": false])
-    let persisted = try persist(next)
-    let result: QuickSendResult = OwlTemplateStore.core("quick_edit_result", ["applied": persisted.1, "delete": false])
-    return (persisted.0, "", "", nil, result.status)
-  }
-  private struct QuickSendResult: Decodable { let clear: Bool; let editing: String?; let status: String }
-  static func deleteQuickSendEntry(_ entry: OwlQuickSendEntry, editingCode: String?, entries: [OwlQuickSendEntry],
-    persist: ([OwlQuickSendEntry]) throws -> ([OwlQuickSendEntry], Bool)) throws -> (entries: [OwlQuickSendEntry], phrase: String?, code: String?, editingCode: String?, status: String) {
-    let next: [OwlQuickSendEntry] = try OwlAppCore.call(["operation": "quick_edit", "entry": OwlAppCore.payload(entry), "entries": OwlAppCore.payload(entries), "editing": editingCode as Any? ?? NSNull(), "delete": true])
-    let persisted = try persist(next)
-    let result: QuickSendResult = OwlTemplateStore.core("quick_edit_result", ["applied": persisted.1, "delete": true, "editing": editingCode as Any? ?? NSNull(), "code": entry.code])
-    return (persisted.0, result.clear ? "" : nil, result.clear ? "" : nil, result.editing, result.status)
   }
 
   static func setClipboardEnabled(_ value: Bool, write: (Bool) -> Void) -> String {

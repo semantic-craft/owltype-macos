@@ -286,7 +286,6 @@ final class OwlModernUISmokeTests: XCTestCase {
       onApplyKeyboardConfigFast: { .init(written: [], succeeded: true) },
       onApplyFuzzyConfigFast: { .init(written: [], succeeded: true) },
       userDataActions: .init(
-        migrateLegacy: {},
         resetUserDict: {}
       ),
       onOpenDataFolder: {},
@@ -305,7 +304,6 @@ final class OwlModernUISmokeTests: XCTestCase {
       onApplyKeyboardConfigFast: { .init(written: [], succeeded: true) },
       onApplyFuzzyConfigFast: { .init(written: [], succeeded: true) },
       userDataActions: .init(
-        migrateLegacy: {},
         resetUserDict: {}
       ),
       onOpenDataFolder: {},
@@ -398,17 +396,6 @@ final class OwlModernUISmokeTests: XCTestCase {
     XCTAssertEqual(OwlInputMenuTitles.emoji, "表情符号…")
     XCTAssertEqual(OwlInputMenuTitles.quickSend, "快捷片段…")
     XCTAssertEqual(OwlInputMenuTitles.deploy, "应用配置改动")
-  }
-
-  func testWritePreviewReportsDeployFailureAfterSuccessfulWrite() {
-    let status = OwlWritePreviewSheet.applyStatusMessage(
-      written: ["default.custom.yaml"],
-      deploySucceeded: false
-    )
-
-    XCTAssertTrue(status.contains("已写入 default.custom.yaml"))
-    XCTAssertTrue(status.contains("应用配置失败"))
-    XCTAssertFalse(status.contains("已写入并应用配置"))
   }
 
   func testAboutPageFormatsVersionAndBuildIdentity() {
@@ -546,13 +533,6 @@ final class OwlCandidateDisplayTests: XCTestCase {
     XCTAssertEqual(OwlKeyboardPreferences.pageSize, 9)
     OwlKeyboardPreferences.pageSize = 1                      // clamp low
     XCTAssertEqual(OwlKeyboardPreferences.pageSize, 3)
-  }
-
-  func testKeyboardPatchEmitsConfiguredPageSize() {
-    OwlKeyboardPreferences.pageSize = 6
-    let yaml = owlDefaultCustomYAML(from: OwlKeyboardSnapshot.current())
-    XCTAssertTrue(yaml.contains("\"menu/page_size\": 6"), "patch must carry the chosen 候选个数")
-    XCTAssertFalse(yaml.contains("\"menu/page_size\": 8"), "no stale hardcoded 8")
   }
 
   func testCandidatePageSizeApplyStatusReportsDeployFailureAsNotEffective() {

@@ -2,7 +2,6 @@
 //! no AppKit, IMK or credential dependencies.
 
 pub mod keyboard;
-pub mod keyboard_export;
 pub mod template;
 
 /// Existing per-application initial input mode; preferences are supplied by the host.
@@ -63,17 +62,12 @@ mod tests {
     }
 }
 
-pub mod config_writer;
 pub mod foundation_text;
 pub mod picker;
-pub mod prompt_store;
-pub mod quick_send;
 pub mod storage;
-pub mod template_backup;
 pub mod template_editor;
 pub mod template_import;
 pub mod template_library;
-pub mod template_migration;
 pub mod template_transaction;
 
 pub mod template_session;
@@ -94,15 +88,7 @@ pub mod ai_selection;
 
 pub mod user_data;
 
-pub mod user_migration;
-
-pub mod resource;
-
-pub mod resource_contract;
-
 pub mod resource_catalog;
-
-pub mod resource_lifecycle;
 
 pub mod client_capability;
 

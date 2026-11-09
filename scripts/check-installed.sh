@@ -93,27 +93,6 @@ python3 "$ROOT/scripts/fetch-rerank-models.py" --check \
   --out "$APP/Contents/SharedSupport/msime/models"
 pass_clean "installed app rerank models and notices match the lock"
 
-# 五笔/简体拼音/小鹤双拼不进包是方案B的设计，但必须由 dictpack 清单兜住——清单一旦漏项，
-# 新用户首启拉不到这些方案，而包里也没有，等于永久缺失（本机看不出来：老用户目录有历史文件垫着）。
-DICTPACK_MANIFEST="$ROOT/sources/DictPack/OwlDictPackManifestData.swift"
-if [[ -f "$DICTPACK_MANIFEST" ]]; then
-  for dest in \
-    "wubi86_jidian.schema.yaml" \
-    "wubi86_jidian.dict.yaml" \
-    "wubi86_jidian_pinyin.schema.yaml" \
-    "wubi86_jidian_trad.schema.yaml" \
-    "wubi86_jidian_trad_pinyin.schema.yaml" \
-    "pinyin_simp.schema.yaml" \
-    "pinyin_simp.dict.yaml" \
-    "double_pinyin_flypy.schema.yaml"
-  do
-    grep -q "dest: \"$dest\"" "$DICTPACK_MANIFEST" || fail "dictpack manifest does not cover $dest"
-  done
-  pass_clean "dictpack manifest covers 极点五笔全套/简体拼音/小鹤双拼"
-else
-  fail "dictpack manifest not found: $DICTPACK_MANIFEST"
-fi
-
 run_tis_probe() {
   /usr/bin/swift - <<'SWIFT'
 import Carbon

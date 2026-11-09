@@ -41,7 +41,7 @@ python3 scripts/verify.py navigation
 python3 scripts/verify.py workflow
 python3 scripts/verify.py distribution
 python3 scripts/verify.py swift --test OwlKeyboardSettingsApplicationTests
-python3 scripts/verify.py swift --test OwlInputHabitsIntegrationTests --test EngineSeamTests
+python3 scripts/verify.py swift --test OwlInputHabitsIntegrationTests --test EngineRuntimeTests
 ```
 
 `navigation` checks maintained references and their regression tests. `workflow`

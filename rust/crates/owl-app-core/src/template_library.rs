@@ -6,9 +6,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
 pub const FILE: &str = "owl_templates.json";
-pub const DICT: &str = "owl_templates.txt";
-pub const STATE: &str = "owl_templates_state.json";
-pub const MARKER: &str = "OWL MANAGED TEMPLATES RIME_ICE PATCH v1";
 pub fn nfc(s: &str) -> String {
     icu_normalizer::ComposingNormalizer::new_nfc()
         .normalize(s)
@@ -59,13 +56,6 @@ impl Parameter {
             ranges: vec![],
         }
     }
-}
-#[derive(Clone, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
-pub struct MigrationSource {
-    pub source_file: String,
-    pub record: usize,
-    pub original_code: String,
 }
 #[derive(Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -132,8 +122,6 @@ pub struct Entry {
     pub invocation_mode: Invocation,
     pub expansion_mode: Expansion,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub migration_source: Option<MigrationSource>,
-    #[serde(skip_serializing_if = "Option::is_none")]
     pub import_source: Option<ImportSource>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub review_state: Option<Review>,
@@ -156,7 +144,6 @@ impl Entry {
             parameters: vec![],
             invocation_mode: Invocation::SearchOnly,
             expansion_mode: Expansion::DelimiterDrop,
-            migration_source: None,
             import_source: None,
             review_state: None,
             exposed_to_agents: None,
@@ -395,59 +382,11 @@ pub fn projection<H: Host>(host: &mut H, library: &Library) -> Result<String> {
     }
     Ok(output)
 }
-pub fn patch_lines() -> Vec<String> {
-    [
-        "  \"engine/translators/+\":",
-        "    - table_translator@owl_templates",
-        "  owl_templates:",
-        "    dictionary: \"\"",
-        "    user_dict: owl_templates",
-        "    db_class: stabledb",
-        "    enable_completion: false",
-        "    enable_sentence: false",
-        "    initial_quality: 99",
-    ]
-    .iter()
-    .map(|v| v.to_string())
-    .collect()
-}
-pub fn prepare_writes<H: Host>(host: &mut H, library: &Library) -> Result<Vec<PreparedWrite>> {
-    validate(library)?;
-    let yaml = text(host, "rime_ice.custom.yaml")?.unwrap_or("patch:\n".into());
-    let yaml = crate::keyboard_export::render_managed(&yaml, MARKER, &patch_lines())
-        .ok_or("invalid_patch")?;
-    Ok(vec![
-        PreparedWrite {
-            file_name: FILE.into(),
-            contents: String::from_utf8(encoded(library)?).unwrap() + "\n",
-            marker: "OWL MANAGED TEMPLATES JSON v1".into(),
-        },
-        PreparedWrite {
-            file_name: DICT.into(),
-            contents: projection(host, library)?,
-            marker: "OWL MANAGED TEMPLATES DICT v1".into(),
-        },
-        PreparedWrite {
-            file_name: "rime_ice.custom.yaml".into(),
-            contents: yaml,
-            marker: MARKER.into(),
-        },
-        PreparedWrite {
-            file_name: STATE.into(),
-            contents: "{\"formatVersion\":1,\"committed\":true}\n".into(),
-            marker: "OWL MANAGED TEMPLATES STATE v1".into(),
-        },
-    ])
-}
 pub fn search_text(e: &Entry) -> String {
     let mut parts = vec![
         e.title.clone(),
         e.body.clone(),
         e.trigger.clone().unwrap_or_default(),
-        e.migration_source
-            .as_ref()
-            .map(|s| s.original_code.clone())
-            .unwrap_or_default(),
         e.import_source
             .as_ref()
             .and_then(|s| s.original_keyword.clone())
@@ -577,36 +516,12 @@ pub fn dispatch<H: Host>(host: &mut H, operation: &str, args: Value) -> Result<V
             tx::save(host, &library()?, expected.as_ref())?;
             Ok(json!(true))
         }
-        "library_prepare_writes" => Ok(json!(prepare_writes(host, &library()?)?)),
-        "library_batch" => locked(host, |host| {
-            let writes: Vec<PreparedWrite> = decode(args["writes"].clone())?;
-            let timestamp = args["timestamp"]
-                .as_str()
-                .map(str::to_owned)
-                .unwrap_or(format!("templates-{}", uuid(host)?));
-            tx::batch(
-                host,
-                &writes,
-                &library()?,
-                &timestamp,
-                args["restore"].as_bool().unwrap_or(true),
-                None,
-                &[],
-            )?;
-            Ok(json!(true))
-        }),
-        "library_conflicts" => Ok(json!(conflicts(&entries()?))),
-        "transaction_pending" => Ok(json!(tx::pending(host))),
-        "transaction_recover" => Ok(json!(tx::recover(host)?)),
-        "transaction_commit_library" => {
-            let expected = decode(args["expected"].clone())?;
-            Ok(json!(tx::commit_library(
-                host,
-                &library()?,
-                &expected,
-                args["prepareOnly"].as_bool().unwrap_or(false)
-            )?))
+        "library_delete" => {
+            let id = args["id"].as_str().ok_or("invalid_payload")?;
+            let expected: Library = decode(args["expected"].clone())?;
+            Ok(json!(tx::delete(host, id, &expected)?))
         }
+        "library_conflicts" => Ok(json!(conflicts(&entries()?))),
         "library_current" => Ok(json!(tx::current(host)?)),
         _ => Err("unknown_operation".into()),
     }

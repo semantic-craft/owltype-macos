@@ -125,7 +125,7 @@ final class OwlSelectionPolishService {
 
   init(
     gateway: OwlLLMGateway = OwlLLMGateway(),
-    apiKeyProvider: @escaping () throws -> String? = OwlCloudKeychain.readDeepSeekAPIKey,
+    apiKeyProvider: @escaping () throws -> String? = { nil },
     profileProvider: @escaping () -> OwlProviderProfile? = { OwlProviderProfileStore.shared.defaultProfile },
     profileSecretProvider: @escaping (String) throws -> String? = { try OwlProviderKeychain().secret(named: $0) }
   ) {
@@ -243,7 +243,7 @@ final class OwlSourceVerificationService {
     },
     profileProvider: @escaping () -> OwlProviderProfile? = { OwlProviderProfileStore.shared.defaultProfile },
     profileSecretProvider: @escaping (String) throws -> String? = { try OwlProviderKeychain().secret(named: $0) },
-    legacyKeyProvider: @escaping () throws -> String? = OwlCloudKeychain.readDeepSeekAPIKey,
+    legacyKeyProvider: @escaping () throws -> String? = { nil },
     transport: OwlAskAnythingTransporting? = nil
   ) {
     self.searchClient = searchClient

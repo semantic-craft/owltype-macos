@@ -3,10 +3,8 @@ use crate::template_library::{automatic_index, AutomaticNode, Entry, Expansion};
 use serde_json::{json, Value};
 
 pub enum Session {
-    ResourceCenter(crate::resource_lifecycle::Center),
-    ResourceModels(crate::resource_lifecycle::Models),
     Pins(crate::user_data::Pins),
-    TextInserter(crate::ai_selection::Inserter),
+    TextInserter(crate::host_delivery::Inserter),
     SelectionGesture(crate::ai_selection::Gesture),
     SelectionRewrite(crate::ai_selection::Rewrite),
     Verification(crate::ai_business::Verification),
@@ -29,8 +27,6 @@ pub enum Session {
 impl Session {
     pub fn create(kind: &str, args: Value) -> Result<Self, String> {
         match kind {
-            "resourceCenter" => Ok(Self::ResourceCenter(Default::default())),
-            "resourceModels" => Ok(Self::ResourceModels(Default::default())),
             "pins" => Ok(Self::Pins(crate::user_data::Pins::new(args))),
             "textInserter" => Ok(Self::TextInserter(Default::default())),
             "selectionGesture" => Ok(Self::SelectionGesture(Default::default())),
@@ -84,8 +80,6 @@ impl Session {
         index: Option<&Session>,
     ) -> Result<Value, String> {
         match self {
-            Self::ResourceCenter(center) => center.event(event, args),
-            Self::ResourceModels(models) => models.event(event, args),
             Self::Pins(pins) => pins.event(event, args),
             Self::TextInserter(state) => state.event(event, args),
             Self::SelectionGesture(state) => state.event(event, args),

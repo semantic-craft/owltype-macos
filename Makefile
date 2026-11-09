@@ -17,6 +17,7 @@ RELEASE_APP = $(RELEASE_OUTPUT_ROOT)/Build/Products/Release/Owltype.app
 RELEASE_OUTPUT_ROOT_ABSOLUTE = $(shell python3 -c 'import os, sys; print(os.path.abspath(sys.argv[1]))' "$(RELEASE_OUTPUT_ROOT)")
 NOTARY_PROFILE ?= owltype-notary
 
+# Unified single Rust FFI staticlib (msime + owl-app-core)
 RUST_FFI_LIBRARY = lib/libowl_msime_ffi.a
 
 SPARKLE_FRAMEWORK = Frameworks/Sparkle.framework

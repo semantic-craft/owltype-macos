@@ -8,7 +8,6 @@ members = [
     "crates/owl-msime-ffi",
     "crates/owl-agent-mcp",
     "crates/owl-app-core",
-    "crates/owl-app-ffi",
 ]
 resolver = "2"
 

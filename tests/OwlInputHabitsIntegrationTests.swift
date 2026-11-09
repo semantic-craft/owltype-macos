@@ -504,7 +504,7 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
   func testControllerRoundTrip() throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("owl-habits-integration-\(UUID())")
     let shared = try XCTUnwrap(Bundle.main.sharedSupportURL)
-    try FileManager.default.copyItem(at: shared.appendingPathComponent("_user_seed"), to: root)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     defer { try? FileManager.default.removeItem(at: root) }
     let previousUserDir = ProcessInfo.processInfo.environment["OWL_TEST_USER_DIR"]
     setenv("OWL_TEST_USER_DIR", root.path, 1)

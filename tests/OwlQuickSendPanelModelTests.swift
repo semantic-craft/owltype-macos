@@ -24,19 +24,25 @@ final class OwlQuickSendPanelModelTests: XCTestCase {
 
   // MARK: - Store-backed list + navigation
 
+  private func templateEntry(title: String, body: String, trigger: String) -> OwlTemplateEntry {
+    var entry = OwlTemplateEntry(title: title, body: body)
+    entry.trigger = trigger
+    return entry
+  }
+
   func testQuickSendPanelModelBuildsListFromStoreAndNavigates() throws {
     let dir = try makeTempDir()
-    // Legacy dict-only dir (no JSON): text<TAB>code lines, plus a comment line the store must skip.
-    // The migration read normalizes → rows come back sorted by code (fy < pjzy < zg).
-    let file = dir.appendingPathComponent(OwlQuickSendStore.dictFileName)
-    try "# comment\n北京市朝阳区人民法院\tfy\n最高人民法院\tzg\n判决摘要\tpjzy\n"
-      .write(to: file, atomically: true, encoding: .utf8)
+    let entries = [
+      templateEntry(title: "北京市朝阳区人民法院", body: "北京市朝阳区人民法院", trigger: "fy"),
+      templateEntry(title: "判决摘要", body: "判决摘要", trigger: "pjzy"),
+      templateEntry(title: "最高人民法院", body: "最高人民法院", trigger: "zg")
+    ]
+    try OwlTemplateStore.save(OwlTemplateLibrary(entries: entries), dataDir: dir)
 
     var model = OwlPickerPanelModel(
-      rows: OwlQuickSendStore.load(dataDir: dir).map(OwlPickerRow.quickSend)
+      rows: try OwlTemplateStore.load(dataDir: dir).entries.map(OwlPickerRow.template)
     )
     XCTAssertEqual(model.rows.map(\.display), ["北京市朝阳区人民法院", "判决摘要", "最高人民法院"])
-    XCTAssertEqual(model.rows.map(\.id), ["fy", "pjzy", "zg"])
     // First row selected by default → the ⏎ target.
     XCTAssertFalse(model.isEmpty)
     XCTAssertTrue(model.isSelected(0))
@@ -60,9 +66,9 @@ final class OwlQuickSendPanelModelTests: XCTestCase {
   }
 
   func testQuickSendPanelModelEmptyWhenNoFile() throws {
-    let dir = try makeTempDir()  // no owl_quick_send.txt written
+    let dir = try makeTempDir()
     let model = OwlPickerPanelModel(
-      rows: OwlQuickSendStore.load(dataDir: dir).map(OwlPickerRow.quickSend)
+      rows: try OwlTemplateStore.load(dataDir: dir).entries.map(OwlPickerRow.template)
     )
     XCTAssertTrue(model.isEmpty)
     XCTAssertNil(model.selectedRow)
@@ -72,41 +78,37 @@ final class OwlQuickSendPanelModelTests: XCTestCase {
     XCTAssertNil(mutated.selectedRow)
   }
 
-  // MARK: - 快捷短语 → row mapping
+  // MARK: - 模板 → row mapping
 
   func testQuickSendRowMappingBuildsDisplayAndSearchableCode() {
-    let row = OwlPickerRow.quickSend(OwlQuickSendEntry(text: "最高人民法院", code: "zgfy"))
-    XCTAssertEqual(row.id, "zgfy")
-    XCTAssertEqual(row.display, "最高人民法院")           // list shows the phrase
-    XCTAssertTrue(row.searchText.contains("最高人民法院"))  // searchable by phrase…
-    XCTAssertTrue(row.searchText.contains("zgfy"))       // …and by trigger code
+    let entry = templateEntry(title: "最高人民法院", body: "最高人民法院", trigger: "zgfy")
+    let row = OwlPickerRow.template(entry)
+    XCTAssertEqual(row.id, entry.id.uuidString)
+    XCTAssertEqual(row.display, "最高人民法院")
+    XCTAssertTrue(row.searchText.contains("最高人民法院"))
+    XCTAssertTrue(row.searchText.contains("zgfy"))
   }
 
-  // The 提示词 source maps into the SAME picker row: the list shows the (single-line) title, and the
-  // row is searchable by title OR trigger code. The body/variables stay on the source entry, resolved
-  // back by `id` at pick time — so the row deliberately does NOT carry them.
   func testPromptRowMappingShowsTitleAndKeepsIdForBodyLookup() {
-    let entry = OwlPromptEntry(code: "dbz", title: "民事答辩状模板", body: "答辩人：{{当事人}}……")
-    let row = OwlPickerRow.prompt(entry)
-    XCTAssertEqual(row.id, "dbz")                        // id = code → resolves back to the entry
-    XCTAssertEqual(row.display, "民事答辩状模板")           // list shows the title, never the body
-    XCTAssertFalse(row.display.contains("答辩人"))          // body must not leak into the row
-    XCTAssertTrue(row.searchText.contains("民事答辩状模板"))  // searchable by title…
-    XCTAssertTrue(row.searchText.contains("dbz"))          // …and by trigger code
+    var entry = templateEntry(title: "民事答辩状模板", body: "答辩人：{{当事人}}……", trigger: "dbz")
+    entry.bodyType = .template
+    entry.syntax = .legacyDoubleBraces
+    let row = OwlPickerRow.template(entry)
+    XCTAssertEqual(row.id, entry.id.uuidString)
+    XCTAssertEqual(row.display, "民事答辩状模板")
+    XCTAssertFalse(row.display.contains("答辩人"))
+    XCTAssertTrue(row.searchText.contains("民事答辩状模板"))
+    XCTAssertTrue(row.searchText.contains("dbz"))
   }
 
   // MARK: - typed-search filter
 
-  // The typed-search filter is the one part of the panel that IS unit-testable. Filtering is a
-  // case-insensitive substring on the row's `searchText` (phrase text OR trigger code for 快捷短语);
-  // an empty query = the full list; selection / number keys operate on the FILTERED rows and stay
-  // clamped.
   private func quickSendModel() -> OwlPickerPanelModel {
     OwlPickerPanelModel(rows: [
-      OwlQuickSendEntry(text: "北京市朝阳区人民法院", code: "fybj"),
-      OwlQuickSendEntry(text: "最高人民法院", code: "zgfy"),
-      OwlQuickSendEntry(text: "Contract Draft", code: "cd")
-    ].map(OwlPickerRow.quickSend))
+      templateEntry(title: "北京市朝阳区人民法院", body: "北京市朝阳区人民法院", trigger: "fybj"),
+      templateEntry(title: "最高人民法院", body: "最高人民法院", trigger: "zgfy"),
+      templateEntry(title: "Contract Draft", body: "Contract Draft", trigger: "cd")
+    ].map(OwlPickerRow.template))
   }
 
   func testQuickSendModelEmptyQueryShowsAll() {

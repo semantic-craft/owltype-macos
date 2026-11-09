@@ -43,18 +43,6 @@ final class OwlSettingsUITests: XCTestCase {
     add(screenshot)
   }
 
-  func testLegacyUserMigrationEntryIsClickableWithIsolatedUserDir() throws {
-    let app = try launchSettings()
-    defer { app.terminate() }
-    openPage("about", in: app)
-
-    let entry = app.buttons["迁移旧版输入记录…"]
-    XCTAssertTrue(entry.waitForExistence(timeout: 3),
-                  "Legacy migration must remain reachable from settings maintenance")
-    guard entry.exists else { return }
-    entry.click()
-  }
-
   func testSettingsControlsCanBeClickedWithIsolatedUserDir() throws {
     let app = try launchSettings()
 
@@ -133,7 +121,7 @@ final class OwlSettingsUITests: XCTestCase {
 
     openPage("about", in: app)
     // 重置用户词典… 在 UI-test 模式下接的是空闭包（确认弹窗归 delegate），点它只验按钮可命中。
-    tapMany(["应用配置改动", "迁移旧版输入记录…", "重置用户词典…", "打开猫头鹰配置目录…", "查看诊断日志…", "欢迎与引导…"], in: app)
+    tapMany(["应用配置改动", "重置用户词典…", "打开猫头鹰配置目录…", "查看诊断日志…", "欢迎与引导…"], in: app)
   }
 
   func testSnippetCategoryFilterKeepsBothKindsAccessible() throws {
@@ -169,8 +157,6 @@ final class OwlSettingsUITests: XCTestCase {
       }
       try JSONSerialization.data(withJSONObject: ["formatVersion": 1, "entries": entries])
         .write(to: root.appendingPathComponent("owl_templates.json"))
-      try Data(#"{"formatVersion":1,"committed":true}"#.utf8)
-        .write(to: root.appendingPathComponent("owl_templates_state.json"))
     }
 
     let app = XCUIApplication()

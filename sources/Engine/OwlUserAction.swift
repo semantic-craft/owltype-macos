@@ -15,7 +15,7 @@
 //  works on plain value fields (`OwlKeyEvent`) so it is fully unit-testable headless.
 //
 //  IMPORTANT (the task's hard constraint): The engine still owns ALL conversion state
-//  (`EngineComposition` via `EngineSeam`). This is NOT a `OwlInputState` reducer — it only classifies
+//  (`EngineComposition` via `InputEngine`). This is NOT a `OwlInputState` reducer — it only classifies
 //  a single raw key event into the rime keycode/modifier pair(s) the controller must feed
 //  the engine, plus the press/release ORDERING for flagsChanged. State stays in the engine.
 //

@@ -157,30 +157,6 @@ void owl_msime_session_destroy(OwlMsimeSession *session);
  */
 bool owl_msime_engine_finalize(void);
 
-/*
- * Imports one fully prepared Owltype Rime migration into four exact runtime
- * roots. request_id must name an existing
- * <user_data_dir>/.owl-user-migration/<request_id> directory containing the
- * manifest, record stream and prepared marker written by the Swift stager.
- *
- * The caller must stop sessions that use these roots before this call. The
- * four roots and the staged directory are never deleted or rewritten by a
- * failed import. Dictionary and learning-habit changes are rolled back from a
- * database snapshot if either merge fails.
- *
- * Returns a newly allocated UTF-8 JSON report. Success is
- * {"ok":true,...}; failure is {"ok":false,"error":"..."}. Release the result
- * with owl_msime_string_free. A malformed argument or caller invariant returns
- * a failure report rather than NULL whenever the report can be serialized.
- */
-char *owl_msime_user_migration_import(
-    const char *resources_dir,
-    const char *user_data_dir,
-    const char *cache_dir,
-    const char *dictionaries_dir,
-    const char *request_id
-);
-
 char *owl_msime_session_handle_action_json(
     OwlMsimeSession *session,
     const char *action_json
@@ -228,6 +204,22 @@ char *owl_msime_session_poll_settled_rerank_json(
 );
 
 void owl_msime_string_free(char *ptr);
+
+uint32_t owl_app_abi_version(void);
+char *owl_app_call(uint32_t abi_version, const uint8_t *request, size_t length);
+uint8_t owl_app_keyboard_can_apply(uint8_t requires_idle, uint8_t composing);
+uint32_t owl_app_keyboard_schema_idle_action(uint8_t current_matches, uint8_t failed_matches);
+uint32_t owl_app_keyboard_refresh(uint8_t pending, uint8_t composing);
+bool owl_app_marked_text_should_send(const char *prev_ptr, size_t prev_len, const char *next_ptr, size_t next_len);
+
+typedef const char *(*owl_msime_host_callback)(void *context, const char *request);
+char *owl_msime_host_effect_call(uint32_t abi_version, const uint8_t *request, size_t length,
+                                 void *context, owl_msime_host_callback callback);
+
+typedef struct OwlAppSession OwlAppSession;
+OwlAppSession *owl_app_session_new(uint32_t version, const uint8_t *request, size_t length, char **response);
+char *owl_app_session_call(OwlAppSession *session, const uint8_t *request, size_t length, const OwlAppSession *index);
+void owl_app_session_free(OwlAppSession *session);
 
 #ifdef __cplusplus
 }

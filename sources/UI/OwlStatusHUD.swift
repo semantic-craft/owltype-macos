@@ -111,7 +111,7 @@ struct OwlStatusHUDView: View {
 
 /// Non-activating floating panel that hosts the SwiftUI status toast. Created lazily by
 /// the delegate; never steals focus (matches OwlSwiftUICandidatePanel / OwlEmojiPanel).
-final class OwlStatusHUD: NSPanel {
+final class OwlStatusHUD: OwlFloatingPanel {
   /// Auto-dismiss interval (was `OwlTheme.showStatusDuration`; inlined here because
   /// OwlTheme is deleted — SwiftUI is the sole renderer).
   static let showDuration: Double = 1.2
@@ -122,28 +122,10 @@ final class OwlStatusHUD: NSPanel {
   init() {
     super.init(
       contentRect: NSRect(x: 0, y: 0, width: 120, height: 44),
-      styleMask: [.nonactivatingPanel, .borderless],
-      backing: .buffered,
-      defer: false
+      collectionBehavior: [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
     )
-
-    isReleasedWhenClosed = false
-    hidesOnDeactivate = false
-    isFloatingPanel = true
-    level = .floating
-    // 同 OwlSwiftUICandidatePanel：窗口投影交给 AppKit。此前是 `false` + 视图层
-    // `.shadow(radius:16, y:7)`，但窗口尺寸严格等于 `contentView.fittingSize`，那层模糊
-    // 没有落点——toast 一直是没有投影的。
-    hasShadow = true
-    isOpaque = false
-    backgroundColor = .clear
-    collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
-
     contentView = NSHostingView(rootView: OwlStatusHUDView(state: hudState))
   }
-
-  override var canBecomeKey: Bool { false }
-  override var canBecomeMain: Bool { false }
 
   /// Show a mode/schema toast resolved from its long/short labels, anchored near the
   /// caret. `anchor` is the last caret rect from the candidate panel; `.zero` falls
@@ -189,18 +171,8 @@ final class OwlStatusHUD: NSPanel {
   /// When `anchor` is `.zero` (no composition has positioned a caret yet), fall back to the
   /// active screen's top-trailing corner so the toast still appears in a sensible place.
   private func clampedFrame(anchor: NSRect, size: NSSize) -> NSRect {
-    // No composition has positioned a caret yet → top-trailing corner of the anchor's screen
-    // (HUD-specific; kept here, not in the shared positioner).
-    if anchor == .zero {
-      let screen = NSScreen.screens.first { $0.visibleFrame.contains(anchor.origin) } ?? NSScreen.main
-      let visible = screen?.visibleFrame ?? NSScreen.main?.visibleFrame ?? .zero
-      return NSRect(x: visible.maxX - size.width - 24, y: visible.maxY - size.height - 24,
-                    width: size.width, height: size.height)
+    Self.belowCaretFrame(anchor: anchor, size: size) { visible in
+      NSPoint(x: visible.maxX - size.width - 24, y: visible.maxY - size.height - 24)
     }
-    // A toast dodges the menu bar → clamp against `visibleFrame` (`useVisibleFrame: true`).
-    return OwlFloatingPanelPositioner.belowCaret(
-      anchor: anchor, size: size,
-      screens: NSScreen.screens.map { .init(frame: $0.frame, visibleFrame: $0.visibleFrame) },
-      useVisibleFrame: true)
   }
 }

@@ -3,7 +3,7 @@
 //  Owltype
 //
 //  Plain Swift value types that cross the engine/session seam. The Rust adapters
-//  (see EngineSeam.swift) decode the FFI's JSON payloads *internally* and hand back
+//  (see OwlRustEngine.swift) decode the FFI's payloads *internally* and hand back
 //  ONLY these value types — no native handle or payload ever leaks past the protocol.
 //
 //  These carry the RAW extracted fields. Presentation logic (UTF-16 index math,

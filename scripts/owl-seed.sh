@@ -109,7 +109,7 @@ fetch_pinned "$ppd_pinyin_remote" "$ppd_pinyin_sha" "$ppd_pinyin_file"
 fetch_pinned "$ppd_license_remote" "$ppd_license_sha" "$ppd_license_file"
 
 rm -rf "$output_dir"
-mkdir -p "$output_dir/_user_seed" "$output_dir/cn_dicts" "$output_dir/licenses"
+mkdir -p "$output_dir/cn_dicts" "$output_dir/licenses"
 
 for license_spec in "${license_specs[@]}"; do
   read -r license_id license_sha <<<"$license_spec"
@@ -194,7 +194,6 @@ with open(path, "w", encoding="utf-8") as f:
     f.writelines(lines)
 print("[owltype-seed] patched rime_ice.schema.yaml: emoji reset 1 (upstream default on) states -> [👍, 😄], ascii_mode states -> [中, 英]")
 PYEOF
-cp "$repo_root/data/rime_ice.public.dict.yaml" "$output_dir/rime_ice.dict.yaml"
 python3 "$repo_root/scripts/unihan-to-rime.py" \
   "$unihan_archive" "$output_dir/cn_dicts/owltype_unicode.dict.yaml"
 python3 "$repo_root/scripts/build-owltype-base.py" \
@@ -222,8 +221,6 @@ cp "$repo_root/licenses/rime-kaomoji.LICENSE" "$output_dir/rime-kaomoji.LICENSE"
 # The retained OpenCC conversion tables are Apache-2.0 data. Copy the pinned,
 # hash-checked SPDX text.
 cp "$license_cache/Apache-2.0.txt" "$output_dir/OpenCC.LICENSE"
-cp "$repo_root/data/owltype.yaml" "$output_dir/owltype.yaml"
-cp "$repo_root/rime/"*.custom.yaml "$output_dir/_user_seed/"
 # Official split Wubi data supersedes the old generated 86-only overlay.
 # Keep the original extreme-point notice because the official 86 base derives from it.
 echo "$wubi86_license_sha256  $repo_root/licenses/wubi86-jidian.LICENSE" | shasum -a 256 --check

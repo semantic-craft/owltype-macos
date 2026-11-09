@@ -156,7 +156,7 @@ final class OwlAskAnythingModule: OwlAskAnythingOpening {
     profileSecretProvider: @escaping (String) throws -> String? = {
       try OwlProviderKeychain().secret(named: $0)
     },
-    legacyKeyProvider: @escaping () throws -> String? = OwlCloudKeychain.readDeepSeekAPIKey,
+    legacyKeyProvider: @escaping () throws -> String? = { nil },
     searchResolver: OwlAskSearchResolver? = nil,
     searchClient: OwlDeepSeekSearching? = nil,
     now: @escaping () -> Date = Date.init

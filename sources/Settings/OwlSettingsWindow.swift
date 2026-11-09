@@ -55,8 +55,7 @@ final class OwlSettingsWindow: NSWindowController {
     onOpenDataFolder: @escaping () -> Void,
     onOpenLog: @escaping () -> Void,
     onShowOnboarding: @escaping () -> Void,
-    onPanelPreferencesChanged: @escaping () -> Void,
-    writesConfigPatches: Bool = true
+    onPanelPreferencesChanged: @escaping () -> Void
   ) {
     self.state = state
 
@@ -70,8 +69,7 @@ final class OwlSettingsWindow: NSWindowController {
       onOpenDataFolder: onOpenDataFolder,
       onOpenLog: onOpenLog,
       onShowOnboarding: onShowOnboarding,
-      onPanelPreferencesChanged: onPanelPreferencesChanged,
-      writesConfigPatches: writesConfigPatches
+      onPanelPreferencesChanged: onPanelPreferencesChanged
     )
     // NavigationSplitView installs a native toolbar. Constrain the hosting surface to
     // AppKit's actual content layout guide, which updates with toolbar/titlebar size;

@@ -84,28 +84,7 @@ enum OwlUserDictReset {
 
   private static func execute(_ operation: String, root: URL, timestamp: String, fileManager fm: FileManager,
                               checkpoint: @escaping (String) throws -> Void = { _ in }) throws -> OwlUserDictResetOutcome {
-    let host = OwlStorageHost(dataDir: root)
-    host.nativeEffect = { operation, args in
-      let name = args["name"] as? String ?? ""
-      let target = root.appendingPathComponent(name)
-      switch operation {
-      case "user_native_kind":
-        guard fm.fileExists(atPath: target.path) else { return "missing" }
-        var info = stat()
-        guard lstat(target.path, &info) == 0 else { throw CocoaError(.fileReadUnknown) }
-        return info.st_mode & S_IFMT == S_IFDIR ? "directory" : "other"
-      case "user_native_list": return try fm.contentsOfDirectory(atPath: target.path)
-      case "user_native_exists": return fm.fileExists(atPath: target.path)
-      case "user_native_mkdir": try OwlPrivateStorage.prepareDirectory(target, fileManager: fm); return true
-      case "user_native_copy":
-        try fm.copyItem(at: root.appendingPathComponent(args["source"] as? String ?? ""),
-                        to: root.appendingPathComponent(args["destination"] as? String ?? "")); return true
-      case "user_native_remove": if fm.fileExists(atPath: target.path) { try fm.removeItem(at: target) }; return true
-      case "user_native_checkpoint": try checkpoint(name); return true
-      case "user_native_path": return target.path
-      default: throw OwlAppCore.Failure(code: "unknown_reset_effect")
-      }
-    }
+    let host = OwlStorageHost(dataDir: root, checkpoint: checkpoint)
     let reply: Reply = try host.call(operation, ["timestamp": timestamp])
     if let error = reply.error {
       func reason(_ token: String) -> String {

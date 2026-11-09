@@ -19,7 +19,6 @@ struct OwlKeyboardPage: View {
   /// 模糊拼音 fast-ish apply (mtime-gated `fullCheck:false` maintenance — rebuilds the schema
   /// prism, not octagram — + reselect + replay). NOT instant; copy stays honest.
   let onApplyFuzzyConfigFast: () throws -> OwlKeyboardSettingsApplication.Outcome
-  var writesConfigPatches = true
 
   /// Which card group this instance renders. 键盘输入 shows the four input cards plus the
   /// collapsed 高级 section; 快捷键设置 (a separate sidebar page) shows the five shortcut items. One view
@@ -156,119 +155,24 @@ struct OwlKeyboardPage: View {
     .frame(maxWidth: .infinity)
   }
 
-  /// 完整词库（方案B）：公开包只带清洁室精简词库；此卡展示 dict-pack 拉取状态并提供手动
-  /// 触发。状态由 OwlDictPackCenter（@Observable）驱动，准备/启用/回退都在 Center。
   private var dictPackCard: some View {
-    let center = OwlDictPackCenter.shared
-    return SettingsCard(title: "完整词库", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
+    SettingsCard(title: "完整词库", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
       VStack(alignment: .leading, spacing: 8) {
         HStack(spacing: 10) {
-          switch center.status {
-          case .notInstalled:
-            Text("未启用 — 当前使用随包精简资源")
-              .font(.system(size: 12, weight: .medium))
-              .foregroundStyle(palette.ink2)
-            Spacer(minLength: 8)
-            dictPackActionButton("立即下载（约 90 MB）") { center.prepare() }
-          case .preparing(let progress):
-            ProgressView(value: progress)
-              .controlSize(.small)
-              .frame(maxWidth: 180)
-            Text("下载、校验并生成资源 \(Int(progress * 100))%")
-              .font(.system(size: 12))
-              .foregroundStyle(palette.ink2)
-            Spacer(minLength: 8)
-          case .prepared(let version):
-            Image(systemName: "checkmark.seal")
-              .font(.system(size: 13))
-              .foregroundStyle(palette.accentDeep)
-            Text("候选 v\(version) 已生成，尚未启用")
-              .font(.system(size: 12, weight: .medium))
-              .foregroundStyle(palette.ink2)
-            Spacer(minLength: 8)
-            dictPackActionButton("启用") { center.activate() }
-          case .activating:
-            ProgressView()
-              .controlSize(.small)
-            Text("正在校验并启用资源…")
-              .font(.system(size: 12))
-              .foregroundStyle(palette.ink2)
-            Spacer(minLength: 8)
-          case .rollingBack:
-            ProgressView()
-              .controlSize(.small)
-            Text("正在校验并回退资源…")
-              .font(.system(size: 12))
-              .foregroundStyle(palette.ink2)
-            Spacer(minLength: 8)
-          case .installed(let version):
-            Image(systemName: "checkmark.circle.fill")
-              .font(.system(size: 13))
-              .foregroundStyle(OwlProvenanceColor.verified)
-            Text(center.isAwaitingLiveSessionRefresh
-              ? "完整词库 v\(version) 已启用；当前输入完成后自动生效"
-              : "完整词库已安装（v\(version)）")
-              .font(.system(size: 12, weight: .medium))
-              .foregroundStyle(palette.ink3)
-            Spacer(minLength: 8)
-            if let target = center.rollbackTargetVersion {
-              dictPackActionButton("回退到 v\(target)") { center.rollback() }
-            }
-          case .failed(let message):
-            Image(systemName: "exclamationmark.triangle.fill")
-              .font(.system(size: 13))
-              .foregroundStyle(.orange)
-            Text(message)
-              .font(.system(size: 12))
-              .foregroundStyle(palette.ink2)
-              .lineLimit(2)
-            Spacer(minLength: 8)
-            dictPackActionButton("重试") { center.retryFailedOperation() }
-          }
-        }
-        if let candidate = center.preparedCandidate {
-          Text(
-            "生成统计：拼音 \(candidate.pinyinEntries.formatted()) 条 · "
-              + "五笔 \(candidate.wubiEntries.formatted()) 条 · "
-              + "英文 \(candidate.englishEntries.formatted()) 条 · "
-              + "拒绝 \(candidate.rejectedEntries.formatted()) 条"
-          )
-          .font(.system(size: 11.5, design: .monospaced))
-          .foregroundStyle(palette.ink3)
-          .frame(maxWidth: .infinity, alignment: .leading)
-          Text("许可证：\(candidate.licenseIdentifiers.joined(separator: "、")) · 摘要 \(candidate.digest.prefix(19))…")
-            .font(.system(size: 11.5))
+          Image(systemName: "checkmark.circle.fill")
+            .font(.system(size: 13))
+            .foregroundStyle(OwlProvenanceColor.verified)
+          Text("随包 SQLite 词库已就绪（v\(OwlRustCompatibleResources.packageVersion) · \(OwlRustCompatibleResources.configurationVersion)）")
+            .font(.system(size: 12, weight: .medium))
             .foregroundStyle(palette.ink3)
-            .frame(maxWidth: .infinity, alignment: .leading)
+          Spacer(minLength: 8)
         }
-        Text("完整词库来自第三方开源项目，为避免版权争议不随安装包分发，也不会在你不知情时自动下载。下载后会先校验版本、摘要和许可证，再显示生成统计；只有点「启用」才切换资源代次，旧版本保留可回退。更新不改写 msime-user 学习库，也不触发 Rime 部署。")
+        Text("词库与二元/三元语言模型直接从 Bundle.main.sharedSupportURL/msime 下的预置 SQLite 资源加载，无需额外下载或部署。")
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)
           .frame(maxWidth: .infinity, alignment: .leading)
       }
     }
-    .onAppear { center.refresh() }
-  }
-
-  private func dictPackActionButton(_ title: String, action: @escaping () -> Void) -> some View {
-    Button(action: action, label: {
-      Text(title)
-        .font(.system(size: 13, weight: .medium))
-        .foregroundStyle(palette.accentDeep)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 7)
-        .background {
-          RoundedRectangle(cornerRadius: 8, style: .continuous)
-            .fill(palette.card2)
-        }
-        .overlay {
-          RoundedRectangle(cornerRadius: 8, style: .continuous)
-            .strokeBorder(palette.accentDeep.opacity(0.30), lineWidth: 1)
-        }
-        .contentShape(Rectangle())
-    })
-    .buttonStyle(.plain)
-    .accessibilityLabel(title)
   }
 
   /// ◉ 拼音输入 / ○ 双拼输入 [小鹤双拼 ▼] / ○ 五笔 86 / ○ 五笔拼音混输.
@@ -950,15 +854,10 @@ struct OwlKeyboardPage: View {
           ? nil
           : Self.autoApplyStatusMessage(
             written: outcome.written,
-            deploySucceeded: false,
-            writesConfigPatches: writesConfigPatches
+            deploySucceeded: false
           )
-      } catch OwlConfigWriteError.refusedNeverTouch(let name) {
-        applyFailure = "已拒绝写入受保护文件：\(name)。改动未生效，请查看诊断日志。"
       } catch {
-        applyFailure = writesConfigPatches
-          ? "写入失败，改动未生效，请查看诊断日志：\(error.localizedDescription)"
-          : "应用失败，改动未生效，请查看诊断日志：\(error.localizedDescription)"
+        applyFailure = "应用失败，改动未生效，请查看诊断日志：\(error.localizedDescription)"
       }
       isAutoApplyingConfig = false
     }
@@ -1035,18 +934,13 @@ struct OwlKeyboardPage: View {
 
   static func autoApplyStatusMessage(
     written: [String],
-    deploySucceeded: Bool,
-    writesConfigPatches: Bool = true
+    deploySucceeded: Bool
   ) -> String {
     let files = written.joined(separator: "、")
     if deploySucceeded {
       return files.isEmpty ? "配置已生效。" : "已生效：\(files)。"
     }
-    return files.isEmpty
-      ? "应用失败，改动未生效，请查看诊断日志。"
-      : writesConfigPatches
-        ? "已写入 \(files)，但应用失败；改动未生效，请查看诊断日志。"
-        : "应用失败，改动未生效，请查看诊断日志。"
+    return "应用失败，改动未生效，请查看诊断日志。"
   }
 
   // MARK: - Switch write path

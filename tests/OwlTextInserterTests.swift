@@ -16,11 +16,40 @@ final class OwlTextInserterTests: XCTestCase {
 
   func testSequenceNoCacheIsDefaultOrder() {
     XCTAssertEqual(OwlInsertLadder.sequence(cached: nil), [.axSelectedText, .paste, .clipboardOnly])
+    XCTAssertEqual(
+      OwlInsertLadder.sequence(mode: .caretInsertion, cached: nil),
+      [.imkInsert, .axSelectedText, .paste, .clipboardOnly]
+    )
   }
 
   func testSequenceCachedPromotedToFront() {
     XCTAssertEqual(OwlInsertLadder.sequence(cached: .paste), [.paste, .axSelectedText, .clipboardOnly])
     XCTAssertEqual(OwlInsertLadder.sequence(cached: .clipboardOnly), [.clipboardOnly, .axSelectedText, .paste])
+    XCTAssertEqual(
+      OwlInsertLadder.sequence(mode: .caretInsertion, cached: .paste),
+      [.paste, .imkInsert, .axSelectedText, .clipboardOnly]
+    )
+  }
+
+  func testCaretInsertionPrefersIMKThenFallsBackToPaste() {
+    var pasteCalled = false
+    let directOutcome = OwlTemplateHostDelivery.insertCaretOrFallback(
+      "hello",
+      imkInsert: { _ in true },
+      paste: { _ in pasteCalled = true; return true },
+      copyOnly: { _ in }
+    )
+    XCTAssertEqual(directOutcome, .inserted(.imkInsert))
+    XCTAssertFalse(pasteCalled)
+
+    let fallbackOutcome = OwlTemplateHostDelivery.insertCaretOrFallback(
+      "world",
+      imkInsert: { _ in false },
+      paste: { _ in pasteCalled = true; return true },
+      copyOnly: { _ in }
+    )
+    XCTAssertEqual(fallbackOutcome, .inserted(.paste))
+    XCTAssertTrue(pasteCalled)
   }
 
   // MARK: - AC2 AX 成功

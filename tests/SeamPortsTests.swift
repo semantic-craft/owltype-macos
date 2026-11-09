@@ -2,9 +2,8 @@
 //  SeamPortsTests.swift
 //  OwltypeTests — PR for task 06-20-extend-rimeengine-seam-to-snapshot-cloud-ports
 //
-//  Cashes in the testability goal the InputEngine seam established (sources/EngineSeam.swift,
-//  tests/EngineSeamTests.swift), extended to the only OTHER two global singletons
-//  `OwlInputController` directly reaches off the IMK hot path:
+//  Cashes in the testability goal the InputEngine seam established (sources/Engine/OwlRustEngine.swift),
+//  extended to the read-only snapshot port `OwlInputController` reaches off the IMK hot path:
 //
 //    • `SnapshotReading`            — the read-only live-snapshot view the controller reads
 //                                     (was `OwlSnapshotRegistry.shared.current`); the 任意提问 /
@@ -19,11 +18,10 @@
 //       `snapshots` (the composition root, alongside `engine`) type-checks and swaps the
 //       production `.shared` defaults out.
 //
-//  Scope (PRD Out-of-Scope, mirrors EngineSeamTests): this stops at the port boundary.
+//  Scope: this stops at the port boundary.
 //  Constructing a `OwlInputController` headless calls `IMKInputController`'s server
 //  initializer, so the trigger's read-then-request SEQUENCE is reproduced here against the
-//  ports the controller now funnels through — the same approach EngineSeamTests used to prove
-//  the controller's the engine helpers without a live controller. `.shared` stays the
+//  ports the controller now funnels through. `.shared` stays the
 //  production default; injection is pure addition.
 //
 //  No network, no engine, no disk: the fakes are pure in-memory scripted state.
@@ -93,23 +91,6 @@ final class FakeSelectionPolish: SelectionPolishing {
   func polishSelection(_ selection: String) async throws -> [String] {
     polished.append(selection)
     return scriptedRewrites
-  }
-}
-
-/// A scripted `PromptResolving` with no disk. Matches scripted entries on exact (code, title)
-/// and records every query so a test can assert the commit chokepoint hit (or skipped) the
-/// lookup — without owl_prompts.json. (The live resolver's v-prefix tolerance + JSON read are
-/// covered against `OwlPromptStore.matchEntry` in OwlPromptInterceptionTests.)
-@MainActor
-final class FakePromptStore: PromptResolving {
-  var entries: [OwlPromptEntry]
-  private(set) var queries: [(code: String, title: String)] = []
-
-  init(entries: [OwlPromptEntry] = []) { self.entries = entries }
-
-  func entry(forCode code: String, title: String) -> OwlPromptEntry? {
-    queries.append((code, title))
-    return entries.first { $0.code == code && $0.title == title }
   }
 }
 
@@ -195,20 +176,16 @@ final class SeamPortsTests: XCTestCase {
     let delegate = OwlApplicationDelegate()
     XCTAssertTrue(delegate.snapshotEmitter === OwlSnapshotEmitter.shared)
     XCTAssertTrue(delegate.selectionPolish === OwlSelectionPolishService.shared)
-    XCTAssertTrue(delegate.promptStore === OwlPromptResolver.shared)
   }
 
   func testDelegateControllerPortsAreSwappableToFakes() {
     let delegate = OwlApplicationDelegate()
     let emitter = FakeSnapshotEmitter()
     let polish = FakeSelectionPolish()
-    let prompts = FakePromptStore()
     delegate.snapshotEmitter = emitter
     delegate.selectionPolish = polish
-    delegate.promptStore = prompts
     XCTAssertTrue(delegate.snapshotEmitter === emitter)
     XCTAssertTrue(delegate.selectionPolish === polish)
-    XCTAssertTrue(delegate.promptStore === prompts)
   }
 
   /// Reproduces the controller's `engineUpdate()` / `commit()` emitter SEQUENCE

@@ -36,9 +36,8 @@ MACHO_MAGICS = {
 }
 REQUIRED_RUST_SYMBOLS = {
     "owl_app_call",
-    "owl_app_string_free",
     "owl_msime_engine_finalize",
-    "owl_msime_session_create_with_generation",
+    "owl_msime_session_create_with_auxiliary_resources",
     "owl_msime_session_handle_action_json",
     "owl_msime_string_free",
 }

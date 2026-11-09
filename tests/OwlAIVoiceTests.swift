@@ -199,7 +199,7 @@ final class OwlAIVoiceTests: XCTestCase {
       return (Data(json.utf8), resp)
     }
 
-    let polisher = OwlVoiceDeepSeekPolisher(
+    let polisher = OwlVoicePolisher(
       transport: stubTransport,
       requestTimeout: 4.0,
       apiKeyProvider: { "deepseek-test-key" }
@@ -226,7 +226,7 @@ final class OwlAIVoiceTests: XCTestCase {
       return (Data(htmlBody.utf8), response)
     }
 
-    let polisher = OwlVoiceDeepSeekPolisher(
+    let polisher = OwlVoicePolisher(
       transport: stubTransport,
       apiKeyProvider: { "deepseek-test-key" }
     )
@@ -650,20 +650,6 @@ final class OwlAIVoiceTests: XCTestCase {
     XCTAssertEqual(updateRes.model, "gpt-4o-transcribe")
     XCTAssertEqual(defaults.string(forKey: OwlVoiceSettings.asrModelKey), "gpt-4o-transcribe")
 
-    // OpenAI Login mode saves without requiring an API key
-    let loginRes = OwlSettingsActions.saveVoiceASRSettings(
-      providerID: "openai-login",
-      endpoint: "",
-      model: "",
-      apiKey: "",
-      isKeyAlreadyConfigured: false,
-      saveKey: { _ in XCTFail("OpenAI Login mode must not write a Keychain API key") },
-      defaults: defaults
-    )
-    XCTAssertEqual(loginRes.endpoint, "https://chatgpt.com/backend-api/transcribe")
-    XCTAssertEqual(loginRes.model, "chatgpt-dictation")
-    XCTAssertTrue(loginRes.status.contains("Codex 登录态"))
-
     // Rejects non-https endpoint
     let insecure = OwlSettingsActions.saveVoiceASRSettings(
       providerID: "openai",
@@ -801,14 +787,14 @@ final class OwlAIVoiceTests: XCTestCase {
     let secrets = InMemorySecrets()
     try secrets.setSecret(" sk-deepseek-from-profile ", named: profile.secretName)
 
-    let resolved = OwlVoiceKeychain.readConfiguredDeepSeekProfileKey(store: store, secrets: secrets)
+    let resolved = OwlVoicePolisher.resolveProviderKey(store: store, secrets: secrets)
     XCTAssertEqual(resolved, "sk-deepseek-from-profile")
   }
 
-  func testThreePresetASRCatalogOpenAIGeminiAndOpenAILogin() throws {
+  func testTwoPresetASRCatalogOpenAIAndGemini() throws {
     XCTAssertEqual(
       OwlVoiceASRCatalog.presets.map(\.id),
-      ["openai", "gemini", "openai-login"]
+      ["openai", "gemini"]
     )
     XCTAssertEqual(OwlVoiceASRCatalog.preset(id: "openai").defaultModel, "gpt-transcribe")
     XCTAssertEqual(OwlVoiceASRCatalog.preset(id: "gemini").defaultModel, "gemini-3.5-transcribe")
@@ -816,8 +802,6 @@ final class OwlAIVoiceTests: XCTestCase {
     XCTAssertTrue(OwlVoiceASRCatalog.preset(id: "openai").requiresAPIKey)
     XCTAssertTrue(OwlVoiceASRCatalog.preset(id: "gemini").sharesProviderProfileKey)
     XCTAssertTrue(OwlVoiceASRCatalog.preset(id: "gemini").requiresAPIKey)
-    XCTAssertFalse(OwlVoiceASRCatalog.preset(id: "openai-login").sharesProviderProfileKey)
-    XCTAssertTrue(OwlVoiceASRCatalog.preset(id: "openai-login").isOpenAILogin)
     // Legacy/retired preset IDs fall back to OpenAI
     XCTAssertEqual(OwlVoiceASRCatalog.preset(id: "grok").id, "openai")
 
@@ -852,26 +836,14 @@ final class OwlAIVoiceTests: XCTestCase {
     try secrets.setSecret(" AIza-gemini-from-provider-profile ", named: geminiProfile.secretName)
 
     XCTAssertEqual(
-      try OwlVoiceKeychain.readAPIKey(forProviderID: "openai", store: store, secrets: secrets),
+      try OwlVoiceSettings.readASRAPIKey(forProviderID: "openai", store: store, secrets: secrets),
       "sk-openai-from-provider-profile"
     )
     XCTAssertEqual(
-      try OwlVoiceKeychain.readAPIKey(forProviderID: "gemini", store: store, secrets: secrets),
+      try OwlVoiceSettings.readASRAPIKey(forProviderID: "gemini", store: store, secrets: secrets),
       "AIza-gemini-from-provider-profile"
     )
-    XCTAssertNil(
-      try OwlVoiceKeychain.readAPIKey(forProviderID: "openai-login", store: store, secrets: secrets)
-    )
-    XCTAssertTrue(OwlVoiceKeychain.isASRKeyConfigured(forProviderID: "openai", store: store, secrets: secrets))
-    XCTAssertTrue(OwlVoiceKeychain.isASRKeyConfigured(forProviderID: "gemini", store: store, secrets: secrets))
-    XCTAssertFalse(OwlVoiceKeychain.isASRKeyConfigured(forProviderID: "openai-login", store: store, secrets: secrets))
-
-    // Verify OpenAI Login status state machine & JWT claim extraction
-    XCTAssertEqual(OwlVoiceOpenAILoginStatus.unchecked.statusText, "尚未检查 Codex 登录")
-    XCTAssertEqual(OwlVoiceOpenAILoginStatus.signedIn(plan: "plus").statusText, "Codex 已用 ChatGPT 账号登录 · plus")
-    XCTAssertTrue(OwlVoiceOpenAILoginStatus.signedIn(plan: "plus").isReady)
-    XCTAssertTrue(OwlVoiceOpenAILoginStatus.signedOut.needsTerminalLogin)
-    XCTAssertTrue(OwlVoiceOpenAILoginStatus.cliMissing.needsTerminalLogin)
-    XCTAssertTrue(OwlVoiceOpenAILoginStatus.notChatGPT(method: "apikey").needsTerminalLogin)
+    XCTAssertTrue(OwlVoiceSettings.isASRKeyConfigured(forProviderID: "openai", store: store, secrets: secrets))
+    XCTAssertTrue(OwlVoiceSettings.isASRKeyConfigured(forProviderID: "gemini", store: store, secrets: secrets))
   }
 }

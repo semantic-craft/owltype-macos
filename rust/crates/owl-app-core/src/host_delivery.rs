@@ -543,3 +543,151 @@ impl Focus {
         })
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum DeliveryMode {
+    CaretInsertion,
+    SelectionReplacement,
+}
+
+impl DeliveryMode {
+    pub fn from_raw(raw: &str) -> Self {
+        match raw {
+            "caretInsertion" => Self::CaretInsertion,
+            _ => Self::SelectionReplacement,
+        }
+    }
+}
+
+pub fn sequence(cached: &str) -> Vec<String> {
+    sequence_for_mode("selectionReplacement", cached, false, false)
+}
+
+pub fn sequence_for_mode(
+    mode: &str,
+    cached: &str,
+    has_imk: bool,
+    prefer_paste: bool,
+) -> Vec<String> {
+    let delivery_mode = DeliveryMode::from_raw(mode);
+    let mut all: Vec<String> = match delivery_mode {
+        DeliveryMode::CaretInsertion => {
+            let mut base = Vec::new();
+            if has_imk && !prefer_paste {
+                base.push("imkInsert".into());
+            }
+            if prefer_paste {
+                base.push("paste".into());
+                base.push("axSelectedText".into());
+            } else {
+                base.push("axSelectedText".into());
+                base.push("paste".into());
+            }
+            base.push("clipboardOnly".into());
+            base
+        }
+        DeliveryMode::SelectionReplacement => {
+            if prefer_paste {
+                vec![
+                    "paste".into(),
+                    "axSelectedText".into(),
+                    "clipboardOnly".into(),
+                ]
+            } else {
+                vec![
+                    "axSelectedText".into(),
+                    "paste".into(),
+                    "clipboardOnly".into(),
+                ]
+            }
+        }
+    };
+    if !prefer_paste {
+        if let Some(i) = all.iter().position(|v| v == cached) {
+            let v = all.remove(i);
+            all.insert(0, v);
+        }
+    }
+    all
+}
+
+#[derive(Default)]
+pub struct Inserter {
+    cache: std::collections::HashMap<String, String>,
+    key: String,
+    sequence: Vec<String>,
+    index: usize,
+    done: bool,
+}
+
+impl Inserter {
+    pub fn event(&mut self, event: &str, a: Value) -> Result<Value, String> {
+        match event {
+            "begin" => {
+                self.key = a["bundleID"].as_str().unwrap_or("").into();
+                let mode = a["mode"].as_str().unwrap_or("selectionReplacement");
+                let has_imk = a["hasIMK"] == true;
+                let prefer_paste = a["preferPaste"] == true;
+                let cached = self.cache.get(&self.key).map_or("", String::as_str);
+                self.sequence = sequence_for_mode(mode, cached, has_imk, prefer_paste);
+                self.index = 0;
+                self.done = false;
+            }
+            "result" => {
+                if !self.done {
+                    if a["success"] == true {
+                        if let Some(strategy) = self.sequence.get(self.index) {
+                            self.cache.insert(self.key.clone(), strategy.clone());
+                        }
+                        self.done = true;
+                    } else {
+                        self.index += 1;
+                    }
+                }
+            }
+            _ => return Err("invalid_event".into()),
+        }
+        Ok(json!({"strategy":self.sequence.get(self.index),"done":self.done}))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn host_delivery_inserter_supports_caret_and_selection_modes() {
+        let mut inserter = Inserter::default();
+        let begin_sel = inserter
+            .event(
+                "begin",
+                json!({"bundleID": "com.apple.TextEdit", "mode": "selectionReplacement"}),
+            )
+            .unwrap();
+        assert_eq!(begin_sel["strategy"], "axSelectedText");
+        assert_eq!(begin_sel["done"], false);
+
+        let failed_ax = inserter.event("result", json!({"success": false})).unwrap();
+        assert_eq!(failed_ax["strategy"], "paste");
+        assert_eq!(failed_ax["done"], false);
+
+        let succeeded_paste = inserter.event("result", json!({"success": true})).unwrap();
+        assert_eq!(succeeded_paste["done"], true);
+
+        // Cached strategy is promoted on the next selection replacement for the same bundleID.
+        let cached_begin = inserter
+            .event(
+                "begin",
+                json!({"bundleID": "com.apple.TextEdit", "mode": "selectionReplacement"}),
+            )
+            .unwrap();
+        assert_eq!(cached_begin["strategy"], "paste");
+
+        // Caret insertion with IMK places imkInsert first when not preferring paste.
+        let caret_seq = sequence_for_mode("caretInsertion", "", true, false);
+        assert_eq!(
+            caret_seq,
+            vec!["imkInsert", "axSelectedText", "paste", "clipboardOnly"]
+        );
+    }
+}

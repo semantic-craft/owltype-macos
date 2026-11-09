@@ -13,8 +13,7 @@ final class OwlRaycastImportTests: XCTestCase {
   private func data(_ rows: [[String: Any]]) throws -> Data { try JSONSerialization.data(withJSONObject: rows) }
   private func snapshot() throws -> [String: Data] {
     var result: [String: Data] = [:]
-    for name in [OwlTemplateStore.fileName, OwlTemplateStore.dictFileName, OwlTemplateStore.stateFileName,
-                 "rime_ice.custom.yaml", "owltype/rollback-manifest.json"] {
+    for name in [OwlTemplateStore.fileName] {
       let url = root.appendingPathComponent(name)
       if FileManager.default.fileExists(atPath: url.path) { result[name] = try Data(contentsOf: url) }
     }
@@ -29,7 +28,7 @@ final class OwlRaycastImportTests: XCTestCase {
     XCTAssertTrue(try XCTUnwrap(preview.rows[1].entry).isPendingReview)
     XCTAssertEqual(preview.selectedCount, 1)
     let result = try importer.commit(preview)
-    let item = try XCTUnwrap(result.library.entries.first)
+    let item = try XCTUnwrap(result.entries.first)
     let evaluation = OwlTemplateEngine.render(OwlTemplateEngine.parse(item), values: [:])
     XCTAssertEqual(evaluation.readyText, "前后")
     XCTAssertEqual(evaluation.cursorOffset, 1)
@@ -49,9 +48,8 @@ final class OwlRaycastImportTests: XCTestCase {
   }
   func testEmptySelectionDoesNotCreateLibraryOrBackup() throws {
     let preview = try importer.preview(data: Data("[]".utf8))
-    XCTAssertNil(try importer.commit(preview).backupURL)
+    _ = try importer.commit(preview)
     XCTAssertTrue(try snapshot().isEmpty)
-    XCTAssertFalse(FileManager.default.fileExists(atPath: root.appendingPathComponent(".owl-backup").path))
   }
   func testLiteralUTF8MarkdownAndMetadataBoundarySurviveReopen() throws {
     let text = "  # 中文 👩🏽‍💻 e\u{301}\r\n\t代码：{\"key\": 1}  "
@@ -74,12 +72,12 @@ final class OwlRaycastImportTests: XCTestCase {
     library.entries[0].title = "我的修改"
     library.entries[0].body = "不同正文"
     library.entries[0].trigger = "changed"
-    try OwlTemplateStore.save(library, writer: OwlConfigWriter(dataDir: root))
+    try OwlTemplateStore.save(library, dataDir: root)
     let before = try snapshot()
     let repeated = try importer.preview(data: source)
     XCTAssertEqual(repeated.duplicateKind(at: 0), .alreadyImported)
     XCTAssertEqual(repeated.selectedCount, 0)
-    XCTAssertNil(try importer.commit(repeated).backupURL)
+    _ = try importer.commit(repeated)
     XCTAssertEqual(try snapshot(), before)
     XCTAssertEqual(try OwlTemplateStore.load(dataDir: root).entries.first?.id, id)
   }
@@ -98,7 +96,7 @@ final class OwlRaycastImportTests: XCTestCase {
   func testSameTextDifferentBodySemanticsIsNotAnExactDuplicate() throws {
     var entry = OwlTemplateEntry(title: "参数", body: "{argument}")
     entry.trigger = ";;arg"
-    try OwlTemplateStore.save(.init(entries: [entry]), writer: OwlConfigWriter(dataDir: root))
+    try OwlTemplateStore.save(.init(entries: [entry]), dataDir: root)
     let preview = try importer.preview(data: data([["name": "参数", "text": "{argument}", "keyword": ";;arg"]]))
     XCTAssertNil(preview.duplicateKind(at: 0))
     XCTAssertFalse(preview.conflicts(at: 0).isEmpty)
@@ -106,7 +104,7 @@ final class OwlRaycastImportTests: XCTestCase {
   func testConflictSearchOnlyPreservesSourceSearchAndReimportIdentity() throws {
     var existing = OwlTemplateEntry(title: "旧", body: "旧正文")
     existing.trigger = "code"; existing.invocationMode = .candidate; existing.candidateAliases = ["vcode"]
-    try OwlTemplateStore.save(.init(entries: [existing]), writer: OwlConfigWriter(dataDir: root))
+    try OwlTemplateStore.save(.init(entries: [existing]), dataDir: root)
     let source = try data([["name": "新", "text": "新正文", "keyword": "vcode"]])
     var preview = try importer.preview(data: source)
     XCTAssertFalse(preview.conflicts(at: 0).isEmpty)
@@ -160,7 +158,7 @@ final class OwlRaycastImportTests: XCTestCase {
 
   func testPendingImportEditorDiagnosticPreservesErrorsAndOrdinaryLiteralSemantics() throws {
     let preview = try importer.preview(data: data([["name": "待处理", "text": "{selection}{cursor}{cursor}"]]))
-    let model = OwlTemplateEditorModel(writer: OwlConfigWriter(dataDir: root))
+    let model = OwlTemplateEditorModel(dataDir: root)
     model.draft = try XCTUnwrap(preview.rows[0].entry)
     let diagnostics = OwlTemplateEngine.render(model.parsed, values: [:]).diagnostics
     let unknown = try XCTUnwrap(diagnostics.first { $0.message == "未支持的字段将原样插入。" })
@@ -222,36 +220,29 @@ final class OwlRaycastImportTests: XCTestCase {
     XCTAssertEqual(captures, 1)
     XCTAssertEqual(delivered, ["2024-02-29 23:46|合成材料|摘要"])
   }
-  func testBackupRoundTripKeepsPendingSourceAndOldRecordsDecode() throws {
+  func testJSONRoundTripKeepsPendingSource() throws {
     var preview = try importer.preview(data: data([["name": "待核对", "text": "{unsupported}", "keyword": ";;p"]]))
     preview.rows[0].selected = true
     _ = try importer.commit(preview)
     let library = try OwlTemplateStore.load(dataDir: root)
     let encoded = try OwlTemplateStore.encoded(library)
-    XCTAssertEqual(try OwlTemplateStore.encoded(OwlTemplateBackup.decode(encoded)), encoded)
-    var object = try XCTUnwrap(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
-    var entries = try XCTUnwrap(object["entries"] as? [[String: Any]])
-    entries[0].removeValue(forKey: "importSource"); entries[0].removeValue(forKey: "reviewState")
-    object["entries"] = entries
-    let old = try OwlTemplateBackup.decode(JSONSerialization.data(withJSONObject: object))
-    XCTAssertNil(old.entries[0].importSource); XCTAssertFalse(old.entries[0].isPendingReview)
+    let decoded = try JSONDecoder().decode(OwlTemplateLibrary.self, from: encoded)
+    XCTAssertEqual(try OwlTemplateStore.encoded(decoded), encoded)
   }
   func testStalePreviewRejectsWithoutOverwritingConcurrentEdit() throws {
     let preview = try importer.preview(data: data([["name": "导入", "text": "新文"]]))
-    try OwlTemplateStore.save(.init(entries: [.init(title: "同时编辑", body: "留住")]), writer: OwlConfigWriter(dataDir: root))
+    try OwlTemplateStore.save(.init(entries: [.init(title: "同时编辑", body: "留住")]), dataDir: root)
     let before = try snapshot()
     XCTAssertThrowsError(try importer.commit(preview))
     XCTAssertEqual(try snapshot(), before)
   }
-  func testEveryCommitWriteFailureRollsBackAndRetryDoesNotDuplicate() throws {
+  func testCommitWriteFailureRollsBackAndRetryDoesNotDuplicate() throws {
     struct Injected: Error {}
-    try OwlTemplateStore.save(.init(entries: [.init(title: "原条目", body: "原文")]), writer: OwlConfigWriter(dataDir: root))
+    try OwlTemplateStore.save(.init(entries: [.init(title: "原条目", body: "原文")]), dataDir: root)
     let preview = try importer.preview(data: data([["name": "导入", "text": "正文"]]))
     let before = try snapshot()
-    for step in ["backup", "backupVerified", "journal", OwlTemplateStore.fileName, OwlTemplateStore.dictFileName, "rime_ice.custom.yaml", OwlTemplateStore.stateFileName] {
-      XCTAssertThrowsError(try importer.commit(preview, checkpoint: { if $0 == step { throw Injected() } }), step)
-      XCTAssertEqual(try snapshot(), before, step)
-    }
+    XCTAssertThrowsError(try importer.commit(preview, checkpoint: { if $0 == OwlTemplateStore.fileName { throw Injected() } }))
+    XCTAssertEqual(try snapshot(), before)
     _ = try importer.commit(preview)
     XCTAssertEqual(try OwlTemplateStore.load(dataDir: root).entries.count, 2)
     XCTAssertEqual(try importer.preview(data: data([["name": "导入", "text": "正文"]])).selectedCount, 0)
@@ -264,12 +255,12 @@ final class OwlRaycastImportTests: XCTestCase {
     let suite = "OwlRaycastImportTests-" + UUID().uuidString
     let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
     defer { defaults.removePersistentDomain(forName: suite) }
-    let model = OwlTemplateEditorModel(writer: OwlConfigWriter(dataDir: root), defaults: defaults,
+    let model = OwlTemplateEditorModel(dataDir: root, defaults: defaults,
                                       automaticRuntime: OwlAutomaticExpansionRuntime())
     model.reload(); model.draft = try XCTUnwrap(model.library.entries.first)
     model.setBody("{argument name=\"new\" default=\"新值\"}")
     XCTAssertTrue(model.draft.isPendingReview)
-    XCTAssertTrue(model.save()) // Edits are saveable while still unavailable to runtime.
+    XCTAssertTrue(model.save())
     XCTAssertNil(OwlTemplateEngine.render(OwlTemplateEngine.parse(model.draft), values: [:]).readyText)
     XCTAssertTrue(model.enableReviewedDraft())
     XCTAssertEqual(model.draft.parameters.map(\.key), ["n:new"])
@@ -285,7 +276,7 @@ final class OwlRaycastImportTests: XCTestCase {
     let preview = try importer.preview(data: data([["name": "pending", "text": "{argument name=\"x\"} {unsupported}"]]))
     var entry = try XCTUnwrap(preview.rows[0].entry)
     entry.body = "{argument name=\"new\"} {unsupported}"
-    let original = entry // Failed review must not leak removal of n:x or addition of n:new.
+    let original = entry
     XCTAssertFalse(OwlRaycastImport.enableAfterReview(&entry))
     XCTAssertEqual(entry, original)
     let copy = entry.duplicated()
@@ -309,7 +300,7 @@ final class OwlRaycastImportTests: XCTestCase {
 
   func testDuplicateComparisonPreservesDifferentUTF8Normalization() throws {
     let first = "é", second = "e\u{301}"
-    XCTAssertEqual(first, second) // Swift's canonical equality must not collapse distinct stored bytes.
+    XCTAssertEqual(first, second)
     let preview = try importer.preview(data: data([["name": "同名", "text": first], ["name": "同名", "text": second]]))
     XCTAssertEqual(preview.selectedCount, 2)
     _ = try importer.commit(preview)
@@ -340,35 +331,6 @@ final class OwlRaycastImportTests: XCTestCase {
     XCTAssertTrue(preview.assessment.conflicts.isEmpty)
     _ = try importer.commit(preview)
     XCTAssertEqual(try OwlTemplateStore.load(dataDir: root).entries.count, 2)
-  }
-
-  func testBackupRestoreRecreatesOriginalSourceAndPendingGate() throws {
-    var preview = try importer.preview(data: data([["name": "待核对", "text": "{clipboard} {unsupported}", "keyword": ";;review"]]))
-    preview.rows[0].selected = true
-    _ = try importer.commit(preview)
-    let backup = OwlTemplateBackup(dataDir: root)
-    let before = try OwlTemplateStore.load(dataDir: root)
-    let entry = try XCTUnwrap(before.entries.first)
-    let url = root.appendingPathComponent("native-export.json")
-    try backup.export(to: url)
-    _ = try backup.delete(id: entry.id, expected: before)
-    _ = try backup.restore(backup.preview(data: Data(contentsOf: url)))
-    let after = try OwlTemplateStore.load(dataDir: root)
-    XCTAssertEqual(try OwlTemplateStore.encoded(after), try OwlTemplateStore.encoded(before))
-    XCTAssertTrue(after.entries[0].isPendingReview)
-    XCTAssertTrue(OwlTemplateEngine.parse(after.entries[0]).contextRequirements.isEmpty)
-    XCTAssertEqual(try importer.preview(data: data([["name": "待核对", "text": "{clipboard} {unsupported}", "keyword": ";;review"]])).selectedCount, 0)
-  }
-
-  func testUnknownNestedSourceMetadataIsRejectedByNativeBackup() throws {
-    let preview = try importer.preview(data: data([["name": "有效", "text": "正文"]]))
-    let bytes = try OwlTemplateStore.encoded(preview.library)
-    var object = try XCTUnwrap(JSONSerialization.jsonObject(with: bytes) as? [String: Any])
-    var entries = try XCTUnwrap(object["entries"] as? [[String: Any]])
-    var source = try XCTUnwrap(entries[0]["importSource"] as? [String: Any])
-    source["futureField"] = "must not discard"
-    entries[0]["importSource"] = source; object["entries"] = entries
-    XCTAssertThrowsError(try OwlTemplateBackup.decode(JSONSerialization.data(withJSONObject: object)))
   }
 
   func testOfficialDateFormatExamplesUseRealEngineAfterConversion() throws {
