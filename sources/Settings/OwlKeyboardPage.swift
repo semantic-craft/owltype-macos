@@ -562,15 +562,7 @@ struct OwlKeyboardPage: View {
       theme: theme,
       reduceTransparency: reduceTransparency
     ) {
-      VStack(alignment: .leading, spacing: 12) {
-        OwlHotKeyRecorderRow(slot: .quickSendPanel, palette: palette)
-        DisclosureGroup("直达提示词筛选（可选）") {
-          OwlHotKeyRecorderRow(slot: .promptAssistant, palette: palette)
-          Text("打开同一个快捷片段库并筛选提示词，已有快捷键继续有效。")
-            .font(.system(size: 12)).foregroundStyle(palette.ink3)
-            .fixedSize(horizontal: false, vertical: true)
-        }
-      }
+      OwlHotKeyRecorderRow(slot: .quickSendPanel, palette: palette)
     }
   }
 

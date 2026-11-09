@@ -121,7 +121,7 @@ extension OwlInputController {
   // Global-hotkey matcher (#118): called from `handle()` for every keyDown while 猫头鹰 is the
   // active IME — the ONLY hotkey path (Carbon registration is banned; it consumes the combo
   // system-wide without ever delivering in this IMK process). Consumes and triggers when the
-  // event equals the 快捷短语面板 / 划词菜单 / 提示词助手 combo.
+  // event equals the 快捷短语面板 / 划词菜单 combo.
   func handleGlobalHotKeyViaIMK(_ event: NSEvent) -> Bool {
     let flags = event.modifierFlags
     if let combo = OwlHotKeySlot.quickSendPanel.current?.carbonCombo,
@@ -134,12 +134,6 @@ extension OwlInputController {
        OwlHotKeyMatcher.matches(combo, keyCode: event.keyCode, flags: flags) {
       OwlHotKeyMatcher.log.notice("imk-path fired: selectionMenu")
       NSApp.owlAppDelegate.selectionMenuCoordinator?.summonForCurrentSelection()
-      return true
-    }
-    if let combo = OwlHotKeySlot.promptAssistant.current?.carbonCombo,
-       OwlHotKeyMatcher.matches(combo, keyCode: event.keyCode, flags: flags) {
-      OwlHotKeyMatcher.log.notice("imk-path fired: promptAssistant")
-      showOwltypePromptPicker(initialSegment: .prompt)
       return true
     }
     return false
@@ -155,17 +149,11 @@ extension OwlInputController {
   // reason OwlAIWindow is copy-only). This ADDS a caller of the existing apply(.insertText:client:)
   // seam; the hot-path methods themselves are untouched.
   @objc func showOwltypeQuickSend() {
-    showOwltypePromptPicker(initialSegment: .phrase)
-  }
-
-  /// 提示词助手热键（OwlHotKeySlot.promptAssistant）传 .prompt 直达提示词页；状态菜单 / 旧
-  /// 热键仍落在短语页。两处共用同一面板与同一 capture→restore 插入链路。
-  func showOwltypePromptPicker(initialSegment: OwlPickerSegment) {
     if isHandlingKeyEvent {
       let generation = templateHostGeneration
       DispatchQueue.main.async { [weak self] in
         guard let self, self.templateHostGeneration == generation else { return }
-        self.showOwltypePromptPicker(initialSegment: initialSegment)
+        self.showOwltypeQuickSend()
       }
       return
     }
@@ -181,8 +169,7 @@ extension OwlInputController {
           let invocation = OwlTemplateInvocation(content: content, broker: broker, deliver: nil, intent: intent)
           MainActor.assumeIsolated { OwlPromptFillSheet.shared.begin(invocation: invocation) }
         }
-      },
-      initialSegment: initialSegment
+      }
     )
   }
 

@@ -356,7 +356,6 @@ final class OwlModernUISmokeTests: XCTestCase {
     XCTAssertEqual(OwlSettingsPage.visibleCases.filter { $0.title == "快捷片段" }, [.quickSend])
     XCTAssertNil(OwlSettingsPage(rawValue: "prompts"))
     XCTAssertEqual(OwlHotKeySlot.quickSendPanel.defaultsKey, "OwlQuickSendPanelHotKey")
-    XCTAssertEqual(OwlHotKeySlot.promptAssistant.defaultsKey, "OwlPromptAssistantHotKey")
   }
 
   func testKeyboardPageExposesFirstClassInputModesAndDoublePinyinPickerState() {

@@ -268,13 +268,6 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
       }
       coordinator.summonForCurrentSelection()
     }
-    hotKeyTap.onPromptAssistant = { [weak self] in
-      guard let controller = self?.runtime.activeInputController else {
-        OwlHotKeyMatcher.log.notice("promptAssistant fired but activeInputController=nil — dropped")
-        return
-      }
-      controller.showOwltypePromptPicker(initialSegment: .prompt)
-    }
     hotKeyTap.startIfPossible()
   }
 

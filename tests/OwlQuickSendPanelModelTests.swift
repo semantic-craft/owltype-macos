@@ -290,21 +290,17 @@ final class OwlQuickSendPanelModelTests: XCTestCase {
   /// recorder rejects a combo held by ANY other slot; `counterparts` is the set it consults.
   func testSlotCounterpartPairingGuardsAgainstDuplicateCombos() {
     // askAnything 槽已退役（2026-07-26）：任意提问只从划词菜单点进，不再有直达热键。
-    XCTAssertEqual(OwlHotKeySlot.quickSendPanel.counterparts, [.selectionMenu, .promptAssistant, .pinCandidate])
-    XCTAssertEqual(OwlHotKeySlot.selectionMenu.counterparts, [.quickSendPanel, .promptAssistant, .pinCandidate])
-    XCTAssertEqual(OwlHotKeySlot.promptAssistant.counterparts, [.quickSendPanel, .selectionMenu, .pinCandidate])
+    XCTAssertEqual(OwlHotKeySlot.quickSendPanel.counterparts, [.selectionMenu, .pinCandidate])
+    XCTAssertEqual(OwlHotKeySlot.selectionMenu.counterparts, [.quickSendPanel, .pinCandidate])
 
     restoreDefaultsAfterTest(key: OwlHotKeySlot.quickSendPanel.defaultsKey)
     restoreDefaultsAfterTest(key: OwlHotKeySlot.selectionMenu.defaultsKey)
-    restoreDefaultsAfterTest(key: OwlHotKeySlot.promptAssistant.defaultsKey)
 
     let combo = OwlRecordedHotKey(keyCode: UInt32(kVK_ANSI_J),
                                    modifiers: UInt32(controlKey | optionKey))
     OwlHotKeySlot.quickSendPanel.current = combo
     XCTAssertTrue(OwlHotKeySlot.selectionMenu.counterparts.contains { $0.current == combo },
                   "划词菜单录制时应能读到快捷短语面板已占用的组合")
-    XCTAssertTrue(OwlHotKeySlot.promptAssistant.counterparts.contains { $0.current == combo },
-                  "提示词助手录制时同样应看到该组合已被占用")
   }
 
   // MARK: - Helpers
