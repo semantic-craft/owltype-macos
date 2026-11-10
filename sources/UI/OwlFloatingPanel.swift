@@ -1,12 +1,13 @@
 import AppKit
+import SwiftUI
 
 class OwlFloatingPanel: NSPanel {
-  override var canBecomeKey: Bool { false }
-  override var canBecomeMain: Bool { false }
+  final override var canBecomeKey: Bool { false }
+  final override var canBecomeMain: Bool { false }
 
   init(
     contentRect: NSRect,
-    styleMask: NSWindow.StyleMask = [.borderless, .nonactivatingPanel],
+    styleMask: NSWindow.StyleMask = [.borderless],
     transparentChrome: Bool = true,
     collectionBehavior: NSWindow.CollectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
   ) {
@@ -54,4 +55,8 @@ class OwlFloatingPanel: NSPanel {
       useVisibleFrame: true
     )
   }
+}
+
+final class OwlFirstClickHostingView<Content: View>: NSHostingView<Content> {
+  override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 }

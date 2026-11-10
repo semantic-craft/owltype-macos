@@ -16,6 +16,7 @@ class OwlVoiceCapsulePanel: OwlFloatingPanel {
   init() {
     super.init(contentRect: NSRect(x: 0, y: 0, width: 280, height: 44))
 
+    ignoresMouseEvents = true
     let view = OwlVoiceCapsuleView(viewModel: viewModel)
     let hosting = NSHostingView(rootView: view)
     self.hostingView = hosting

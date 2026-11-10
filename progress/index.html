@@ -11,6 +11,11 @@
 <li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/tests/JEVReplyModelTests.swift">file tests/JEVReplyModelTests.swift: JEVReplyModelTests、JEVTransportTests、OwlSettingsActionTests 共 34 项通过；含共享样例 SHA-256/source 版本与来源提交核对。</a></li>
 <li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/docs/operations/jev-replies.md">file docs/operations/jev-replies.md: 部署说明改为 Kotone office；Jev 选词仍为现有通用文本模型，不迁移实现。</a></li>
 </ul><p>Next: 完成精确提交的全量合并门禁与合并。真实供应商调用、已安装 IMK 与用户体验验收另行记录。</p></article>
+<article id="settings-interaction-hardening"><h3>设置交互与浮动面板</h3><span class="badge">done</span><p>设置侧栏与模板授权使用整行热区。进入设置页后后台读取模板、供应商状态和诊断快照。设置窗口支持最小化恢复。候选、状态、语音和 Agent 预览共用不抢焦点的面板策略。</p><ul>
+<li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/tests/OwlSettingsUITests.swift">file tests/OwlSettingsUITests.swift: 隔离应用覆盖导航空白区、模板保存与 Agent 授权。</a></li>
+<li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/tests/OwlCandidatePanelAppearanceLifecycleTests.swift">file tests/OwlCandidatePanelAppearanceLifecycleTests.swift: 检查四个 AppKit 面板的焦点策略和语音胶囊的鼠标穿透。</a></li>
+<li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/scripts/check-rust-delivery.py">file scripts/check-rust-delivery.py: 从主程序路径检查 Rust 符号，并验证 MCP helper 与词库。</a></li>
+</ul><p>Next: 保留已安装输入法的跨应用点击和发布安装验收。</p></article>
 <article id="review-backlog"><h3>8 张开放工单：功能余项、可选改进与历史证据分开处理</h3><span class="badge">done</span><p>已核对 main 08385f2、全部 8 张开放工单及后续评论。未发现已确认且尚未修复的发布阻断问题；#208 有功能余项，#269/#316 为可选改进或测量，#204/#205/#207/#278 为已交付实现的历史证据跟踪，#247 维持现状。无开放产品 PR。</p><ul>
 <li><a href="https://github.com/semantic-craft/owltype-macos/issues/208">issue 208: 本轮核对原始范围及后续决定</a></li>
 <li><a href="https://github.com/semantic-craft/owltype-macos/issues/269">issue 269: 本轮核对原始范围及后续决定</a></li>

@@ -9,7 +9,7 @@ import SwiftUI
 @testable import Owltype
 
 @MainActor
-final class OwlPanelAppearanceLifecycleTests: XCTestCase {
+final class OwlCandidatePanelAppearanceLifecycleTests: XCTestCase {
   private var suiteName = ""
   private var defaults: UserDefaults!
 
@@ -24,6 +24,23 @@ final class OwlPanelAppearanceLifecycleTests: XCTestCase {
     defaults.removePersistentDomain(forName: suiteName)
     defaults = nil
     super.tearDown()
+  }
+
+  func testHostFacingPanelsCannotBecomeKeyOrMain() {
+    let candidate = OwlSwiftUICandidatePanel()
+    let status = OwlInputStatusPanel.shared
+    let voice = OwlVoiceCapsulePanel()
+    let delivery = OwlAgentDeliveryPanel()
+    for panel in [candidate, status, voice, delivery] as [NSPanel] {
+      let name = String(describing: type(of: panel))
+      XCTAssertTrue(panel.styleMask.contains(.nonactivatingPanel), name)
+      XCTAssertFalse(panel.canBecomeKey, name)
+      XCTAssertFalse(panel.canBecomeMain, name)
+    }
+    XCTAssertTrue(voice.ignoresMouseEvents, "The display-only capsule must let clicks reach the host")
+    XCTAssertFalse(candidate.ignoresMouseEvents)
+    XCTAssertFalse(status.ignoresMouseEvents)
+    XCTAssertFalse(delivery.ignoresMouseEvents)
   }
 
   func testAppearanceFieldsEditPersistReseedSnapshotAndApplyToObservablePanel() {

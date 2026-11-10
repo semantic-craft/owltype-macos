@@ -24,9 +24,11 @@ final class OwlInputStatusPanel: OwlFloatingPanel {
 
   private init() {
     super.init(contentRect: NSRect(x: 0, y: 0, width: 340, height: 48))
-    isMovableByWindowBackground = true
-    setFrameAutosaveName("OwlInputStatusPanel")
-    if !setFrameUsingName("OwlInputStatusPanel"), let screen = NSScreen.main {
+    if !OwlTestStorage.isEnabled {
+      setFrameAutosaveName("OwlInputStatusPanel")
+    }
+    let restored = !OwlTestStorage.isEnabled && setFrameUsingName("OwlInputStatusPanel")
+    if !restored, let screen = NSScreen.main {
       setFrameOrigin(NSPoint(x: screen.visibleFrame.maxX - frame.width - 24,
                              y: screen.visibleFrame.minY + 24))
     }
@@ -85,7 +87,7 @@ final class OwlInputStatusPanel: OwlFloatingPanel {
         case .hide: self.toggleVisibility(controller)
         }
       })
-      let hosting = NSHostingView(rootView: view)
+      let hosting = OwlFirstClickHostingView(rootView: view)
       contentView = hosting
       setContentSize(hosting.fittingSize)
     }
@@ -151,7 +153,7 @@ private struct StatusButtonStyle: ButtonStyle {
     configuration.label.foregroundStyle(palette.ink)
       .background(RoundedRectangle(cornerRadius: 7)
         .fill(configuration.isPressed ? palette.accent.opacity(0.16) : Color.clear))
-      .contentShape(RoundedRectangle(cornerRadius: 7))
+      .contentShape(.interaction, Rectangle())
   }
 }
 
