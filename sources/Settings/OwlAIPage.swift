@@ -105,7 +105,10 @@ struct OwlAIPage: View {
       guard !OwlTestStorage.isEnabled else {
         return (defaultID, [String: OwlProviderRegistry.KeyState](), false, false)
       }
-      let states = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, reader.keyState(for: $0)) })
+      let states = Dictionary(
+        profiles.map { ($0.id, reader.keyState(for: $0)) },
+        uniquingKeysWith: { first, _ in first }
+      )
       guard requiresKey else { return (defaultID, states, false, false) }
       let dedicated = (try? OwlVoiceSettings.readDedicatedASRAPIKey(
         forProviderID: providerID, secrets: reader.secrets))?
