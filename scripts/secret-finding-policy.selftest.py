@@ -334,6 +334,39 @@ class PublicEnglishDictionaryTests(unittest.TestCase):
                 with patch.object(POLICY, 'PUBLIC_ENGLISH_DB_SHA256', changed):
                     self.assertTrue(POLICY.decide(finding).rejected, 'matching public word/display row is required')
 
+    def test_waives_only_exact_unverified_public_travis_weight_row_and_notice_digest(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = pathlib.Path(temporary) / 'Owltype.app/Contents/SharedSupport/msime/msime-english.db'
+            path.parent.mkdir(parents=True)
+            with sqlite3.connect(path) as db:
+                db.execute('CREATE TABLE english_words(word TEXT, display TEXT, weight INTEGER)')
+                db.execute('INSERT INTO english_words VALUES (?, ?, 21866)', ('dictionary', 'dictionary'))
+            raw = 'dictionary' * 2 + 'Uj'
+            record = artifact_record(raw, detector='TravisCI', path=str(path))
+            record['Verified'] = False
+            finding = POLICY.normalize_artifact_trufflehog(record)
+            trusted = hashlib.sha256(path.read_bytes()).hexdigest()
+            with patch.object(POLICY, 'PUBLIC_ENGLISH_DB_SHA256', trusted), \
+                 patch.object(POLICY, 'PUBLIC_ENGLISH_TRAVIS_RAW_SHA256', hashlib.sha256(raw.encode()).hexdigest()):
+                self.assertEqual(POLICY.decide(finding).waiver, '固定公开英文词库的词条列拼接')
+                self.assertTrue(POLICY.decide(dataclasses.replace(finding, verified=True)).rejected)
+                self.assertTrue(POLICY.decide(dataclasses.replace(finding, raw='dictionary' * 2 + 'Uk')).rejected)
+
+            digest = 'c' * 64
+            notice = pathlib.Path(temporary) / 'msime-upstream-licensing-NOTICE.md'
+            notice.write_text('| `sources/zhuyin/phr' + f'ase.occ` | `{digest}` |\n', encoding='utf-8')
+            art_rec = artifact_record(digest, detector='PhraseAccessToken', path=str(notice), line=1)
+            art_rec['Verified'] = False
+            art_finding = POLICY.normalize_artifact_trufflehog(art_rec)
+            hist_rec = history_record(digest, detector='PhraseAccessToken', path='data/msime-upstream-licensing-NOTICE.md')
+            hist_rec['Verified'] = False
+            hist_finding = POLICY.normalize_history_trufflehog(hist_rec)
+            with patch.object(POLICY, 'UPSTREAM_NOTICE_OCC_DIGEST_SHA256', hashlib.sha256(digest.encode()).hexdigest()):
+                self.assertEqual(POLICY.decide(art_finding).waiver, '上游许可证声明的词库 SHA-256 摘要列')
+                self.assertEqual(POLICY.decide(hist_finding).waiver, '上游许可证声明的词库 SHA-256 摘要列')
+                self.assertTrue(POLICY.decide(dataclasses.replace(art_finding, verified=True)).rejected)
+                self.assertTrue(POLICY.decide(dataclasses.replace(hist_finding, path='docs/other.md')).rejected)
+
 
 
 class PublicSourceArchiveTests(unittest.TestCase):

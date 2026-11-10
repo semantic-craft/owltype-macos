@@ -91,7 +91,7 @@
 ### 1. 水杉 Rust 输入引擎与随包完整词库
 
 - **多方案与混输支持**：内置全拼、小鹤双拼等双拼方案、极点五笔 86、五笔 98、拼音五笔混输、英文输入与中英混输，支持简入繁出。
-- **随包完整 SQLite 词库与语义重排**：App 随包内置固定版本（`dict-v2.0.39`）的完整 SQLite 词库资源（拼音、五笔 86/98、英文、Emoji 与颜文字）以及双端语义重排模型（`keyboard-model.bin` 键盘同步重排与 `settled-model.bin` 停顿重排）。在首次引导或设置中确认后即可在本机事务化准备启用，跨版本升级自动回放保留个人学习词频与置顶词（默认 `⌃⇧P` 置顶）。
+- **随包完整 SQLite 词库与语义重排**：App 随包内置固定版本（`dict-v2.1.2`）的完整 SQLite 词库资源（拼音、五笔 86/98、英文、Emoji 与颜文字）以及双端语义重排模型（`keyboard-model.bin` 键盘同步重排与 `settled-model.bin` 停顿重排）。在首次引导或设置中确认后即可在本机事务化准备启用，跨版本升级自动回放保留个人学习词频与置顶词（默认 `⌃⇧P` 置顶）。
 - **横向四标签键盘设置与候选定制**：「键盘输入」设置采用顶部横向四标签栏（`方案与状态` / `拼音设置` / `五笔设置` / `标点与习惯`）；默认竖排 4 候选、默认关闭五笔编码提示（可在「五笔设置」一键开启），候选方向、数量、字体与配色即时生效。
 
 ### 2. 云端语音输入（Voice ASR）与非激活语音胶囊
@@ -213,7 +213,7 @@
 
 本项目遵循 **GPL-3.0** 许可证，全文见 [LICENSE.txt](LICENSE.txt)。
 
-猫头鹰站在众多优秀的开源输入法、词库与工具项目的肩膀上才得以完成。前端早期派生自 [鼠须管（Squirrel）](https://github.com/rime/squirrel) 与 [librime](https://github.com/rime/librime)；自 `2.1.0` 起输入引擎切换为 [水杉输入法（Metasequoia IME）](https://github.com/metasequoiaime/msime) Rust 引擎（当前固定上游引擎基线 `macos-v0.55.0`、词库基线 `dict-v2.0.39`），公开分发的 App 不再打包或链接 `librime`。完整来源脉络与提取边界见 [PROVENANCE.md](PROVENANCE.md)，第三方组件与词库逐项授权说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+猫头鹰站在众多优秀的开源输入法、词库与工具项目的肩膀上才得以完成。前端早期派生自 [鼠须管（Squirrel）](https://github.com/rime/squirrel) 与 [librime](https://github.com/rime/librime)；自 `2.1.0` 起输入引擎切换为 [水杉输入法（Metasequoia IME）](https://github.com/metasequoiaime/msime) Rust 引擎（当前固定上游引擎基线 `macos-v0.59.1`、词库基线 `dict-v2.1.2`），公开分发的 App 不再打包或链接 `librime`。完整来源脉络与提取边界见 [PROVENANCE.md](PROVENANCE.md)，第三方组件与词库逐项授权说明见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
 在此向以下全部上游项目、词库维护者与开源社区致以诚挚感谢：
 
@@ -226,7 +226,7 @@
 
 ### 2. 词库、码表与语言数据
 
-- **[水杉词库（msime-dictionary）](https://github.com/metasequoiaime/msime-dictionary)**（`dict-v2.0.39`）：提供随包内置的拼音、五笔 86/98、英文、Emoji 与颜文字 SQLite 词库及上下文统计表构建。
+- **[水杉词库（msime-dictionary）](https://github.com/metasequoiaime/msime-dictionary)**（`dict-v2.1.2`）：提供随包内置的拼音、五笔 86/98、英文、Emoji 与颜文字 SQLite 词库及上下文统计表构建。
 - **[雾凇拼音（rime-ice，iDvel）](https://github.com/iDvel/rime-ice)**（GPL-3.0）：现代拼音词库、单字与长词词频、英文补充词表、Emoji 映射与 Lua 方案生态的核心上游来源。
 - **[极点五笔 86（KyleBing/rime-wubi86-jidian）](https://github.com/KyleBing/rime-wubi86-jidian)**（Apache-2.0）：86 版五笔基础单字与词组码表来源。
 - **[98 五笔码表（yanhuacuo/98wubi-tables · 98五笔小组）](https://github.com/yanhuacuo/98wubi-tables)**（Unlicense）与 **[fcitx5-table-extra](https://github.com/fcitx/fcitx5-table-extra)**（GPL-3.0-or-later）：98 版五笔基础与补充码表来源。

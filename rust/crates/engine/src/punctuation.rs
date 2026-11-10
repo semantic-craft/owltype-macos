@@ -1,7 +1,7 @@
 //! Chinese punctuation translation (core-session.md §5.6, overlays.md §7.1, `contracts/punctuation/policy.json`): a fixed map, alternating quotes, and nested book-title marks, with a second set of characters for the quote and square-bracket keys (`styles`) that the host picks from preferences. Quotes always alternate and book titles always nest, whether pairing is on or not; pairing only decides whether a host-side auto-close pays back the nesting count.
 
-/// `policy.json` contract version 1, `simple` in file order.
-const SIMPLE: [(u8, &str); 15] = [
+/// `policy.json` 的 `simple`，按文件顺序。前 15 行是第 1 版的表；第 5 版在末尾加了 `{` → 「、`}` → 」：`Shift+[` `Shift+]` 固定出左右直角引号，不交替、不随引号样式变（#10047）。
+const SIMPLE: [(u8, &str); 17] = [
     (b',', "，"),
     (b'.', "。"),
     (b'?', "？"),
@@ -17,12 +17,14 @@ const SIMPLE: [(u8, &str); 15] = [
     (b'$', "￥"),
     (b'^', "……"),
     (b'_', "——"),
+    (b'{', "「"),
+    (b'}', "」"),
 ];
 
 const DOUBLE_QUOTE: (&str, &str) = ("“", "”");
 const SINGLE_QUOTE: (&str, &str) = ("‘", "’");
 
-/// `policy.json` 的 `styles.cornerQuotes`：直角引号下 `"` 和 `'` 的两组字。第 3 版起 `{` `}` 也出这两组字，与样式无关——弯引号样式下「」『』因此和弯引号并存。
+/// `policy.json` 的 `styles.cornerQuotes`：直角引号下 `"` 和 `'` 的两组字。
 const CORNER_DOUBLE_QUOTE: (&str, &str) = ("『", "』");
 const CORNER_SINGLE_QUOTE: (&str, &str) = ("「", "」");
 
@@ -83,9 +85,9 @@ pub struct PunctuationPolicy {
     marks: PunctuationMarks,
     next_double_quote_is_opening: bool,
     next_single_quote_is_opening: bool,
-    next_corner_single_is_opening: bool,
-    next_corner_double_is_opening: bool,
     book_title_nesting: u32,
+    /// 最近一次交替引号的按键；空闲退格若正好删掉这枚引号，可以把交替状态撤回。
+    last_alternating_quote: Option<u8>,
 }
 
 impl Default for PunctuationPolicy {
@@ -95,9 +97,8 @@ impl Default for PunctuationPolicy {
             marks: PunctuationMarks::default(),
             next_double_quote_is_opening: true,
             next_single_quote_is_opening: true,
-            next_corner_single_is_opening: true,
-            next_corner_double_is_opening: true,
             book_title_nesting: 0,
+            last_alternating_quote: None,
         }
     }
 }
@@ -107,6 +108,7 @@ impl PunctuationPolicy {
     pub fn translate(&mut self, key: u8) -> Option<&'static str> {
         if self.marks.brackets == BracketMarks::Hollow {
             if let Some(&(_, output)) = HOLLOW_BRACKETS.iter().find(|(input, _)| *input == key) {
+                self.last_alternating_quote = None;
                 return Some(output);
             }
         }
@@ -116,40 +118,42 @@ impl PunctuationPolicy {
                 b'\\' => self.marks.enumeration_comma_backslash,
                 _ => self.marks.enumeration_comma_slash,
             };
+            self.last_alternating_quote = None;
             return enabled.then_some(output);
         }
         if let Some(&(_, output)) = SIMPLE.iter().find(|(input, _)| *input == key) {
+            self.last_alternating_quote = None;
             return Some(output);
         }
         let corner = self.marks.quotes == QuoteMarks::Corner;
+        if !matches!(key, b'"' | b'\'') {
+            self.last_alternating_quote = None;
+        }
         // Without host pairing this alternation is the only way to type a closing quote, and a host that does pair rewrites the closing quote itself, so it runs either way (punctuation_policy.cpp:12).
         // 交替状态按键保存，和出哪一组字无关：换样式不重置它。
         match key {
-            b'"' => Some(alternate(
-                &mut self.next_double_quote_is_opening,
-                if corner {
-                    CORNER_DOUBLE_QUOTE
-                } else {
-                    DOUBLE_QUOTE
-                },
-            )),
-            b'\'' => Some(alternate(
-                &mut self.next_single_quote_is_opening,
-                if corner {
-                    CORNER_SINGLE_QUOTE
-                } else {
-                    SINGLE_QUOTE
-                },
-            )),
-            // `{` `}` 的直角引号不吃样式：它们就是 cornerQuotes 里同一组字，交替状态与 `'` `"` 分开保存。
-            b'{' => Some(alternate(
-                &mut self.next_corner_single_is_opening,
-                CORNER_SINGLE_QUOTE,
-            )),
-            b'}' => Some(alternate(
-                &mut self.next_corner_double_is_opening,
-                CORNER_DOUBLE_QUOTE,
-            )),
+            b'"' => {
+                self.last_alternating_quote = Some(key);
+                Some(alternate(
+                    &mut self.next_double_quote_is_opening,
+                    if corner {
+                        CORNER_DOUBLE_QUOTE
+                    } else {
+                        DOUBLE_QUOTE
+                    },
+                ))
+            }
+            b'\'' => {
+                self.last_alternating_quote = Some(key);
+                Some(alternate(
+                    &mut self.next_single_quote_is_opening,
+                    if corner {
+                        CORNER_SINGLE_QUOTE
+                    } else {
+                        SINGLE_QUOTE
+                    },
+                ))
+            }
             NESTED_OPENING_INPUT => {
                 self.book_title_nesting += 1;
                 Some(if self.book_title_nesting == 1 {
@@ -174,12 +178,34 @@ impl PunctuationPolicy {
         }
     }
 
+    /// 记住一次非标点输入或编辑动作，使退格不会撤销更早的引号。
+    pub fn clear_quote_undo(&mut self) {
+        self.last_alternating_quote = None;
+    }
+
+    /// 撤销最近一次交替引号。宿主只在空闲退格确实删掉刚才的标点时调用。
+    pub fn undo_last_quote(&mut self) {
+        let Some(key) = self.last_alternating_quote.take() else {
+            return;
+        };
+        match key {
+            b'"' => self.next_double_quote_is_opening = !self.next_double_quote_is_opening,
+            b'\'' => self.next_single_quote_is_opening = !self.next_single_quote_is_opening,
+            _ => {}
+        }
+    }
+
     pub fn set_paired_enabled(&mut self, enabled: bool) {
         self.paired_enabled = enabled;
     }
 
     pub fn set_marks(&mut self, marks: PunctuationMarks) {
         self.marks = marks;
+    }
+
+    /// 当前生效的标点样式与顿号键；会话据此判断 `/` 是不是已经出顿号。
+    pub fn marks(&self) -> PunctuationMarks {
+        self.marks
     }
 
     /// The host emitted the closing half of `opening` itself; only `<` with pairing on and a positive nesting count changes anything.
@@ -214,7 +240,7 @@ mod tests {
             "../../../shared/contracts/punctuation/policy.json"
         ))
         .expect("policy.json");
-        assert_eq!(spec["contractVersion"], 4);
+        assert_eq!(spec["contractVersion"], 5);
         let simple = spec["simple"].as_array().expect("simple");
         assert_eq!(simple.len(), SIMPLE.len());
         for ((input, output), row) in SIMPLE.iter().zip(simple) {
@@ -225,13 +251,11 @@ mod tests {
             assert_eq!(row["output"], *output);
         }
         let alternating = spec["alternating"].as_array().expect("alternating");
-        assert_eq!(alternating.len(), 4);
-        for (row, (input, (opening, closing))) in alternating.iter().zip([
-            ("\"", DOUBLE_QUOTE),
-            ("'", SINGLE_QUOTE),
-            ("{", CORNER_SINGLE_QUOTE),
-            ("}", CORNER_DOUBLE_QUOTE),
-        ]) {
+        assert_eq!(alternating.len(), 2);
+        for (row, (input, (opening, closing))) in alternating
+            .iter()
+            .zip([("\"", DOUBLE_QUOTE), ("'", SINGLE_QUOTE)])
+        {
             assert_eq!(row["input"], input);
             assert_eq!(row["opening"], opening);
             assert_eq!(row["closing"], closing);
@@ -252,13 +276,11 @@ mod tests {
 
         let styles = &spec["styles"];
         let corner = styles["cornerQuotes"].as_array().expect("cornerQuotes");
-        assert_eq!(corner.len(), 4);
-        for (row, (input, (opening, closing))) in corner.iter().zip([
-            ("\"", CORNER_DOUBLE_QUOTE),
-            ("'", CORNER_SINGLE_QUOTE),
-            ("{", CORNER_SINGLE_QUOTE),
-            ("}", CORNER_DOUBLE_QUOTE),
-        ]) {
+        assert_eq!(corner.len(), 2);
+        for (row, (input, (opening, closing))) in corner
+            .iter()
+            .zip([("\"", CORNER_DOUBLE_QUOTE), ("'", CORNER_SINGLE_QUOTE)])
+        {
             assert_eq!(row["input"], input);
             assert_eq!(row["opening"], opening);
             assert_eq!(row["closing"], closing);
@@ -298,18 +320,14 @@ mod tests {
         for (input, (opening, closing)) in [
             (b'"', DOUBLE_QUOTE),
             (b'\'', SINGLE_QUOTE),
-            (b'{', CORNER_SINGLE_QUOTE),
-            (b'}', CORNER_DOUBLE_QUOTE),
             (b'"', CORNER_DOUBLE_QUOTE),
             (b'\'', CORNER_SINGLE_QUOTE),
-            (b'{', CORNER_SINGLE_QUOTE),
-            (b'}', CORNER_DOUBLE_QUOTE),
         ] {
             let row = format!("{{{}, \"{opening}\", \"{closing}\"}}", literal(input));
             assert!(header.contains(&row), "policy.h lacks {row}");
         }
-        assert!(header.contains("std::array<AlternatingMapping, 4> alternating"));
-        assert!(header.contains("std::array<AlternatingMapping, 4> corner_quotes"));
+        assert!(header.contains("std::array<AlternatingMapping, 2> alternating"));
+        assert!(header.contains("std::array<AlternatingMapping, 2> corner_quotes"));
         assert!(header.contains(&format!(
             "std::array<Mapping, {}> hollow_brackets",
             HOLLOW_BRACKETS.len()
@@ -348,7 +366,7 @@ mod tests {
     /// contracts/tests/punctuation_contract.cpp.
     #[test]
     fn contract_table() {
-        assert_eq!(SIMPLE.len(), 15);
+        assert_eq!(SIMPLE.len(), 17);
         assert_eq!(ENUMERATION_COMMA.len(), 2);
         let mut policy = PunctuationPolicy::default();
         assert_eq!(policy.translate(b'$'), Some("￥"));
@@ -415,6 +433,19 @@ mod tests {
             translate_all(&mut policy, "\"'\"'"),
             ["“", "‘", "”", "’"].map(Some)
         );
+    }
+
+    #[test]
+    fn deleting_the_last_quote_restores_its_direction() {
+        let mut policy = PunctuationPolicy::default();
+        assert_eq!(policy.translate(b'"'), Some("“"));
+        policy.undo_last_quote();
+        assert_eq!(policy.translate(b'"'), Some("“"));
+
+        // 其他标点会结束撤销窗口；这是正常的引号交替，删除后面的字符不能重新打开它。
+        assert_eq!(policy.translate(b':'), Some("："));
+        policy.undo_last_quote();
+        assert_eq!(policy.translate(b'"'), Some("”"));
     }
 
     /// qp_paired_punctuation_disabled: alternation and nesting run with pairing off, and toggling pairing resets neither.
@@ -497,25 +528,33 @@ mod tests {
         );
     }
 
-    /// 契约第 3 版：`Shift+[` `Shift+]`（`{` `}`）出直角引号「」和『』，与 `'` `"` 的交替互不共享状态，也不随引号样式改变。
+    /// 契约第 5 版（#10047）：`Shift+[` `Shift+]`（`{` `}`）固定出左右直角引号「」，不交替，不随引号样式和成对开关变，也不动 `'` `"` 的交替状态。
     #[test]
     fn shifted_brackets_give_corner_quotes() {
         let mut policy = PunctuationPolicy::default();
         assert_eq!(
-            translate_all(&mut policy, "{}{{}"),
-            ["「", "『", "」", "「", "』"].map(Some)
+            translate_all(&mut policy, "{}{{}}"),
+            ["「", "」", "「", "「", "」", "」"].map(Some)
         );
-        // `{` `}` 的交替与 `'` `"` 各自独立：两个弯引号键从没按过，仍出前半个。
+        // 两个弯引号键从没按过，仍出前半个。
         assert_eq!(
             translate_all(&mut policy, "\"'}{"),
-            ["“", "‘", "『", "」"].map(Some)
+            ["“", "‘", "」", "「"].map(Some)
         );
-        // 直角引号样式下 `{` `}` 出的还是这两组字：样式只换 `'` `"` 的字。
-        let mut corner = styled(QuoteMarks::Corner, BracketMarks::Solid);
-        assert_eq!(translate_all(&mut corner, "{}"), ["「", "『"].map(Some));
-        // 成对补全关着也一样交替。
+        // 直角引号样式下 `{` `}` 出的还是这两个字：样式只换 `'` `"` 的字，`'` 的交替也不受 `{` `}` 影响。
+        let mut corner = styled(QuoteMarks::Corner, BracketMarks::Hollow);
+        assert_eq!(
+            translate_all(&mut corner, "{'}'"),
+            ["「", "「", "」", "」"].map(Some)
+        );
+        // 成对补全关着也一样。
         policy.set_paired_enabled(false);
-        assert_eq!(translate_all(&mut policy, "{"), ["「"].map(Some));
+        assert_eq!(translate_all(&mut policy, "}{"), ["」", "「"].map(Some));
+        // 固定映射不是交替引号：退格撤销不碰它，也不撤销更早的引号。
+        assert_eq!(policy.translate(b'"'), Some("”"));
+        assert_eq!(policy.translate(b'{'), Some("「"));
+        policy.undo_last_quote();
+        assert_eq!(policy.translate(b'"'), Some("“"));
     }
 
     /// 缺省样式就是契约第 1 版那张表，逐键相同。

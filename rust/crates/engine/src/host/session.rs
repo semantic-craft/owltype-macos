@@ -1,41 +1,27 @@
-//! The bridge's `Session` wrapper over the engine session (api-contract §1a, §2, §5): ASCII checks, command numbering with `CommitRawWithoutLearning`, the raw-commit learning policy, the flattened snapshot and the online query snapshot.
+//! The bridge's `Session` wrapper over the engine session (api-contract §1a, §2, §5): ASCII checks, the host command numbering, the flattened snapshot and the online query snapshot. The raw-commit learning policy and `CommitRawWithoutLearning` are core options and commands (`SessionOptions::learn_typed_spellings_on_enter`, `Command::CommitRawWithoutLearning`); the facade turns the policy on through `session_options` and maps the command by name.
 
 use std::marker::PhantomData;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::rc::Rc;
 use std::sync::Arc;
 
-use super::options::{runtime_paths, session_options, EngineOptions};
-use crate::assets;
+use super::options::{session_options, EngineOptions};
 use crate::diagnostics;
 use crate::error::{EngineError, Result};
 use crate::helpcode::{
     compute_helpcodes, load_helpcode_keymap_with_fallback, HelpcodeKeymap, SharedKeymap,
 };
 use crate::japanese::romaji::romaji_display_reading_into;
-use crate::local::database::LocalDatabaseLease;
 use crate::nine_key::KeyGrid;
 use crate::pinyin::glide::{GlideKeyboard, GlidePoint};
-use crate::pinyin::segment::is_complete_pinyin_input;
+use crate::touch::{KeyGeometry, KeyTouch, TouchTuning};
 use crate::types::{
     CandidateEdge, CandidateSource, CommandTableEntry, CommandTranslationQuery, FirstPageRows,
     KeyResult, LocalInputMode, MentionEntry, OnlineQuery, PluginCommand, PluginCommandQuery,
     QuickPhraseEntry, SchemeType,
 };
-use crate::user_dictionary::ngram_store::flush_journal;
-use crate::user_dictionary::removal::learn_entered_english_word;
 
-/// The weight an entered English word is learned at: the C++ default argument of `learn_entered_english_word` (user_dictionary_journal.h:136-137), which the bridge relied on.
-const ENTERED_ENGLISH_WORD_WEIGHT: i64 = 10;
-
-fn temporary_japanese_word(commit: &str) -> String {
-    let mut word = String::with_capacity(1 + commit.len());
-    word.push('R');
-    word.push_str(commit);
-    word
-}
-
-/// The host's command numbering. `CommitRawWithoutLearning` has no engine counterpart, and took 11 before the engine's `ConvertHanja` existed, so that one is 12 here and mapped by name rather than by ordinal. 整句改字的两条命令同样按名字映射，宿主编号比引擎多一。
+/// The host's command numbering. `CommitRawWithoutLearning` took 11 here before the engine had it, so the engine numbers it 14, and the engine's `ConvertHanja` (11) is 12 here; those are mapped by name rather than by ordinal. 整句改字的两条命令同样按名字映射，宿主编号比引擎多一。
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Command {
@@ -87,10 +73,17 @@ pub struct EngineSnapshot {
     pub nine_key_single_character: bool,
     /// `SessionSnapshot::nine_key_strokes`.
     pub nine_key_strokes: String,
+    /// `SessionSnapshot::grid_helpcode_available`.
+    pub grid_helpcode_available: bool,
+    /// `SessionSnapshot::grid_helpcode_display`.
+    pub grid_helpcode_display: String,
+    /// `SessionSnapshot::grid_helpcode_constrained`：候选是网格辅助码筛过的，runtime 不再跨行重排。
+    pub grid_helpcode_constrained: bool,
     /// 这次组字是在九宫格（九键或 14 键）里打的，见 [`crate::Session::grid_composing`]。`key_grid` 开着时硬件键盘的字母照样走全拼 26 键，这一项分得清两者。
     pub grid_composing: bool,
     /// 当前方案是双拼，且韵母或零声母编码用 `;` 作第二键：宿主把 `;` 当作字母键送给 Engine。字段名沿用微软双拼，是宿主已经在读的契约。
     pub microsoft_shuangpin: bool,
+    /// 会话跑的双拼方案名（`xiaohe`、`custom` 等），任何时候都给出，九宫格组字时也一样：宿主拿它画键面、算键盘外观的缓存键。核心快照在九宫格组字时这一项留空（金样例按此冻结），门面不照抄它。
     pub shuangpin_profile: String,
     pub preedit: String,
     /// The kana reading in Japanese, the composed Hangul in Korean, the converted text plus the pending bopomofo in Zhuyin, the stroke glyphs (一丨丿丶乛＊) in Stroke, else empty. In Stroke each glyph stands for one ASCII letter of `editing_text`, so `caret_position` also counts glyphs.
@@ -99,6 +92,10 @@ pub struct EngineSnapshot {
     pub display_reading: String,
     pub editing_text: String,
     pub caret_position: usize,
+    /// 辅助码前导键在等辅助码时它在 `editing_text` 里的位置（`SessionSnapshot::helpcode_trigger`），`preedit` 已经带着它；宿主画 `editing_text` 时把 `key` 插在 `position` 处，光标随之后移。
+    pub helpcode_trigger: Option<crate::HelpcodeTrigger>,
+    /// 组字光标在 `preedit` 里的位置，按 Unicode 标量计：`caret_position` 是 `editing_text` 里的偏移，而 `preedit` 可能是分词或展开过的拼写（全拼 `ni'hao`、双拼「拼音分词」的 `shi'shi`），宿主画 `preedit` 时用这一项放光标，不要拿 `caret_position` 去数 `preedit` 的字母。两者没有可靠对应时在 `preedit` 末尾（见 `preedit_caret.rs`）。
+    pub preedit_caret: usize,
     pub segment_raw_boundaries: Vec<u64>,
     pub candidates: Vec<String>,
     pub candidate_codes: Vec<String>,
@@ -114,6 +111,12 @@ pub struct EngineSnapshot {
     pub candidate_answers_key: Vec<bool>,
     /// 与候选同步排列的词网格逐字评分证据；非词网格行为空，证据缺失或长度不符时沿用原模型决策。
     pub candidate_static_evidence: Vec<Option<crate::ordering::StaticEvidence>>,
+    /// 与候选同步排列：九宫格标出的窄裁决点（`ordering::CONTEST_*`，见 `SessionSnapshot::candidate_contest`）。一行都没有标记时为空。
+    pub candidate_contest: Vec<u8>,
+    /// 与候选同步排列：这一行是 26 键双拼按触点计过价、落点支持留在引擎座位上的纠错整句（`WordItem::touch_supported`），runtime 不把它当作次选读法挪到表尾（`ordering::runner_up_order_with`）。一行都没有时为空，没有触点的请求（桌面、实体键盘）永远为空；按行而不是按整张表，因为同一张表里别的纠错行（模糊音替代读法按平面表查出的）没过落点的闸。
+    pub candidate_touch_supported: Vec<bool>,
+    /// 与候选同步排列：这一行是按首选规则坐上第一位的双拼触点纠错（`WordItem::confident_correction`），视图据此给它标 `Candidate::confident_correction`，宿主画强调色、读屏念「已纠正」。一行都没有时为空，没有触点的请求永远为空；本地模式和专用英文下也为空。
+    pub candidate_confident_correction: Vec<bool>,
     /// The scheme's openable candidate list is showing (the Korean Hanja list, the Zhuyin conversion list); candidates are its rows while it is.
     pub candidate_list_open: bool,
     /// 整句改字时改好的整句，否则为空（`SessionSnapshot::conversion`）。
@@ -122,6 +125,10 @@ pub struct EngineSnapshot {
     pub conversion_focus_start: usize,
     /// 光标处那一段（候选所替换的字）的结尾，同样按标量计；光标在句末时等于 `conversion_focus_start`。
     pub conversion_focus_end: usize,
+    /// 光标后编辑正在生效（`SessionSnapshot::caret_edit_suffix`）：宿主显示模式提示，runtime 不重排候选。
+    pub caret_edit_suffix: bool,
+    /// 首选前面固定的那段文字（`SessionSnapshot::caret_edit_prefix`），首选显示为它接上 `candidates[0]`；模式不生效时为空。
+    pub caret_edit_prefix: String,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -147,18 +154,10 @@ pub struct OnlineQuerySnapshot {
     pub session_id: u64,
 }
 
-/// Thread-confined like the bridge session it replaces.
+/// Product glue over the core [`crate::Session`]: the core owns the candidate revision, teardown, the key grid, the helpcode table and the shuangpin profile, and this wrapper keeps only the product's options (the raw-commit learning switch, whether to show helpcodes, where to reload a helpcode table from). Thread-confined like the bridge session it replaces, which is host-api's threading model; the core session itself may move between threads.
 pub struct Session {
     inner: crate::session::Session,
     options: EngineOptions,
-    key_grid: Option<KeyGrid>,
-    microsoft_shuangpin: bool,
-    shuangpin_profile: String,
-    helpcode_keymap: Option<SharedKeymap>,
-    helpcode_enabled: bool,
-    show_helpcode: bool,
-    /// The generation and resource directories the local-mode queries read; dropped after `inner`, so the last session to go closes their cached connections.
-    _local_databases: LocalDatabaseLease,
     _thread_confined: PhantomData<Rc<()>>,
 }
 
@@ -191,54 +190,70 @@ impl Session {
         self.inner.set_prediction_allowed(allowed);
     }
 
+    /// 联想的词库续写多取一池留给模型排序，同 [`crate::Session::set_prediction_pool`]。
+    pub fn set_prediction_pool(&mut self, enabled: bool) {
+        self.inner.set_prediction_pool(enabled);
+    }
+
+    /// 拼整句时给前缀打分的模型，同 [`crate::Session::set_sentence_scorer`]。
+    pub fn set_sentence_scorer(
+        &mut self,
+        scorer: Option<std::sync::Arc<dyn crate::ordering::SentenceScorer>>,
+    ) {
+        self.inner.set_sentence_scorer(scorer);
+    }
+
+    /// 整句读法条数下限，同 [`crate::Session::set_sentence_pool`]。
+    pub fn set_sentence_pool(&mut self, paths: usize) {
+        self.inner.set_sentence_pool(paths);
+    }
+
+    /// 按模型给刚上屏之后的联想排序，同 [`crate::Session::order_prediction`]。
+    pub fn order_prediction(
+        &mut self,
+        scorer: &mut dyn crate::ordering::CandidateScorer,
+        before: &str,
+    ) -> bool {
+        self.inner.order_prediction(scorer, before)
+    }
+
+    /// 换掉会话读的单调时钟和本地墙钟，同 [`crate::Session::set_clock`]。只给评测和测试用，宿主不调：`typing_sim` 按模拟的打字节奏推进时钟，个人学习的 3 s / 8 s / 10 s 窗口和行内日期时间行才不随机器快慢、负载高低和运行的日子变化。
+    pub fn set_clock(&mut self, clock: crate::Clock) {
+        self.inner.set_clock(clock);
+    }
+
     pub fn new(options: &EngineOptions) -> Result<Session> {
-        // The C++ ran `options_for` a second time only to read the profile name back (bridge.cpp:430); that rerun recopied the same sidecar, so one mapping is enough.
+        // The C++ ran `options_for` a second time only to read the profile name back (bridge.cpp:430); that rerun recopied the same sidecar, so one mapping is enough. The bridge also loaded a second copy of the helpcode table only to annotate (bridge.cpp:431-435); the annotation now reads the table the core session filters with.
         let inner = crate::session::Session::new(session_options(options)?)?;
-        let profile = inner.shuangpin_layout();
-        // The engine loads its own copy for filtering; this one only annotates, and exists only while helpcode is on (bridge.cpp:431-435).
-        let helpcode_keymap = if options.helpcode {
-            match &options.helpcode_table {
-                Some(table) => Some(table.clone()),
-                None => Some(Arc::new(load_helpcode_keymap_with_fallback(
-                    Path::new(&options.resources),
-                    &options.helpcode_schema,
-                    options
-                        .helpcode_fallback_resources
-                        .as_deref()
-                        .map(Path::new),
-                )?)),
-            }
-        } else {
-            None
-        };
         Ok(Session {
             inner,
             options: options.clone(),
-            key_grid: None,
-            microsoft_shuangpin: options.scheme == SchemeType::Shuangpin as u8
-                && profile.uses_semicolon_key(),
-            shuangpin_profile: profile.kind.name().to_owned(),
-            helpcode_keymap,
-            helpcode_enabled: options.helpcode,
-            show_helpcode: options.show_helpcode,
-            _local_databases: LocalDatabaseLease::new([
-                PathBuf::from(&options.dictionaries),
-                PathBuf::from(&options.resources),
-            ]),
             _thread_confined: PhantomData,
         })
     }
 
+    /// The scheme is shuangpin and its profile takes `;` as a second key (`EngineSnapshot::microsoft_shuangpin`). The facade never switches scheme, so the scheme it was built with is the one running.
+    fn microsoft_shuangpin(&self) -> bool {
+        self.options.scheme == SchemeType::Shuangpin as u8
+            && self.inner.shuangpin_layout().uses_semicolon_key()
+    }
+
     /// With the annotation rule of bridge.cpp:914-929.
     pub fn snapshot(&self) -> Result<EngineSnapshot> {
-        let value = self.inner.snapshot_for_host(self.show_helpcode);
+        let value = self.inner.snapshot_for_host(self.options.show_helpcode);
         let helpcode_scheme = value.scheme.helpcode();
         let uppercase_all = value.scheme == SchemeType::Quanpin;
         // Rows the engine generated in the expression, command and mention modes are not spelled by pinyin; their annotations are the engine's own. 拆字行的注释是字的读音，没有读音的字也不补辅助码。
-        let keymap = self.helpcode_keymap.as_deref().filter(|_| {
-            self.helpcode_enabled && helpcode_scheme && !value.local_mode.annotates_rows()
+        let keymap = self.inner.helpcode_table().filter(|_| {
+            self.options.helpcode && helpcode_scheme && !value.local_mode.annotates_rows()
         });
         let count = value.candidates.len();
+        // 一行都没有落点支持时整列留空，桌面每次快照不多一次分配。
+        let touch_supported = value.candidates.iter().any(|row| row.touch_supported);
+        // 首选规则 (f)：本地模式、专用英文不算，那里的行不是双拼的回答。
+        let confident = value.local_mode == LocalInputMode::None
+            && !value.dedicated_english
+            && value.candidates.iter().any(|row| row.confident_correction);
         let display_reading = if !value.scheme.draws_reading() {
             String::new()
         } else if value.scheme == SchemeType::JapaneseRomaji
@@ -261,20 +276,30 @@ impl Session {
                     conversion,
                 })
         });
+        let segment_raw_boundaries = self.inner.segment_raw_boundaries();
+        let preedit_caret = preedit_caret::preedit_caret(
+            &value.editing_text,
+            &value.preedit,
+            value.caret_position,
+            &segment_raw_boundaries,
+        );
         let mut output = EngineSnapshot {
             prediction: value.prediction,
             local_mode: value.local_mode.name().to_owned(),
             spelling_symbols: value.spelling_symbols,
             dedicated_english: value.dedicated_english,
-            nine_key: self.key_grid == Some(KeyGrid::NineKey),
-            key_grid: self.key_grid,
+            nine_key: self.inner.key_grid() == Some(KeyGrid::NineKey),
+            key_grid: self.inner.key_grid(),
             nine_key_spellings: value.nine_key_spellings,
             nine_key_reading: value.nine_key_reading,
             nine_key_single_character: value.nine_key_single_character,
             nine_key_strokes: value.nine_key_strokes,
+            grid_helpcode_available: value.grid_helpcode_available,
+            grid_helpcode_display: value.grid_helpcode_display,
+            grid_helpcode_constrained: value.grid_helpcode_constrained,
             grid_composing: self.inner.grid_composing(),
-            microsoft_shuangpin: self.microsoft_shuangpin,
-            shuangpin_profile: self.shuangpin_profile.clone(),
+            microsoft_shuangpin: self.microsoft_shuangpin(),
+            shuangpin_profile: self.inner.shuangpin_layout().kind.name().to_owned(),
             preedit: value.preedit,
             display_reading,
             reading: if value.scheme.draws_reading() {
@@ -284,9 +309,9 @@ impl Session {
             },
             editing_text: value.editing_text,
             caret_position: value.caret_position,
-            segment_raw_boundaries: self
-                .inner
-                .segment_raw_boundaries()
+            helpcode_trigger: value.helpcode_trigger,
+            preedit_caret,
+            segment_raw_boundaries: segment_raw_boundaries
                 .into_iter()
                 .map(|boundary| boundary as u64)
                 .collect(),
@@ -302,18 +327,40 @@ impl Session {
             candidate_corrected: Vec::with_capacity(count),
             candidate_answers_key: Vec::with_capacity(count),
             candidate_static_evidence: Vec::with_capacity(count),
+            candidate_contest: if value.candidate_contest.len() == count {
+                value.candidate_contest
+            } else {
+                Vec::new()
+            },
+            candidate_touch_supported: if touch_supported {
+                Vec::with_capacity(count)
+            } else {
+                Vec::new()
+            },
+            candidate_confident_correction: if confident {
+                Vec::with_capacity(count)
+            } else {
+                Vec::new()
+            },
             candidate_list_open: value.candidate_list_open,
             conversion: value.conversion,
             conversion_focus_start: value.conversion_focus.0,
             conversion_focus_end: value.conversion_focus.1,
+            caret_edit_suffix: value.caret_edit_suffix,
+            caret_edit_prefix: value.caret_edit_prefix,
         };
+        // 五笔反查只服务五笔方案：混输拼音的候选虽然来自全拼，也一样附上五笔码；全拼和双拼方案本身不显示，那里的注释位留给辅助码和纠错提示。
+        let wubi_reverse_codes = value.local_mode == LocalInputMode::None
+            && !value.dedicated_english
+            && value.scheme == SchemeType::Wubi;
+        let wildcard_query = wubi_reverse_codes && self.inner.wubi_wildcard_query_active();
         let mut annotations = value.candidate_annotations.into_iter();
         for (index, candidate) in value.candidates.into_iter().enumerate() {
             let mut annotation = annotations
                 .next()
                 .unwrap_or_else(|| candidate.corrected_from.to_string());
             if let Some(keymap) = keymap {
-                if self.show_helpcode
+                if self.options.show_helpcode
                     && annotation.is_empty()
                     && candidate.source == CandidateSource::Generated
                 {
@@ -321,15 +368,13 @@ impl Session {
                     annotation = compute_helpcodes(&candidate.word, uppercase_all, keymap);
                 }
             }
-            // 五笔反查只服务五笔方案：混输拼音的候选虽然来自全拼，也一样附上五笔码；全拼和双拼方案本身不显示，那里的注释位留给辅助码和纠错提示。
-            if value.local_mode == LocalInputMode::None
-                && !value.dedicated_english
-                && value.scheme == SchemeType::Wubi
-                && matches!(
-                    candidate.scheme,
-                    SchemeType::Quanpin | SchemeType::Shuangpin | SchemeType::Wubi
-                )
-            {
+            // 用户关掉「候选显示剩余编码」（`wubi_reverse_code` 为 false）时，五笔原生候选不附：宿主在没有剩余编码时退回显示这条注释，附了就成了关掉开关后剩余编码换成完整编码（#10790）。拼音来的候选（混输拼音和 `z` 临时拼音反查）照旧附：那是用拼音查五笔码的反查，不是剩余编码，开关打开时宿主也从来不给它们算剩余编码，而混输打开时没有 `z` 反查，打字时只剩这一条查码路径。`z` 通配查出的五笔候选也照旧附：用户正是不知道 `z` 那一位是什么才用通配，完整码就是答案；键入的码不是它的前缀，开关打开时宿主同样算不出剩余编码；通配打开时 `z` 反查也停用了。
+            let reverse_code = match candidate.scheme {
+                SchemeType::Wubi => self.options.wubi_reverse_code || wildcard_query,
+                SchemeType::Quanpin | SchemeType::Shuangpin => true,
+                _ => false,
+            };
+            if wubi_reverse_codes && reverse_code {
                 let code = self.candidate_wubi_code_for_display_item(index, &candidate);
                 if let Some(code) = code {
                     if !annotation.contains(code) {
@@ -359,6 +404,16 @@ impl Session {
             output
                 .candidate_static_evidence
                 .push(candidate.static_evidence());
+            if touch_supported {
+                output
+                    .candidate_touch_supported
+                    .push(candidate.touch_supported);
+            }
+            if confident {
+                output
+                    .candidate_confident_correction
+                    .push(candidate.confident_correction);
+            }
             output.candidate_codes.push(candidate.pinyin.into_string());
             output.candidates.push(candidate.word.into_string());
         }
@@ -387,6 +442,26 @@ impl Session {
 
     pub fn reset_cache(&mut self) {
         self.inner.reset_cache();
+    }
+
+    /// 按现在的整句池和整句打分器重解当前组字，同 [`crate::Session::recompute_candidates`]。
+    pub fn recompute_candidates(&mut self) {
+        self.inner.recompute_candidates();
+    }
+
+    /// 把在线行（宿主来源码 2 = 云候选、3 = AI 候选，同 `EngineSnapshot::candidate_sources`）照原样放回当前组字的候选，不再核对查询；别的来源忽略。runtime 的停顿重解换整句打分器时，引擎清掉了缓存里的在线行，而宿主不会为同一个查询再取一次，重解前从视图里记下、重解后用它放回。
+    pub fn restore_online_rows(&mut self, rows: &[(String, u8)]) {
+        let rows: Vec<(String, CandidateSource)> = rows
+            .iter()
+            .filter_map(|(word, source)| {
+                CandidateSource::from_u8(*source)
+                    .filter(|source| source.is_online())
+                    .map(|source| (word.clone(), source))
+            })
+            .collect();
+        if !rows.is_empty() {
+            self.inner.restore_online_rows(&rows);
+        }
     }
 
     /// Remove cached rows for one online provider (host source 0 = cloud, 1 = AI).
@@ -488,20 +563,18 @@ impl Session {
                         .helpcode_fallback_resources
                         .as_deref()
                         .map(Path::new),
+                    self.options.custom_helpcode_root.as_deref().map(Path::new),
                 )
                 .unwrap_or_else(|error| {
-                    eprintln!(
-                        "msime: helpcode schema {} unavailable, using an empty table: {error}",
+                    crate::logging::warn(format_args!(
+                        "helpcode schema {} unavailable, using an empty table: {error}",
                         self.options.helpcode_schema
-                    );
+                    ));
                     HelpcodeKeymap::default()
                 }),
             ),
         };
-        self.inner.set_helpcode_table(keymap.clone());
-        if self.helpcode_enabled {
-            self.helpcode_keymap = Some(keymap);
-        }
+        self.inner.set_helpcode_table(keymap);
         self.options.helpcode_table = table;
         Ok(())
     }
@@ -617,6 +690,11 @@ impl Session {
         self.inner.wubi_pinyin_continues(value, shift)
     }
 
+    /// 第五码顶字关掉、混输开着时，让下一个字母并进混输串；见 `Session::allow_wubi_mixed_extension`。
+    pub fn allow_wubi_mixed_extension(&mut self) -> bool {
+        self.inner.allow_wubi_mixed_extension()
+    }
+
     /// 五笔拼音混输开着时，顶字关掉才有地方容纳第五个字母。
     pub fn wubi_mixed_pinyin(&self) -> bool {
         self.inner.wubi_mixed_pinyin()
@@ -626,6 +704,21 @@ impl Session {
     pub fn character(&mut self, value: u8, shift: bool) -> Result<EngineResult> {
         require_ascii(value, diagnostics::CHARACTER_MUST_BE_ASCII)?;
         Ok(result_for(self.inner.character(value, shift)))
+    }
+
+    /// 下一次 `character` 的按下点，见 [`crate::Session::set_key_touch`]。
+    pub fn set_key_touch(&mut self, touch: Option<KeyTouch>) {
+        self.inner.set_key_touch(touch);
+    }
+
+    /// 宿主注册或清除的键位几何，见 [`crate::Session::set_key_geometry`]。
+    pub fn set_key_geometry(&mut self, geometry: Option<Arc<KeyGeometry>>) {
+        self.inner.set_key_geometry(geometry);
+    }
+
+    /// 按触点计价的参数，只给 Rust 侧的评测调参用，不经 FFI；见 [`crate::touch::TouchTuning`]。
+    pub fn set_touch_tuning(&mut self, tuning: TouchTuning) {
+        self.inner.set_touch_tuning(tuning);
     }
 
     pub fn expand_initial_candidates(&mut self) -> Result<bool> {
@@ -639,7 +732,6 @@ impl Session {
     /// 见 [`crate::Session::set_key_grid`]。快照的 `nine_key` 只在九键下为真。
     pub fn set_key_grid(&mut self, grid: Option<KeyGrid>) -> Result<()> {
         self.inner.set_key_grid(grid);
-        self.key_grid = grid;
         Ok(())
     }
 
@@ -657,9 +749,28 @@ impl Session {
         Ok(result_for(self.inner.glide(keyboard, points)))
     }
 
+    /// 可选的中英混合滑行；共享内核持有候选与选词状态。
+    pub fn bilingual_glide(
+        &mut self,
+        keyboard: &GlideKeyboard,
+        points: &[GlidePoint],
+    ) -> Result<EngineResult> {
+        Ok(result_for(self.inner.bilingual_glide(keyboard, points)))
+    }
+
+    /// 宿主编排不能替混合滑行选择默认候选。
+    pub fn requires_candidate_selection(&self) -> bool {
+        self.inner.requires_candidate_selection()
+    }
+
     /// Out of range is unhandled.
     pub fn choose_nine_key_spelling(&mut self, index: usize) -> Result<EngineResult> {
         Ok(result_for(self.inner.choose_nine_key_spelling(index)))
+    }
+
+    /// 见 [`crate::Session::grid_helpcode`]。
+    pub fn grid_helpcode(&mut self, op: crate::GridHelpcodeOp) -> Result<EngineResult> {
+        Ok(result_for(self.inner.grid_helpcode(op)))
     }
 
     /// 见 [`crate::Session::set_nine_key_filter`]。
@@ -673,11 +784,13 @@ impl Session {
         ))
     }
 
-    /// `CommitRaw` goes through the learning policy of bridge.cpp:1332-1359 and `CommitRawWithoutLearning` through :1321-1331.
+    /// `CommitRaw` 与 `CommitRawWithoutLearning` 交给核心同名的命令：回车学英文词的策略在核心里（`SessionOptions::learn_typed_spellings_on_enter`，产品打开），门面只换编号。
     pub fn command(&mut self, command: Command) -> Result<EngineResult> {
         match command {
-            Command::CommitRaw => Ok(self.commit_raw_with_policy()),
-            Command::CommitRawWithoutLearning => Ok(self.commit_raw_without_learning()),
+            Command::CommitRawWithoutLearning => Ok(result_for(
+                self.inner
+                    .command(crate::types::Command::CommitRawWithoutLearning),
+            )),
             Command::ConvertHanja => Ok(result_for(
                 self.inner.command(crate::types::Command::ConvertHanja),
             )),
@@ -768,78 +881,6 @@ impl Session {
         self.inner.set_dedicated_english(enabled);
         Ok(())
     }
-
-    /// The letters as typed, learned as nothing. The engine's own raw commit learns the word itself in dedicated English, so that mode takes the preedit and cancels instead (bridge.cpp:1320-1331). 上屏的就是预编辑原文，本地模式的入口字母也在内，和 `InputSession` 一致。
-    fn commit_raw_without_learning(&mut self) -> EngineResult {
-        let before = self.inner.snapshot();
-        if !before.dedicated_english {
-            return result_for(self.inner.command(crate::types::Command::CommitRaw));
-        }
-        let raw = before.preedit;
-        self.inner.command(crate::types::Command::Cancel);
-        result_for(KeyResult::committed(raw))
-    }
-
-    /// Windows 只在回车时学词：专用英文、本地模式里原样上屏的字母，以及不是完整音节序列的拼音，学成英文词（bridge.cpp:1332-1359）。九宫格（九键、14 键）组字时上屏的不是用户逐个打出的字母：九键是数字，14 键是结束组字后的首选，都不学成英文词。整条学习由 `input.enter_learns_english_word` 总开关控制（出厂为开），关掉后回车照常上屏、只是不入库。
-    fn commit_raw_with_policy(&mut self) -> EngineResult {
-        let grid_composing = self.inner.grid_composing();
-        let before = self.inner.snapshot();
-        let chinese_scheme = before.scheme.learns_english_words();
-        let complete_pure_pinyin = chinese_scheme && {
-            let segmentation = if before.normalized_segmentation.is_empty() {
-                &before.raw_segmentation
-            } else {
-                &before.normalized_segmentation
-            };
-            !segmentation.is_empty() && is_complete_pinyin_input(segmentation)
-        };
-        // 计算、指令和名单模式里是算式、触发词或键，网址也不是英文单词，都不是用户拼出的词，不进英文词库。
-        // 整句改字时回车上屏的是改好的汉字，不是拼出来的字母。
-        let should_learn = self.options.learn_english_on_enter
-            && before.conversion.is_empty()
-            && !grid_composing
-            && !before.local_mode.generates_text()
-            && before.local_mode != LocalInputMode::Url
-            && (before.dedicated_english
-                || before.local_mode != LocalInputMode::None
-                || (chinese_scheme && !complete_pure_pinyin));
-        let mut result = self.inner.command(crate::types::Command::CommitRaw);
-        if let Some(commit) = result.commit.as_deref().filter(|_| should_learn) {
-            // 进词库的词去掉临时模式的入口字母：回车上屏的原文带它，词库里不该有（#7616）。只有入口字母时正文为空，那就没有词可学（旧实现上屏空串，同样不学）。
-            let text = before.local_mode.without_entry_marker(commit);
-            if !text.is_empty() {
-                let word = if before.local_mode == LocalInputMode::TemporaryJapanese {
-                    temporary_japanese_word(text)
-                } else {
-                    text.to_owned()
-                };
-                let paths = runtime_paths(&self.options);
-                // The commit already happened; a word that could not be learned is reported beside it rather than undoing it.
-                if learn_entered_english_word(
-                    &paths.dictionary(assets::ENGLISH_DICTIONARY),
-                    &paths.user(assets::USER_JOURNAL),
-                    &word,
-                    ENTERED_ENGLISH_WORD_WEIGHT,
-                )
-                .is_err()
-                {
-                    result.diagnostic = Some(diagnostics::ENGLISH_WORD_NOT_LEARNED.to_owned());
-                }
-            }
-        }
-        result_for(result)
-    }
-}
-
-/// The C++ registered `PersonalNgramStore::flush_all` with `atexit` (personal_ngram_store.cpp:255), so context learned in the last ~2 s reached the journal when the host quit. Rust runs no destructors for statics and `atexit` needs unsafe, so the session writes its journal's queue when the host drops it, which hosts do on deactivation and shutdown. A host that can exit without dropping its sessions (macOS `[NSApp terminate:]` runs `exit()`) calls `flush_personal_learning`, through host-api's `msime_client_flush_all`, from its will-terminate hook instead.
-impl Drop for Session {
-    fn drop(&mut self) {
-        let journal = runtime_paths(&self.options).user(assets::USER_JOURNAL);
-        // Nobody is left to report to: a failed write stays queued and flagged in the store, and the next record reports it and schedules another try.
-        let _ = flush_journal(&journal);
-        // A host thread whose sessions are gone (a quiesced IME, a closed window) holds no journal handle.
-        crate::user_dictionary::journal::release_thread_journal();
-    }
 }
 
 /// Whether a commit made in `local_mode` (a `local_mode` name, as `EngineSnapshot` carries it) counts as typing. Text the expression, command and mention modes generated does not; an unknown name does, as every mode did before those.
@@ -892,18 +933,13 @@ fn online_request(
     Some((request, source))
 }
 
-#[cfg(test)]
-mod tests {
-    use super::temporary_japanese_word;
-
-    #[test]
-    fn temporary_japanese_word_allocates_only_result_bytes() {
-        let word = temporary_japanese_word("かな");
-        assert_eq!(word, "Rかな");
-        assert_eq!(word.capacity(), word.len());
-    }
-}
+#[path = "session/preedit_caret.rs"]
+mod preedit_caret;
 
 #[cfg(test)]
 #[path = "session/annotation_move_tests.rs"]
 mod annotation_move_tests;
+
+#[cfg(test)]
+#[path = "session/grid_annotation_tests.rs"]
+mod grid_annotation_tests;

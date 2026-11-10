@@ -10,7 +10,7 @@ final class OwlDictPackTests: XCTestCase {
 
   func testCompatibleResourcesCatalogExposesBundledMetadataAndModels() {
     XCTAssertEqual(OwlRustCompatibleResources.packageId, "owltype-dictpack")
-    XCTAssertEqual(OwlRustCompatibleResources.packageVersion, 4)
+    XCTAssertEqual(OwlRustCompatibleResources.packageVersion, 5)
     XCTAssertFalse(OwlRustCompatibleResources.configurationVersion.isEmpty)
     XCTAssertTrue(OwlRustCompatibleResources.requiredFiles.contains("msime-pinyin.db"))
     XCTAssertTrue(OwlRustCompatibleResources.requiredFiles.contains("msime-wubi.db"))

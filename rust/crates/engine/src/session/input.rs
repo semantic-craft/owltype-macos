@@ -5,6 +5,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use super::candidates::clone_candidate_rows;
+use super::cantonese_learning::CantonesePhraseProgress;
+use super::caret_edit::CaretEdit;
 use super::chain::CommitChain;
 use super::clock::Clock;
 use super::conversion::ConversionEdit;
@@ -30,6 +32,7 @@ use crate::shuangpin::ShuangpinProfile;
 use crate::stroke;
 use crate::tibetan::{SHAD, TSHEG};
 use crate::time::Instant;
+use crate::touch::KeyTouch;
 use crate::types::{
     CandidateSource, Command, CommandTableEntry, EnglishInputOptions, FirstPageRows,
     FrequencyAdjustmentOptions, KeyResult, LocalInputMode, LocalModeOptions, MentionEntry,
@@ -43,7 +46,7 @@ use crate::zhuyin;
 use crate::zhuyin::scheme::ZhuyinKey;
 
 /// The weight an English word typed out and committed raw enters `msime-english.db` with (user_dictionary_journal.h:137).
-const ENTERED_ENGLISH_WORD_WEIGHT: i64 = 10;
+pub(super) const ENTERED_ENGLISH_WORD_WEIGHT: i64 = 10;
 
 /// A phrase being composed from consecutive partial selections.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
@@ -69,6 +72,8 @@ pub(super) struct InputSession {
     pub profile: &'static ShuangpinProfile,
     pub caret: Option<usize>,
     pub phrase_progress: CreatingWordProgress,
+    /// 粤语组字里已经上屏的几段，组字结束时决定要不要造词（`cantonese_learning`）。
+    pub cantonese_progress: CantonesePhraseProgress,
     pub pending_sequence: Option<String>,
     pub pending_sequence_with_cases: Option<String>,
     pub autocorrect_types: u32,
@@ -79,6 +84,7 @@ pub(super) struct InputSession {
     pub helpcode_entry: Option<usize>,
     pub helpcode_keymap: Option<SharedKeymap>,
     pub helpcode_fallback_resources: Option<PathBuf>,
+    pub custom_helpcode_root: Option<PathBuf>,
     pub chinese_punctuation_enabled: bool,
     pub punctuation_lock: i32,
     pub learning_enabled: bool,
@@ -108,6 +114,10 @@ pub(super) struct InputSession {
     /// The scheme to return to after temporary Japanese.
     pub temporary_original_scheme: Option<SchemeType>,
     pub local_preedit: String,
+    /// 双拼组字末尾按 `/` 转成超级简拼时那段组字原文（#10860）；Shift+J 进入的超级简拼为 `None`。按内容比较而不是只记一个标记，因为 J 模式里可以在光标处改字：预编辑去掉 `J` 之后仍等于它时，退格和第二个 `/` 才撤回这次转换。
+    pub jianpin_slash_origin: Option<String>,
+    /// 按 `/` 转换之前的提交链：J 模式和 Shift+J 一样从没有上下文开始，撤回时还回去，原组字仍接着上一个上屏的词排序和学习。
+    pub jianpin_slash_chain: CommitChain,
     pub local_candidates: Vec<WordItem>,
     /// 上一枚按键是交给宿主的大写字母（没有组字时 Shift+字母就走这条路）。连续按住 Shift 打大写时它让这一串开了头：后面的字母不再进快捷模式，第一枚仍照旧（#7616）。
     pub uppercase_passthrough: bool,
@@ -121,10 +131,20 @@ pub(super) struct InputSession {
     pub personal_reranked: bool,
     /// The list before the personal rerank; learning, pinning and index-0 checks use this order.
     pub ranking_candidates: Option<Vec<WordItem>>,
+    /// 中英混合滑行的一笔及其完整候选；普通编辑改变拼写或光标后失效。
+    pub glide_candidates: Option<(String, Vec<WordItem>)>,
+    /// 混合滑行的组字只能明确选词上屏；普通拼写编辑不解除此门禁。
+    pub glide_selection_pending: bool,
+    /// 只在当前会话保留最近一次滑行选词的语言倾向，不写个人词库。
+    pub glide_prefers_english: Option<bool>,
     /// Caret-prefix decoding (overlays.md §7.6).
     pub prefix_active: bool,
     pub prefix_query_input: String,
     pub prefix_candidates: Vec<WordItem>,
+    /// 移动光标后编辑光标后的部分（`SessionOptions::caret_edit_suffix`）。
+    pub caret_edit_suffix: bool,
+    /// 光标后编辑的状态，见 `caret_edit.rs`。
+    pub caret_edit: CaretEdit,
     pub shuangpin_preedit_uses_raw: bool,
     pub single_character_only: bool,
     /// Writes phrases under complete quanpin keys whatever the active scheme is, so a shuangpin session never feeds a canonical key back through its profile; opened on first use.
@@ -133,6 +153,8 @@ pub(super) struct InputSession {
     pub conversion: Option<ConversionEdit>,
     /// 「📅日期」页：选中混输里的入口后，候选窗换成这一组的全部格式（`EnterDateTimeCandidatePage`）。组字和 `mixed_candidates` 原样留着，任何非选词键把 `candidates()` 视图还回去。
     pub date_time_menu_page: Option<Vec<WordItem>>,
+    /// 触屏宿主为下一次 `character` 送来的按下点（`Session::set_key_touch`），只在 `dispatch_character` 把这一键交给方案之前用掉；其余路径一律丢掉。
+    pub pending_touch: Option<KeyTouch>,
 }
 
 impl InputSession {
@@ -161,8 +183,11 @@ impl InputSession {
             options.stroke_dictionary.clone(),
             options.japanese_dictionary.clone(),
         )?;
+        engine.set_force_cantonese_shuangpin(options.force_cantonese_shuangpin);
+        engine.set_cantonese_output_conversion(options.cantonese_output_conversion);
         engine.set_autocorrect_types(0);
         engine.set_quanpin_helpcode_enabled(true);
+        engine.set_strict_quanpin_helpcode(options.strict_quanpin_helpcode);
         engine.set_shuangpin_helpcode_enabled(true);
         engine.set_korean_layout(options.korean_layout);
         engine.set_vietnamese_options(
@@ -179,6 +204,7 @@ impl InputSession {
             profile,
             caret: None,
             phrase_progress: CreatingWordProgress::default(),
+            cantonese_progress: CantonesePhraseProgress::default(),
             pending_sequence: None,
             pending_sequence_with_cases: None,
             autocorrect_types: 0,
@@ -188,6 +214,7 @@ impl InputSession {
             helpcode_entry: None,
             helpcode_keymap: None,
             helpcode_fallback_resources: options.helpcode_fallback_resources.clone(),
+            custom_helpcode_root: options.custom_helpcode_root.clone(),
             chinese_punctuation_enabled: true,
             punctuation_lock: 0,
             learning_enabled: true,
@@ -222,6 +249,8 @@ impl InputSession {
             local_mode: LocalInputMode::None,
             temporary_original_scheme: None,
             local_preedit: String::new(),
+            jianpin_slash_origin: None,
+            jianpin_slash_chain: CommitChain::default(),
             local_candidates: Vec::new(),
             uppercase_passthrough: false,
             plugin_rows: None,
@@ -234,13 +263,19 @@ impl InputSession {
             typo_profile: PersonalTypoProfile::shared(&journal),
             personal_reranked: false,
             ranking_candidates: None,
+            glide_candidates: None,
+            glide_selection_pending: false,
+            glide_prefers_english: None,
             prefix_active: false,
             prefix_query_input: String::new(),
             prefix_candidates: Vec::new(),
+            caret_edit_suffix: options.caret_edit_suffix,
+            caret_edit: CaretEdit::default(),
             shuangpin_preedit_uses_raw: true,
             single_character_only: options.single_character_only,
             canonical_phrase_engine: None,
             conversion: None,
+            pending_touch: None,
             journal_path: journal,
             paths,
         };
@@ -321,10 +356,18 @@ impl InputSession {
 
     /// input_session.cpp:88-245: caret insertion, dedicated English, local modes and their Shift entries, the acceptance gate, then the scheme. Handled iff the preedit changed.
     pub fn handle_character(&mut self, value: u8, shift_only: bool) -> KeyResult {
+        // 任何实际字符输入都会使“退格撤销最近引号”失效；否则引号后输入一段拼音再退格，可能误撤销更早的引号。
+        self.punctuation.clear_quote_undo();
         self.exit_date_time_menu();
-        let result = self
-            .helpcode_character(value)
-            .unwrap_or_else(|| self.dispatch_character(value, shift_only));
+        // 辅助码前导键接走的按键不是音节里的键，触点作废。
+        let touch = self.pending_touch.take();
+        let result = match self.helpcode_character(value) {
+            Some(result) => result,
+            None => {
+                self.pending_touch = touch;
+                self.dispatch_character(value, shift_only)
+            }
+        };
         // #7616：交还给宿主的大写字母让这一串开了头，直到下一枚不是大写字母的键为止。
         self.uppercase_passthrough = value.is_ascii_uppercase() && !result.handled;
         result
@@ -336,6 +379,8 @@ impl InputSession {
     }
 
     pub(super) fn dispatch_character(&mut self, value: u8, shift_only: bool) -> KeyResult {
+        // 触点只交给下面写进 26 键组字的那一次 `handle_key`；在那之前返回的路径（改字、光标处插入、本地模式、网址）都用不到它。
+        let touch = self.pending_touch.take();
         // 改字时能写进组字的键先退出改字再照常键入；数字和空格等留给候选选择，宿主或 runtime 再按选择处理。
         if self.conversion.is_some() {
             if !(value.is_ascii_alphabetic() || value == b'\'' || value == b';') {
@@ -361,6 +406,10 @@ impl InputSession {
                 self.update_dedicated_english_candidates();
             }
             return KeyResult::handled();
+        }
+        // `/` 转出来的超级简拼还没改过码时，第二个 `/` 撤回转换、照旧上屏首选再出 `/`（`jianpin_slash.rs`）。
+        if value == b'/' && self.super_jianpin_slash_escape_ready() {
+            return self.escape_super_jianpin_slash();
         }
         if self.local_mode != LocalInputMode::None {
             return self.handle_local_character(value);
@@ -397,6 +446,10 @@ impl InputSession {
             self.enter_url_mode(text);
             return KeyResult::handled();
         }
+        // 双拼组字末尾的 `/` 把整段原文改成超级简拼（#10860）。万象式的 `/` 结束键、`/` 前导键和 `/` 顿号都让位，条件见 `super_jianpin_slash_ready`。
+        if value == b'/' && self.super_jianpin_slash_ready() {
+            return self.enter_super_jianpin_slash();
+        }
 
         let scheme = self.scheme();
         let lowercase_letter = value.is_ascii_lowercase();
@@ -407,6 +460,9 @@ impl InputSession {
             && scheme == SchemeType::Shuangpin
             && self.profile.uses_semicolon_key()
             && helpcode_marker.is_none();
+        let cantonese_final = value == b';'
+            && scheme == SchemeType::Cantonese
+            && self.engine.cantonese_shuangpin_accepts_semicolon();
         let japanese_long_vowel = value == b'-' && scheme == SchemeType::JapaneseRomaji;
         // 已启用的快捷入口在上面处理；被关闭或资源不可用的入口按普通大写字母继续。
         let starts_pinyin_with_shift =
@@ -418,6 +474,7 @@ impl InputSession {
             && !composing_pinyin_uppercase
             && value != b'\''
             && !microsoft_final
+            && !cantonese_final
             && !japanese_long_vowel
             && helpcode_marker.is_none()
         {
@@ -444,7 +501,7 @@ impl InputSession {
         } else if let Some(marker) = helpcode_marker {
             // 触发键在输入串里一律记成标记字符（反引号或 '|'），与用户敲的键无关。
             SchemeKey::Symbol(marker)
-        } else if microsoft_final {
+        } else if microsoft_final || cantonese_final {
             SchemeKey::Semicolon
         } else if japanese_long_vowel {
             SchemeKey::Minus
@@ -454,6 +511,12 @@ impl InputSession {
             // Only a key the scheme claims gets past the filter above; none of the current schemes claims one here.
             SchemeKey::Symbol(value)
         };
+        // 必须在 `handle_key` 之前交出：它会同步刷新候选。只有双拼方案收，大写字母（辅助码）和标记不带触点。
+        if matches!(key, SchemeKey::Letter(letter) if letter.is_ascii_lowercase())
+            || key == SchemeKey::Semicolon
+        {
+            self.engine.set_pending_touch(touch);
+        }
         let changed = self.engine.handle_key(key);
         self.update_mixed_candidates();
         // A key the scheme ignores (a fifth wubi letter, a second apostrophe) leaves the preedit alone and goes back to the host.
@@ -558,7 +621,8 @@ impl InputSession {
                 self.local_preedit.len() < GENERATED_MODE_INPUT_LIMIT
                     && (value.is_ascii_lowercase()
                         || (value == b'\''
-                            && self.command_takes_word_separator(self.local_preedit.len())))
+                            && self.command_takes_word_separator(self.local_preedit.len()))
+                        || self.command_takes_argument_symbol(value, self.local_preedit.len()))
             }
             LocalInputMode::Url => {
                 // 网址不收的符号（`"` `<` `|` 等）和空格结束网址：交还 runtime，由它先上屏网址再处理这个键。
@@ -575,12 +639,8 @@ impl InputSession {
             LocalInputMode::None => return KeyResult::unhandled(),
         };
         if !accepted {
-            // 空入口还没有模式内容，拒绝的第二枚大写留在同一组字，避免把 UV 拆开上屏。
-            if value.is_ascii_uppercase()
-                && self.local_preedit.len() == 1
-                && self.local_preedit.as_bytes()[0].is_ascii_uppercase()
-                && matches!(self.scheme(), SchemeType::Quanpin | SchemeType::Shuangpin)
-            {
+            // 大写字母入口后只有字母时，模式不收的字母说明用户在打英文（UV、Ui、TextBlock），整串连同这个键留在同一组字，不提前上屏。含数字、符号的模式内容、符号入口和长度上限仍走下面的提交并透传。
+            if self.rejected_letter_continues_composition(value) {
                 let mut raw = self.local_preedit.clone();
                 raw.push(value as char);
                 self.reset_composition();
@@ -596,6 +656,16 @@ impl InputSession {
         self.invalidate_online_requests();
         self.local_preedit.push(value as char);
         KeyResult::handled().with_diagnostic(self.update_local_candidates())
+    }
+
+    /// 本地模式拒绝 `value` 时，是否把模式原文连同它转回普通组字：全拼、双拼，模式由 Shift 大写字母进入，预编辑只有 ASCII 字母且没到长度上限，被拒的键也是字母。
+    fn rejected_letter_continues_composition(&self, value: u8) -> bool {
+        let preedit = self.local_preedit.as_bytes();
+        value.is_ascii_alphabetic()
+            && matches!(self.scheme(), SchemeType::Quanpin | SchemeType::Shuangpin)
+            && preedit.first().is_some_and(u8::is_ascii_uppercase)
+            && preedit.iter().all(u8::is_ascii_alphabetic)
+            && preedit.len() < GENERATED_MODE_INPUT_LIMIT
     }
 
     /// Korean keys: every letter is a jamo and always handled, carrying the syllables it finished as a commit; a letter typed into an open Hanja list closes it and keeps composing. Any other key leaves the scheme alone. Punctuation stays unhandled without touching the composition, because the punctuation route commits the open syllable ahead of the mark; a digit 1-9 with the Hanja list open stays unhandled with nothing committed, so the runtime's page selection picks the Hanja; any other digit, a space or another symbol commits the open syllable and stays unhandled, so the host inserts the key after the commit.
@@ -890,7 +960,8 @@ impl InputSession {
             Command::ConvertHanja => ZhuyinKey::OpenList,
             Command::Cancel => ZhuyinKey::Escape,
             Command::Backspace => ZhuyinKey::Backspace,
-            Command::CommitRaw => ZhuyinKey::Enter,
+            // `CommitRawWithoutLearning` 到不了组字（`Session::command` 已经换掉），与 `CommitRaw` 同列只为穷尽。
+            Command::CommitRaw | Command::CommitRawWithoutLearning => ZhuyinKey::Enter,
             Command::CommitCandidate if self.engine.zhuyin_list_open() => {
                 return Some(self.select_candidate(0));
             }
@@ -935,6 +1006,10 @@ impl InputSession {
         }
         self.end_uppercase_run();
         if !self.has_composition() {
+            match command {
+                Command::Backspace => self.punctuation.undo_last_quote(),
+                _ => self.punctuation.clear_quote_undo(),
+            }
             // With nothing composed every command is left to the host, which edits the text, moves the caret or inserts a newline, so the chain no longer ends where the host's text does.
             self.chain.reset();
             return KeyResult::unhandled();
@@ -1035,7 +1110,8 @@ impl InputSession {
             }
             Command::Backspace => self.backspace(),
             Command::CommitCandidate => self.commit(0),
-            Command::CommitRaw => self.commit_raw(),
+            // `CommitRawWithoutLearning` 到不了组字（`Session::command` 已经换掉），与 `CommitRaw` 同列只为穷尽。
+            Command::CommitRaw | Command::CommitRawWithoutLearning => self.commit_raw(),
             Command::CommitReading => {
                 // Only Japanese has a reading to commit; the other schemes' normalized segmentation is pinyin, not text.
                 if self.scheme() != SchemeType::JapaneseRomaji {
@@ -1180,6 +1256,12 @@ impl InputSession {
         if self.url_entry(value).is_some() {
             return self.handle_character(value, false);
         }
+        // 双拼组字末尾转超级简拼的 `/`、以及转出来之后撤回用的第二个 `/` 同理：直接调用方（golden、单测）也走字符入口。
+        if value == b'/'
+            && (self.super_jianpin_slash_ready() || self.super_jianpin_slash_escape_ready())
+        {
+            return self.handle_character(value, false);
+        }
         // A Zhuyin phonetic key (`,` `.` `/` `;` `-`) spells, and a Shift punctuation key (`<` `?` `[` ...) commits the conversion with its full-width mark through the editor, whatever the Chinese punctuation switches say.
         if self.zhuyin_rules_apply()
             && (self
@@ -1200,6 +1282,12 @@ impl InputSession {
                 .tibetan_spelling_symbols()
                 .as_bytes()
                 .contains(&value)
+        {
+            return self.handle_character(value, false);
+        }
+        if self.cantonese_rules_apply()
+            && value == b';'
+            && self.engine.cantonese_shuangpin_accepts_semicolon()
         {
             return self.handle_character(value, false);
         }
@@ -1303,6 +1391,22 @@ impl InputSession {
                 .is_some_and(crate::local::command::takes_word_separator)
     }
 
+    /// `/` 模式里光标 `caret` 之前已经完整打出了一条 `extended` 插件指令的触发词，`value` 是数字或运算符号：它是参数的一部分。只看光标之前，光标挪回触发词里时数字照旧不收。
+    pub(super) fn command_takes_argument_symbol(&self, value: u8, caret: usize) -> bool {
+        self.local_mode == LocalInputMode::Command
+            && crate::local::command::extended_argument_symbol(value)
+            && self.command_argument_symbols_at(caret)
+    }
+
+    /// 光标 `caret` 之前完整打出了一条 `extended` 插件指令的触发词。
+    fn command_argument_symbols_at(&self, caret: usize) -> bool {
+        self.local_mode == LocalInputMode::Command
+            && self
+                .local_preedit
+                .get(1..caret)
+                .is_some_and(|code| self.queries.extended_plugin_trigger_typed(code))
+    }
+
     /// A mark typed on a bare `/` or `@` ends the mode instead of choosing a row: both keys commit as the punctuation they are with the mode off, so `/` `,` still types /， rather than the first command followed by ，.
     fn commit_bare_prefix(&mut self, value: u8) -> KeyResult {
         let prefix = self.local_preedit.as_bytes()[0];
@@ -1336,8 +1440,17 @@ impl InputSession {
     pub fn spelling_symbols(&self) -> String {
         let mut symbols = self.base_spelling_symbols();
         symbols.extend(self.literal_spelling_symbols());
-        if self.shuangpin_helpcode_marker(b'\t').is_some() {
-            symbols.push('\t');
+        // 双拼辅助码的触发键此刻要是会记成标记，就发布出来：触屏的符号面板和外接键盘把 `;` 和反引号当标点送来，runtime 只把已发布的符号转给 `dispatch_character`，没发布时标点会先按首选结束组字。
+        for key in *b"\t`;/" {
+            if self.shuangpin_helpcode_marker(key).is_some() && !symbols.contains(char::from(key)) {
+                symbols.push(char::from(key));
+            }
+        }
+        // 双拼组字末尾的 `/` 要转超级简拼、或转出来之后要撤回时同样发布：发布的键必须正是 `dispatch_character` 接受的键。
+        if (self.super_jianpin_slash_ready() || self.super_jianpin_slash_escape_ready())
+            && !symbols.contains('/')
+        {
+            symbols.push('/');
         }
         symbols
     }
@@ -1355,6 +1468,12 @@ impl InputSession {
                 .map(char::from)
                 .collect();
         }
+        // `extended` 的插件指令打完触发词之后，数字和运算符号是参数：列出来，宿主才把数字当输入、不当选词键（和计算模式一样）。
+        if self.command_argument_symbols_at(self.caret_position()) {
+            let mut symbols = String::from("0123456789");
+            symbols.push_str(crate::local::command::EXTENDED_ARGUMENT_SYMBOLS);
+            return symbols;
+        }
         if self.local_mode != LocalInputMode::None {
             return self.local_mode.spelling_symbols().to_owned();
         }
@@ -1370,7 +1489,13 @@ impl InputSession {
         // `'` is a Jyutping syllable boundary only inside a composition; idle it is punctuation.
         if self.cantonese_rules_apply() {
             return if self.has_composition() {
-                cantonese::SPELLING_SYMBOLS_COMPOSING.to_owned()
+                if self.engine.cantonese_shuangpin_active()
+                    || self.engine.cantonese_shuangpin_accepts_semicolon()
+                {
+                    "';".to_owned()
+                } else {
+                    cantonese::SPELLING_SYMBOLS_COMPOSING.to_owned()
+                }
             } else {
                 String::new()
             };
@@ -1498,6 +1623,9 @@ impl InputSession {
 
     /// The displayed list of whichever view is active.
     pub fn candidates(&self) -> &[WordItem] {
+        if let Some((_, rows)) = &self.glide_candidates {
+            return rows;
+        }
         if let Some(edit) = &self.conversion {
             return edit.rows();
         }
@@ -1638,6 +1766,17 @@ impl InputSession {
         self.engine.set_rescoring_context(context);
     }
 
+    pub fn set_sentence_scorer(
+        &mut self,
+        scorer: Option<std::sync::Arc<dyn crate::ordering::SentenceScorer>>,
+    ) {
+        self.engine.set_sentence_scorer(scorer);
+    }
+
+    pub fn set_sentence_pool(&mut self, paths: usize) {
+        self.engine.set_sentence_pool(paths);
+    }
+
     /// 首页行数只决定词库要不要并入补全词；宿主改每页候选数时不必重建会话，跟着改一下即可。
     pub fn set_first_page_rows(&mut self, rows: FirstPageRows) {
         self.first_page_rows = rows.get();
@@ -1666,6 +1805,8 @@ impl InputSession {
 
     /// Clears caret, phrase progress, pending sequence, local mode, dedicated preedit and caches; returns from temporary Japanese.
     pub fn reset_composition(&mut self) {
+        self.glide_candidates = None;
+        self.glide_selection_pending = false;
         self.date_time_menu_page = None;
         self.helpcode_entry = None;
         self.caret = None;
@@ -1673,13 +1814,17 @@ impl InputSession {
         self.prefix_candidates.clear();
         self.prefix_query_input.clear();
         self.prefix_active = false;
+        self.caret_edit = CaretEdit::default();
         self.phrase_progress = CreatingWordProgress::default();
+        self.cantonese_progress = CantonesePhraseProgress::default();
         self.pending_sequence = None;
         self.pending_sequence_with_cases = None;
         self.invalidate_online_requests();
         let original_scheme = self.temporary_original_scheme.take();
         self.local_mode = LocalInputMode::None;
         self.local_preedit.clear();
+        self.jianpin_slash_origin = None;
+        self.jianpin_slash_chain = CommitChain::default();
         self.local_candidates.clear();
         self.plugin_rows = None;
         self.dedicated_english_preedit.clear();
@@ -1719,6 +1864,8 @@ impl InputSession {
         }
         // The visible prefix list stays until the next refresh, but its query must run again against the invalidated provider caches.
         self.prefix_query_input.clear();
+        // 光标后编辑固定的那段同样要按新的词库重新转换。
+        self.caret_edit.prefix_input.clear();
     }
 
     pub fn clear_online_candidates(&mut self, source: CandidateSource) {
@@ -1740,7 +1887,16 @@ impl InputSession {
             return false;
         }
         self.refresh_prefix_candidates();
-        let grew = if self.prefix_active {
+        let grew = if self.prefix_active && self.caret_edit.active {
+            // 光标后编辑：屏幕上是光标后那段的候选，展开的也是它。
+            let start = self.caret_edit_suffix_start();
+            let end = self.raw_with_cases().len();
+            self.engine.expand_current_raw_range_initial_candidates(
+                &self.prefix_query_input,
+                start..end,
+                &mut self.prefix_candidates,
+            )
+        } else if self.prefix_active {
             self.engine.expand_current_raw_prefix_initial_candidates(
                 &self.prefix_query_input,
                 self.prefix_end(),
@@ -1771,6 +1927,12 @@ impl InputSession {
 
     pub(super) fn journal_path(&self) -> &Path {
         &self.journal_path
+    }
+
+    /// 回车能不能学英文词。不要求 `msime-english.db` 的方案集合（[`crate::SchemeSet::requires_english_dictionary`]）在资源目录没带它时准备出的代次里没有它：这时英文行查不到，回车也不学词，免得学词时的建表把一个空库建进代次里（下一个代次不会有它，学到的词只剩日志里那一行）。要求它的集合照旧：准备代次保证它在，没经过准备的目录里缺了它就由学词时建出来。
+    pub(super) fn can_learn_english_words(&self) -> bool {
+        self.engine.enabled_schemes().requires_english_dictionary()
+            || self.paths.dictionary(assets::ENGLISH_DICTIONARY).is_file()
     }
 
     /// The live scheme, which is Japanese during temporary Japanese.
@@ -1852,7 +2014,7 @@ impl InputSession {
     /// `IsMidSentenceHelpcodeMarkerKey` 与 `IsEndHelpcodeMarkerKey` 的对应物：这个键是不是
     /// 辅助码触发键、记进串里的标记字符是什么。`None` 表示不是触发键，走普通路径。
     /// `;` 先让给 `ing` 韵母（`accepts_semicolon_final_at`），两侧判断顺序一致。
-    fn shuangpin_helpcode_marker(&self, value: u8) -> Option<u8> {
+    pub(super) fn shuangpin_helpcode_marker(&self, value: u8) -> Option<u8> {
         use crate::shuangpin::mid_sentence;
         if !matches!(value, b'`' | b';' | b'/' | b'\t')
             || self.scheme() != SchemeType::Shuangpin
@@ -1956,6 +2118,7 @@ impl InputSession {
     pub(super) fn discard_abandoned_phrase_progress(&mut self) {
         if !self.has_composition() {
             self.phrase_progress = CreatingWordProgress::default();
+            self.caret_edit.held.clear();
             self.chain.same_composition = false;
         }
     }
@@ -1965,6 +2128,7 @@ impl InputSession {
             &self.paths.resources,
             schema,
             self.helpcode_fallback_resources.as_deref(),
+            self.custom_helpcode_root.as_deref(),
         )?);
         self.install_helpcode_table(keymap);
         Ok(())
@@ -2016,7 +2180,7 @@ impl InputSession {
 
     fn set_local_mode_options(&mut self, options: LocalModeOptions) {
         self.local_mode_options = options;
-        // Unit conversion loads rink's definitions once per process; doing it now, off this thread, keeps that load off the first key that needs it.
+        // Unit conversion builds its rink context from the definitions in local/units.rs once per process; doing it now, off this thread, keeps that load off the first key that needs it.
         if options.expression {
             crate::local::units::warm_up_in_background();
         }
@@ -2236,6 +2400,11 @@ impl InputSession {
             return self.edit_at_caret(Command::Backspace);
         }
         if self.local_mode != LocalInputMode::None {
+            // `/` 转出来的超级简拼删回原文时，再退格就撤回转换，回到按 `/` 之前的组字。
+            if self.super_jianpin_slash_escape_ready() {
+                self.revert_super_jianpin_slash();
+                return KeyResult::handled();
+            }
             // Backspacing the bare prefix letter leaves the mode.
             if self.local_preedit.len() <= 1 {
                 self.reset_composition();
@@ -2289,6 +2458,8 @@ impl InputSession {
             && request.raw_input_with_helpcode_marks.contains('|')
         {
             request.raw_input_with_cases.clone()
+        } else if self.local_mode != LocalInputMode::None && !self.dedicated_english {
+            self.local_raw_text().to_owned()
         } else {
             self.preedit()
         }
@@ -2312,6 +2483,7 @@ impl InputSession {
         let mut diagnostic = None;
         if self.learn_english_on_enter
             && self.dedicated_english
+            && self.can_learn_english_words()
             && learn_entered_english_word(
                 &self.paths.dictionary(assets::ENGLISH_DICTIONARY),
                 self.journal_path(),
@@ -2350,7 +2522,7 @@ impl InputSession {
     }
 }
 
-fn frequency_options_valid(options: FrequencyAdjustmentOptions) -> bool {
+pub(super) fn frequency_options_valid(options: FrequencyAdjustmentOptions) -> bool {
     (1..=10).contains(&options.trigger_count) && (1..=10).contains(&options.linear_step)
 }
 

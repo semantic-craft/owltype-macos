@@ -7,7 +7,7 @@
 //! A trigram cannot be searched the same way without carrying two words of history in every beam entry, so it is applied after the search: the n best paths are rescored with what the third word adds over the second, then reordered. That is the reason to decode more paths than are shown.
 
 use std::cell::RefCell;
-use std::collections::{hash_map::Entry, HashMap, HashSet};
+use std::collections::{hash_map::Entry, HashMap, HashSet, VecDeque};
 use std::hash::{BuildHasherDefault, Hasher};
 use std::sync::Arc;
 
@@ -16,6 +16,7 @@ use std::cell::Cell;
 
 use super::cxx_sort;
 use super::ngram::{NgramTable, SENTENCE_START};
+use super::offensive::OffensiveWords;
 use super::personal::PersonalNgram;
 use super::LatticeLookup;
 use crate::assets;
@@ -31,6 +32,10 @@ pub type CollocationScorer<'a> = dyn Fn(&str, &str, bool) -> f64 + 'a;
 /// The knobs of one decode.
 #[derive(Clone)]
 pub struct LatticeOptions<'a> {
+    /// 束搜索里给假设打分的模型，见 [`BeamModel`]；`None` 时整句只按词频和 n 元表解。
+    pub beam_model: Option<BeamModel<'a>>,
+    /// 这次输入是不是一句话的开头（[`opens_sentence`]）：开头的第一条边是只出现在句尾的语气词时扣 [`SENTENCE_OPENING_PARTICLE_PENALTY`]。
+    pub opens_sentence: bool,
     pub beam: usize,
     /// 从末列回溯的路径数。默认5条；产品的 `SentenceNgramTables::options` 搜索6条，神经重排启用时搜索12条。
     pub nbest: usize,
@@ -77,6 +82,8 @@ pub struct LatticeOptions<'a> {
     /// 语法模型激活时把解码最优路径以 `CandidateSource::Collocation` 行展示；
     /// 与 `include_lattice_best` 同开且指向同一句时归属 Collocation。
     pub include_collocation_best: bool,
+    /// 拼整句时不用的粗俗词表（`lattice::offensive`）：默认是编进引擎的表，产品路径用词库 `sentence_excluded` 表读出来的那张（[`SentenceNgramTables::set_offensive_words`]）。
+    pub offensive: OffensiveWords,
 }
 
 /// 多字词每音节奖励，并扣一份作为每词插入代价。九宫格跨切分比较再扣音节奖励，保留已经计入的每词代价，见 `nine_key::comparable_weight`。
@@ -94,6 +101,27 @@ pub const SENTENCE_FINAL_PARTICLE_BONUS: f64 = 3.0;
 const REDUPLICATED_INTERJECTIONS: &[char] = &[
     '啊', '呃', '哦', '嗯', '呀', '哇', '噢', '唉', '哎', '喔', '诶', '额', '谔',
 ];
+
+/// 只出现在句尾的语气词：[`SENTENCE_FINAL_PARTICLES`] 里去掉也常作叹词放在句首的那些（啊、呀、哦、哇）。
+pub const SENTENCE_ONLY_FINAL_PARTICLES: &[char] =
+    &['吧', '呢', '吗', '啦', '嘛', '呗', '咯', '喽'];
+
+/// 这类语气词出现在一句话开头时扣的分（自然对数），与 [`SENTENCE_FINAL_PARTICLE_BONUS`] 对称。「吧」「吗」的词频几乎全来自句尾，可整句解码不看位置，聊天里一条消息开头的「爸肯定很开心」「爸又出去钓鱼了吗」被解成「吧肯定很开心」「吧友出去…」。
+pub const SENTENCE_OPENING_PARTICLE_PENALTY: f64 = 3.0;
+
+/// 上文为空，或者最后一个字是换行或句末标点：接下来打的是一句话的开头。没有组字时按的回车由 runtime 记成上文里的换行（`Runtime::remember_commit`）。
+pub fn opens_sentence(context: &str) -> bool {
+    context
+        .trim_end_matches([' ', '\t'])
+        .chars()
+        .last()
+        .is_none_or(|last| matches!(last, '\n' | '。' | '！' | '？' | '!' | '?' | '…'))
+}
+
+fn is_sentence_only_final_particle(word: &str) -> bool {
+    let mut chars = word.chars();
+    matches!((chars.next(), chars.next()), (Some(c), None) if SENTENCE_ONLY_FINAL_PARTICLES.contains(&c))
+}
 
 fn is_sentence_final_particle(word: &str) -> bool {
     let mut chars = word.chars();
@@ -118,6 +146,8 @@ fn bonus_syllables(word: &str, syllables: usize) -> usize {
 impl Default for LatticeOptions<'_> {
     fn default() -> Self {
         Self {
+            beam_model: None,
+            opens_sentence: false,
             beam: 32,
             nbest: 5,
             span_limit: 32,
@@ -141,15 +171,21 @@ impl Default for LatticeOptions<'_> {
             collocation_scorer: None,
             collocation_weight: 0.0,
             include_collocation_best: false,
+            offensive: OffensiveWords::default(),
         }
     }
 }
+
+/// 产品路径每次解码留下的整句读法条数（[`SentenceNgramTables::options`]）。全拼在挂了逐键打分器时可以多解几条（`QuanpinDictionary::set_sentence_pool`）。
+pub(crate) const SENTENCE_PATHS: usize = 6;
 
 /// 活动词典持有构造时预热的 n 元表，按键查询不再构造路径或访问进程共享缓存。
 #[derive(Default)]
 pub(crate) struct SentenceNgramTables {
     bigram: Option<Arc<NgramTable>>,
     trigram: Option<Arc<NgramTable>>,
+    /// 活动词典的粗俗词表，随整句选项交给每次解码。
+    offensive: OffensiveWords,
 }
 
 impl SentenceNgramTables {
@@ -157,15 +193,27 @@ impl SentenceNgramTables {
         Self {
             bigram: NgramTable::shared(&paths.dictionary(assets::BIGRAM_TABLE)),
             trigram: NgramTable::shared(&paths.dictionary(assets::TRIGRAM_TABLE)),
+            offensive: OffensiveWords::default(),
         }
+    }
+
+    /// 换成活动词典自己的粗俗词表（`PinyinDatabase::offensive_words`）；不调用时用内嵌表。
+    pub(crate) fn set_offensive_words(&mut self, offensive: OffensiveWords) {
+        self.offensive = offensive;
+    }
+
+    /// 这份词典拼整句用的粗俗词表，候选排位也读它。
+    pub(crate) fn offensive_words(&self) -> &OffensiveWords {
+        &self.offensive
     }
 
     pub(crate) fn options<'a>(&self, sentence_alternatives: bool) -> LatticeOptions<'a> {
         LatticeOptions {
-            nbest: 6,
+            nbest: SENTENCE_PATHS,
             emit: if sentence_alternatives { 0 } else { 1 },
             bigram: self.bigram.clone(),
             trigram: self.trigram.clone(),
+            offensive: self.offensive.clone(),
             ..LatticeOptions::default()
         }
     }
@@ -294,6 +342,36 @@ impl TypoSentence {
     /// `score > literal + margin * edges`; with the default infinite margin never, so the typo sentence lands right after the sentence block.
     pub fn leads(&self, margin: f64) -> bool {
         self.edges > 0 && self.score > self.literal_score + margin * self.edges as f64
+    }
+}
+
+/// 单独成边的轻声助词（「的」「了」「着」……）的加分（自然对数）。
+///
+/// 多字词每个音节拿 [`PHRASE_LENGTH_BONUS`]，单字拿不到。词库从语料里收了很多「某字 + 助词」的条目（飘了 17738、闲的 486358、躺了），它们凭这份奖励把正确的切分压下去：「高铁票了」里「高铁 | 飘了」两个条目各拿一份，「高铁票 | 了」的「了」一份也没有，整句就成了「高铁飘了」。给单独的助词一份加分，两种切分在助词那里打平，回到按词频和 n-gram 比。
+///
+/// 2026-11-03 在 typing-chat-v1 dev、sentences-neutral-v1、sentences-v2 上扫 0、8、14、20（只用引擎，和 6x256 配 32 条两组），8 是三个集合都不变差的最大值：再大，「贯彻得」这类「得」会变成「的」。没参与调参的 typing-chat test、sentences-v1、语气词集上，两组合计改对 11、改错 0。见 `.agents/notes/implemented/feature/2026-11-03-function-word-bonus.md`。
+pub const FUNCTION_WORD_BONUS: f64 = 8.0;
+
+/// 读轻声的结构助词和时态助词，连同它们在这里的读音。
+const FUNCTION_WORDS: &[(char, &str)] = &[
+    ('的', "de"),
+    ('地', "de"),
+    ('得', "de"),
+    ('了', "le"),
+    ('着', "zhe"),
+];
+
+/// 单字助词那条边的加分 [`FUNCTION_WORD_BONUS`]，其余为 0。读音要对得上：「了」读 liao、「着」读 zhao、「的」读 di 时不是助词。
+fn function_word_bonus(word: &str, span: &[String]) -> f64 {
+    let mut chars = word.chars();
+    let single = match (chars.next(), chars.next(), span) {
+        (Some(c), None, [reading]) => FUNCTION_WORDS.iter().any(|&(f, r)| f == c && r == reading),
+        _ => false,
+    };
+    if single {
+        FUNCTION_WORD_BONUS
+    } else {
+        0.0
     }
 }
 
@@ -429,7 +507,12 @@ pub(super) fn build_graph(
                     edges.reserve(reserve);
                     let begin = edges.len();
                     let mut span_key = None;
-                    for row in rows.into_iter().take(options.span_limit) {
+                    // 含粗俗词的词不成边（`lattice::offensive`）。过滤在 `take` 之前，但产品路径的词库查询（`query_lattice_span`）已经在 SQL 里按 `span_limit` 限了行数，拦下一个词只是让这一段少一行，没有后面的行补上来。
+                    for row in rows
+                        .into_iter()
+                        .filter(|row| options.offensive.admits_edge(&row.value, start, end, n))
+                        .take(options.span_limit)
+                    {
                         if row.value.is_empty() {
                             continue;
                         }
@@ -437,7 +520,7 @@ pub(super) fn build_graph(
                             row.weight,
                             bonus_syllables(&row.value, end - start),
                             options,
-                        );
+                        ) + function_word_bonus(&row.value, span);
                         edges.push(Edge {
                             end,
                             word: row.value,
@@ -505,7 +588,11 @@ pub(super) fn build_graph_borrowed<'rows>(
                     edges.reserve(reserve);
                     let begin = edges.len();
                     let mut span_key = None;
-                    for row in rows.iter().take(options.span_limit) {
+                    for row in rows
+                        .iter()
+                        .filter(|row| options.offensive.admits_edge(&row.value, start, end, n))
+                        .take(options.span_limit)
+                    {
                         if row.value.is_empty() {
                             continue;
                         }
@@ -521,7 +608,7 @@ pub(super) fn build_graph_borrowed<'rows>(
                                 row.weight,
                                 bonus_syllables(&row.value, end - start),
                                 options,
-                            ),
+                            ) + function_word_bonus(&row.value, span),
                             typo: false,
                         });
                     }
@@ -550,6 +637,220 @@ struct Hyp<'g> {
     /// 到达本假设的图边；仅起点为 `None`，同时表示没有前驱。
     edge: Option<&'g Edge>,
     typo_edges: usize,
+}
+
+/// [`BeamPrefixCache`] 最多留下的整句图。九键每键要解十几到二十几张图，下一键的图几乎都是上一键某张图多一个音节或换了末音节，32 张盖得住上一键的大部分。
+pub(crate) const BEAM_PREFIX_CAPACITY: usize = 32;
+
+/// 解码时用到的、决定非末列束状态的全部参数。两张图共用前若干音节、这些参数又都相同时，那几列剪枝后的假设逐位相同。浮点数按位比较；二元表和个人模型按地址比较，个人模型另带调用方给的版本号。
+#[derive(PartialEq)]
+struct BeamScoring {
+    beam: usize,
+    span_limit: usize,
+    max_phrase_syllables: usize,
+    weights: [u64; 7],
+    bigram: Option<usize>,
+    personal: Option<usize>,
+    personal_version: u64,
+    collocation: bool,
+}
+
+impl BeamScoring {
+    fn of(options: &LatticeOptions<'_>, personal_version: u64) -> Self {
+        Self {
+            beam: options.beam,
+            span_limit: options.span_limit,
+            max_phrase_syllables: options.max_phrase_syllables,
+            weights: [
+                options.unigram_z.to_bits(),
+                options.phrase_length_bonus.to_bits(),
+                options.bigram_weight.to_bits(),
+                options.personal_weight.to_bits(),
+                options.personal_reference_probability.to_bits(),
+                options.personal_max_bonus.to_bits(),
+                options.collocation_weight.to_bits(),
+            ],
+            bigram: options
+                .bigram
+                .as_ref()
+                .map(|table| Arc::as_ptr(table) as usize),
+            personal: options
+                .personal
+                .map(|personal| std::ptr::from_ref(personal) as usize),
+            personal_version,
+            collocation: options.collocation_scorer.is_some(),
+        }
+    }
+}
+
+/// 存下来的假设：图边记成它在起点列（`prev.0`）里的下标，换一张图时按下标取回同一条边。
+#[derive(Clone, Copy)]
+struct SavedHyp {
+    score: f64,
+    prev: (u32, u32),
+    edge: Option<u32>,
+    typo_edges: u32,
+}
+
+/// 一张解完的整句图留下的非末列（列 0..n）剪枝后的假设，顺序与剪枝结果相同。
+struct SavedBeam {
+    syllables: Vec<String>,
+    scoring: BeamScoring,
+    /// 按地址比较二元表，持有它免得地址被别的表重用。
+    _bigram: Option<Arc<NgramTable>>,
+    columns: Vec<Vec<SavedHyp>>,
+}
+
+/// 整句束搜索的前缀状态缓存。
+///
+/// 列 k 的假设只来自终点为 k 的边，这些边的起点、音节和查到的词库行都在前 k 个音节之内；末列之前的打分也只看前驱和这条边（句末语气词加分、搭配的句尾项只在终点是末列时才算）。所以两张图共用前 m 个音节、`m` 在两张图里都不是末列、打分参数又相同时，列 0..=m 剪枝后的假设逐位相同，新图可以从第 m 列接着解：照搬列 0..=m，只把起点在 m 之前、终点越过 m 的边重新展开一遍。往同一列推假设的先后与从头解完全一样（起点列升序、列内假设升序、边升序），所以堆选择、平分时谁留下也一样。
+///
+/// 图边在列内按终点升序排列，终点不越过 m 的边在两张图里是同一批跨度查出来的同一批行，下标相同；接上之前逐条核对下标所指的边终点没变，对不上就当没命中、从头解。
+///
+/// 只给不带纠错附加边的解码用。调用方在词库行、个人模型或解码参数变化时调用 [`Self::clear`]，规则同整句解码缓存。
+#[derive(Default)]
+pub(crate) struct BeamPrefixCache {
+    entries: VecDeque<SavedBeam>,
+    /// 测试用：接上前缀的次数。
+    #[cfg(test)]
+    pub(crate) resumed: usize,
+}
+
+impl BeamPrefixCache {
+    pub(crate) fn clear(&mut self) {
+        self.entries.clear();
+    }
+
+    #[cfg(test)]
+    pub(crate) fn len(&self) -> usize {
+        self.entries.len()
+    }
+
+    /// 找与 `syllables` 共用前缀最长的存档，把列 0..=m 填进 `columns`，返回 m；没有可用的存档返回 0，`columns` 不动。
+    fn restore<'g>(
+        &mut self,
+        syllables: &[String],
+        scoring: &BeamScoring,
+        graph: &'g Graph,
+        columns: &mut [BeamColumn<'g>],
+    ) -> usize {
+        let n = syllables.len();
+        let mut best: Option<(&SavedBeam, usize)> = None;
+        for saved in &self.entries {
+            if saved.scoring != *scoring {
+                continue;
+            }
+            // 第 m 列在旧图和新图里都不能是末列。
+            let limit = (n - 1).min(saved.syllables.len() - 1);
+            let shared = saved
+                .syllables
+                .iter()
+                .zip(syllables)
+                .take(limit)
+                .take_while(|(left, right)| left == right)
+                .count();
+            if shared > best.map_or(0, |(_, m)| m) {
+                best = Some((saved, shared));
+            }
+        }
+        let Some((saved, m)) = best else {
+            return 0;
+        };
+        let fits = saved.columns[..=m]
+            .iter()
+            .enumerate()
+            .all(|(column, hyps)| {
+                hyps.iter().all(|hyp| match hyp.edge {
+                    None => column == 0,
+                    Some(at) => graph
+                        .get(hyp.prev.0 as usize)
+                        .and_then(|edges| edges.get(at as usize))
+                        .is_some_and(|edge| edge.end == column && (hyp.prev.0 as usize) < column),
+                })
+            });
+        if !fits {
+            return 0;
+        }
+        for (target, hyps) in columns.iter_mut().zip(&saved.columns[..=m]) {
+            target.hyps.clear();
+            target.hyps.extend(hyps.iter().map(|hyp| Hyp {
+                score: hyp.score,
+                prev: (hyp.prev.0 as usize, hyp.prev.1 as usize),
+                edge: hyp.edge.map(|at| &graph[hyp.prev.0 as usize][at as usize]),
+                typo_edges: hyp.typo_edges as usize,
+            }));
+            // 已经剪过枝：长度不超过束宽，下面的 `keep_beam` 原样留下。
+            target.streamed = false;
+        }
+        #[cfg(test)]
+        {
+            self.resumed += 1;
+        }
+        m
+    }
+
+    /// 存下这张图的非末列（剪枝之后）。同一串音节只留最新的一份；满了先丢最早的。
+    fn save(
+        &mut self,
+        syllables: &[String],
+        scoring: BeamScoring,
+        bigram: Option<Arc<NgramTable>>,
+        graph: &Graph,
+        columns: &[BeamColumn<'_>],
+    ) {
+        let index = |edge: &Edge, column: usize| -> Option<u32> {
+            let start = graph[column].as_ptr() as usize;
+            let offset = (std::ptr::from_ref(edge) as usize).checked_sub(start)?;
+            let at = offset / std::mem::size_of::<Edge>();
+            debug_assert!(std::ptr::eq(&graph[column][at], edge));
+            u32::try_from(at).ok()
+        };
+        let mut saved = Vec::with_capacity(columns.len());
+        for column in columns {
+            let mut hyps = Vec::with_capacity(column.hyps.len());
+            for hyp in &column.hyps {
+                let (Ok(prev_column), Ok(prev_at), Ok(typo_edges)) = (
+                    u32::try_from(hyp.prev.0),
+                    u32::try_from(hyp.prev.1),
+                    u32::try_from(hyp.typo_edges),
+                ) else {
+                    return;
+                };
+                let edge = match hyp.edge {
+                    None => None,
+                    Some(edge) => match index(edge, hyp.prev.0) {
+                        Some(at) => Some(at),
+                        None => return,
+                    },
+                };
+                hyps.push(SavedHyp {
+                    score: hyp.score,
+                    prev: (prev_column, prev_at),
+                    edge,
+                    typo_edges,
+                });
+            }
+            saved.push(hyps);
+        }
+        self.entries
+            .retain(|entry| entry.syllables.as_slice() != syllables);
+        if self.entries.len() >= BEAM_PREFIX_CAPACITY {
+            self.entries.pop_front();
+        }
+        self.entries.push_back(SavedBeam {
+            syllables: syllables.to_vec(),
+            scoring,
+            _bigram: bigram,
+            columns: saved,
+        });
+    }
+}
+
+/// [`decode_graph_resuming`] 的入参：这张图的音节、前缀缓存和个人模型版本。
+pub(crate) struct BeamResume<'a> {
+    pub(crate) syllables: &'a [String],
+    pub(crate) cache: &'a mut BeamPrefixCache,
+    pub(crate) personal_version: u64,
 }
 
 /// 搭配查询的上下文窗口：`.gram` 的查询键最多编入 8 个码点，尾窗留 8 个足够。
@@ -699,16 +1000,142 @@ pub(super) fn decode_graph(
 ) -> Vec<SentencePath> {
     // 常见预算与非末列一致，单独实例化以保留展开循环的固定束宽。
     if options.nbest > options.beam {
-        decode_graph_with_terminal::<true>(graph, options, extra)
+        decode_graph_with_terminal::<true>(graph, options, extra, None)
     } else {
-        decode_graph_with_terminal::<false>(graph, options, extra)
+        decode_graph_with_terminal::<false>(graph, options, extra, None)
     }
+}
+
+/// 同 [`decode_graph`]（不带附加边），但先在 `resume.cache` 里找共用前缀的图接着解，解完把这张图的非末列存回去，见 [`BeamPrefixCache`]。结果与 `decode_graph` 逐位相同。
+pub(super) fn decode_graph_resuming(
+    graph: &Graph,
+    options: &LatticeOptions<'_>,
+    resume: &mut BeamResume<'_>,
+) -> Vec<SentencePath> {
+    if options.nbest > options.beam {
+        decode_graph_with_terminal::<true>(graph, options, None, Some(resume))
+    } else {
+        decode_graph_with_terminal::<false>(graph, options, None, Some(resume))
+    }
+}
+
+/// 束搜索里让模型给假设打分（[`crate::ordering::SentenceScorer`]）：每一列剪枝之后、往后展开之前，给这一列每个假设的整段文字打逐字平均对数概率，把这一步新增的模型分乘 `weight` 加进假设的分。
+///
+/// 只靠词频和 n 元表时，正确的整句常常在半路就被剪掉：「下周 | 死伤 | 闲的」凭成词奖励一路领先，到最后交给逐键模型比较的几十条整句里根本没有「下周四上线的」，模型再准也挑不到。让模型在每一列就参与，看着不像话的前缀留不到后面。2026-11-03 在 Mac 上用 6x256 配 32 条量（权重 1）：正确整句出现在候选里的比例 typing-chat dev 83.6% → 92.7%，首选 68.2% → 76.4%，六个集合合计改对 70、改错 20。见 `.agents/notes/implemented/feature/2026-11-03-model-in-lattice-beam.md`。
+#[derive(Clone, Copy)]
+pub struct BeamModel<'a> {
+    pub scorer: &'a dyn crate::ordering::SentenceScorer,
+    /// 模型读的上文：已经上屏的文字。
+    pub context: &'a str,
+    /// 模型分（自然对数，逐字之和）乘以它加进假设的分；词网格的分同样是自然对数。
+    pub weight: f64,
+    /// 文字 → 逐字平均对数概率的备忘，只对 `context` 成立。每次按键整句都重解，前面几列和上一键一样，只有新的一列要跑模型。
+    pub memo: &'a RefCell<HashMap<String, f32>>,
+}
+
+/// 挂着整句打分器时，模型分在假设的分里占的权重。在 typing-chat dev、sentences-neutral、sentences-v2 上试了 0.5、1、2：1 在三个集合上都不比别的差，2 让 neutral 和语气词集变差。
+pub const BEAM_MODEL_WEIGHT: f64 = 1.0;
+
+/// 假设一路走过来的文字：前驱的文字（`texts` 里存着前面各列的）接上到达它的那条边的词。前驱的文字没存下时，沿前驱回溯到起点，把每条边的词接起来，前驱都在 `earlier` 这些列里。
+fn hyp_text(earlier: &[BeamColumn<'_>], texts: &[Vec<String>], hyp: &Hyp<'_>) -> String {
+    let Some(edge) = hyp.edge else {
+        return String::new();
+    };
+    if let Some(parent) = texts
+        .get(hyp.prev.0)
+        .and_then(|column| column.get(hyp.prev.1))
+    {
+        let mut text = String::with_capacity(parent.len() + edge.word.len());
+        text.push_str(parent);
+        text.push_str(&edge.word);
+        return text;
+    }
+    let mut words = Vec::new();
+    if let Some(edge) = hyp.edge {
+        words.push(edge.word.as_str());
+    }
+    let mut at = hyp.edge.map(|_| hyp.prev);
+    while let Some((column, row)) = at {
+        let step = &earlier[column].hyps[row];
+        let Some(edge) = step.edge else { break };
+        words.push(edge.word.as_str());
+        at = Some(step.prev);
+    }
+    words.reverse();
+    words.concat()
+}
+
+/// 给 `hyps`（前驱都在 `earlier` 里）加上模型分，返回每个假设的分里已经含有的模型总分（逐字之和，未乘权重）和它的文字，都与 `hyps` 对齐；`totals`、`texts` 是前面各列的。`terminal` 时末尾那条边是句尾语气词的假设不加：模型不知道句子在这里结束，句尾的「呀」「吧」在它看来像句中，交给 [`SENTENCE_FINAL_PARTICLE_BONUS`]。模型打不了分时这一列不动。
+fn beam_model_rescore(
+    model: &BeamModel<'_>,
+    earlier: &[BeamColumn<'_>],
+    totals: &[Vec<f64>],
+    texts: &[Vec<String>],
+    hyps: &mut [Hyp<'_>],
+    terminal: bool,
+) -> (Vec<f64>, Vec<String>) {
+    let parent = |hyp: &Hyp<'_>| {
+        if hyp.edge.is_none() {
+            0.0
+        } else {
+            totals
+                .get(hyp.prev.0)
+                .and_then(|column| column.get(hyp.prev.1))
+                .copied()
+                .unwrap_or(0.0)
+        }
+    };
+    let own: Vec<String> = hyps
+        .iter()
+        .map(|hyp| hyp_text(earlier, texts, hyp))
+        .collect();
+    if own.is_empty() || own.iter().any(String::is_empty) {
+        return (hyps.iter().map(parent).collect(), own);
+    }
+    let mut memo = model.memo.borrow_mut();
+    let missing: Vec<&str> = {
+        let mut seen = HashSet::new();
+        own.iter()
+            .map(String::as_str)
+            .filter(|text| !memo.contains_key(*text) && seen.insert(*text))
+            .collect()
+    };
+    if !missing.is_empty() {
+        let scores = model.scorer.log_probabilities(model.context, &missing);
+        if scores.len() != missing.len() {
+            let totals = hyps.iter().map(parent).collect();
+            drop(memo);
+            return (totals, own);
+        }
+        for (text, score) in missing.into_iter().zip(scores) {
+            memo.insert(text.to_owned(), score);
+        }
+    }
+    let totals = hyps
+        .iter_mut()
+        .zip(&own)
+        .map(|(hyp, text)| {
+            let total = f64::from(memo[text.as_str()]) * text.chars().count() as f64;
+            let final_particle = terminal
+                && hyp
+                    .edge
+                    .is_some_and(|edge| is_sentence_final_particle(&edge.word));
+            if final_particle {
+                return parent(hyp);
+            }
+            hyp.score += model.weight * (total - parent(hyp));
+            total
+        })
+        .collect();
+    drop(memo);
+    (totals, own)
 }
 
 fn decode_graph_with_terminal<const WIDE_TERMINAL: bool>(
     graph: &Graph,
     options: &LatticeOptions<'_>,
     extra: Option<&Graph>,
+    mut resume: Option<&mut BeamResume<'_>>,
 ) -> Vec<SentencePath> {
     let n = graph.len();
     let personal = active_personal(options);
@@ -749,25 +1176,80 @@ fn decode_graph_with_terminal<const WIDE_TERMINAL: bool>(
         edge: None,
         typo_edges: 0,
     });
+    // 模型分只对这段上文成立，接前缀的存档里没有它：挂着模型时不接前缀，前面几列重解一遍，模型分从备忘里取。
+    let beam_model = options.beam_model;
+    if beam_model.is_some() {
+        resume = None;
+    }
+    let (mut model_totals, mut model_texts): (Vec<Vec<f64>>, Vec<Vec<String>>) =
+        if beam_model.is_some() {
+            let mut totals = vec![Vec::new(); n + 1];
+            totals[0] = vec![0.0];
+            let mut texts = vec![Vec::new(); n + 1];
+            texts[0] = vec![String::new()];
+            (totals, texts)
+        } else {
+            (Vec::new(), Vec::new())
+        };
+    // 只有不带附加边、音节数与图相符时才接前缀；接上时列 0..=resumed_at 已经是剪枝后的终态。
+    let resume_scoring = resume
+        .as_deref()
+        .filter(|resume| extra.is_none() && resume.syllables.len() == n && n > 1)
+        .map(|resume| BeamScoring::of(options, resume.personal_version));
+    let resumed_at = match (resume.as_deref_mut(), resume_scoring.as_ref()) {
+        (Some(resume), Some(scoring)) => {
+            resume
+                .cache
+                .restore(resume.syllables, scoring, graph, &mut columns)
+        }
+        _ => 0,
+    };
 
     // 同一列里很多假设经由同一个词到达，只是更早的历史不同；它们对每条出边查到的二元分完全一样。按前一个词把这一列所有出边的二元分记下来，同一个词只查一遍表。
     let row_capacity = options.beam.max(options.nbest);
     let mut bigram_rows: Vec<Vec<f32>> = Vec::new();
     let mut bigram_row_indices: HashMap<&str, usize> = HashMap::new();
     let mut small_bigram_row_words = [""; SMALL_BIGRAM_ROWS];
-    for pos in 0..n {
-        if columns[pos].streamed {
-            cxx_sort::finish_partial(&mut columns[pos].hyps, options.beam, &mut scores_higher);
-        } else {
-            keep_beam(&mut columns[pos].hyps, options.beam);
+    // 接上前缀时，先按原来的先后把列 0..resumed_at 里终点越过 resumed_at 的边补展开一遍（这些列已是终态，不再剪枝），再从 resumed_at 列照常往后解。
+    let passes = (0..resumed_at)
+        .map(|pos| (pos, true))
+        .chain((resumed_at..n).map(|pos| (pos, false)));
+    for (pos, crossing_only) in passes {
+        if !crossing_only {
+            if columns[pos].streamed {
+                cxx_sort::finish_partial(&mut columns[pos].hyps, options.beam, &mut scores_higher);
+            } else {
+                keep_beam(&mut columns[pos].hyps, options.beam);
+            }
+            if let (Some(model), true) = (beam_model.as_ref(), pos > 0) {
+                let (earlier, rest) = columns.split_at_mut(pos);
+                (model_totals[pos], model_texts[pos]) = beam_model_rescore(
+                    model,
+                    earlier,
+                    &model_totals,
+                    &model_texts,
+                    &mut rest[0].hyps,
+                    false,
+                );
+            }
         }
+        // 图边在列内按终点升序排；补展开只走终点越过 resumed_at 的那一段列尾。
+        let literal = if crossing_only {
+            let edges = &graph[pos];
+            let crossing = &edges[edges.partition_point(|edge| edge.end <= resumed_at)..];
+            if crossing.is_empty() {
+                continue;
+            }
+            crossing
+        } else {
+            &graph[pos]
+        };
         let (done, ahead) = columns.split_at_mut(pos + 1);
         let current = &done[pos].hyps;
         // 行存储跨列复用；前词索引和有效行数只属于当前列，评分必须重新填满。
         let mut used_bigram_rows = 0;
         bigram_row_indices.clear();
         // 只读原始切片，评分与展开都按主图、附加图的相同顺序重新遍历。
-        let literal = &graph[pos];
         let extra_edges = extra.map_or(&[][..], |extra| extra[pos].as_slice());
         let outgoing_len = literal.len() + extra_edges.len();
         let outgoing = literal.iter().chain(extra_edges.iter());
@@ -853,6 +1335,12 @@ fn decode_graph_with_terminal<const WIDE_TERMINAL: bool>(
                 if edge.end == n && hyp.edge.is_some() && is_sentence_final_particle(&edge.word) {
                     score += SENTENCE_FINAL_PARTICLE_BONUS;
                 }
+                if options.opens_sentence
+                    && hyp.edge.is_none()
+                    && is_sentence_only_final_particle(&edge.word)
+                {
+                    score -= SENTENCE_OPENING_PARTICLE_PENALTY;
+                }
                 let static_bonus = bonuses.map_or(0.0, |bonuses| f64::from(bonuses[at]));
                 if bigram.is_some() {
                     // Only a pair the table favours moves the path. A pair it calls less likely than chance counts the same as one it never kept: the table drops rare pairs, so an absent pair is usually rarer still, and penalising the observed one made a common word lose to a rarer one with no pair at all. 句首→一大 is -1.0 and 句首→益达 is absent, which put 益达拖 ahead of 一大拖 for yidatuo (#7583).
@@ -901,6 +1389,24 @@ fn decode_graph_with_terminal<const WIDE_TERMINAL: bool>(
     } else {
         keep_beam(&mut last, terminal_limit);
     }
+    // 交出去的 `log_prob` 统一扣掉最优整句的模型分：这张图里的整句之间仍按带模型分的差距排，最优那条回到词网格的尺度。下游拿它和没让模型打分的备选切分比、当词网格证据和模型分混合；不扣时一整句的模型分（几十）都压在主读法上，打开纠错后主读法是 `kan'ge`，「看个画展」83 输给备选切分 `kang'e` 的「抗饿画展」143。每条各扣各的模型分也试过，主读法里按模型排出的先后跟着丢了，六个集合改对的从 70 条降到 52 条。
+    let model_shift = match beam_model.as_ref() {
+        Some(model) => {
+            let (applied, _) = beam_model_rescore(
+                model,
+                &columns[..n],
+                &model_totals,
+                &model_texts,
+                &mut last,
+                true,
+            );
+            last.iter()
+                .zip(applied)
+                .max_by(|(a, _), (b, _)| a.score.total_cmp(&b.score))
+                .map_or(0.0, |(_, total)| model.weight * total)
+        }
+        None => 0.0,
+    };
     cxx_sort::sort(&mut last, &mut scores_higher);
     let take = options.nbest.min(last.len());
 
@@ -947,7 +1453,7 @@ fn decode_graph_with_terminal<const WIDE_TERMINAL: bool>(
         paths.push(SentencePath {
             sentence,
             key,
-            log_prob: hyp.score,
+            log_prob: hyp.score - model_shift,
             words,
             typo_edges: hyp.typo_edges,
         });
@@ -957,6 +1463,15 @@ fn decode_graph_with_terminal<const WIDE_TERMINAL: bool>(
         retain_unique_sentences(&mut paths, take);
     }
     rescore_with_trigram(&mut paths, options);
+    if let (Some(resume), Some(scoring)) = (resume, resume_scoring) {
+        resume.cache.save(
+            resume.syllables,
+            scoring,
+            options.bigram.clone(),
+            graph,
+            &columns[..n],
+        );
+    }
     paths
 }
 
@@ -1055,15 +1570,22 @@ pub(super) fn decode_typo_on_graph_with_policy(
 ) -> Option<TypoSentence> {
     let n = graph.len();
     let mut capacities = vec![0usize; n];
+    // 纠错边是替用户换的词，含粗俗词的一律不用，盖住整段输入也不行：词库行的整段例外是因为整句就是用户打的这串读音对应的词，纠错边的词来自另一串读音（`lattice::offensive`）。
+    let usable = |typo: &TypoEdge| {
+        typo.start < typo.end
+            && typo.end <= n
+            && !typo.value.is_empty()
+            && !options.offensive.is_offensive(&typo.value)
+    };
     for typo in edges {
-        if typo.start < typo.end && typo.end <= n && !typo.value.is_empty() {
+        if usable(typo) {
             capacities[typo.start] = capacities[typo.start].saturating_add(1);
         }
     }
     let mut extra: Graph = capacities.into_iter().map(Vec::with_capacity).collect();
     let mut any = false;
     for typo in edges {
-        if typo.start >= typo.end || typo.end > n || typo.value.is_empty() {
+        if !usable(typo) {
             continue;
         }
         extra[typo.start].push(Edge {
@@ -1399,6 +1921,127 @@ pub(super) mod tests {
             ("shang", &[("上", 9000)]),
         ]);
         assert_eq!(best("ma'shang", &rows, &LatticeOptions::default()), "马上");
+    }
+
+    /// 一句话开头的第一条边是只出现在句尾的语气词时扣分：聊天里一条消息开头的 ba'ken'ding 是「爸肯定」，不是「吧肯定」。权重取自锁定词库。句中（`opens_sentence` 为假）照旧按词频。
+    #[test]
+    fn a_sentence_does_not_open_with_a_final_particle() {
+        let rows = table(&[
+            ("ba", &[("吧", 8425271), ("爸", 6909598)]),
+            ("ken'ding", &[("肯定", 1530000)]),
+        ]);
+        let mut options = LatticeOptions::default();
+        assert_eq!(best("ba'ken'ding", &rows, &options), "吧肯定");
+        options.opens_sentence = true;
+        assert_eq!(best("ba'ken'ding", &rows, &options), "爸肯定");
+        assert!(opens_sentence(""));
+        assert!(opens_sentence("好的\n"));
+        assert!(opens_sentence("到了。"));
+        assert!(!opens_sentence("你和"));
+    }
+
+    /// 「高铁 | 飘了」两个条目各拿一份成词奖励，「高铁票 | 了」的「了」一份也没有，不计 n-gram 时前者领先 8.7。单独的助词拿到加分后，两者差距不到 1，交给 n-gram 和逐键模型决定（产品的二元表里「票」接「了」，评测里这句因此改对）。权重取自锁定词库。
+    #[test]
+    fn a_lone_function_word_competes_with_entries_that_swallow_it() {
+        let rows = table(&[
+            ("gao'tie", &[("高铁", 60812)]),
+            ("gao'tie'piao", &[("高铁票", 3413)]),
+            ("piao", &[("票", 179517), ("飘", 56068)]),
+            ("le", &[("了", 52009647)]),
+            ("piao'le", &[("飘了", 17738)]),
+        ]);
+        let paths = decode("gao'tie'piao'le", &rows, &LatticeOptions::default());
+        let score = |sentence: &str, words: usize| {
+            paths
+                .iter()
+                .find(|path| path.sentence == sentence && path.words.len() == words)
+                .map(|path| path.log_prob)
+                .unwrap_or_else(|| panic!("{sentence} is not among {paths:?}"))
+        };
+        let swallowed = score("高铁飘了", 2);
+        let split = score("高铁票了", 2);
+        assert!((swallowed - split).abs() < 1.0, "{swallowed} vs {split}");
+        let span = |reading: &str| reading.split('\'').map(str::to_string).collect::<Vec<_>>();
+        assert_eq!(function_word_bonus("了", &span("le")), FUNCTION_WORD_BONUS);
+        assert_eq!(function_word_bonus("的", &span("de")), FUNCTION_WORD_BONUS);
+        // 读音不是轻声助词时不加：「了」读 liao、「的」读 di、「着」读 zhao。
+        assert_eq!(function_word_bonus("了", &span("liao")), 0.0);
+        assert_eq!(function_word_bonus("的", &span("di")), 0.0);
+        assert_eq!(function_word_bonus("着", &span("zhao")), 0.0);
+        // 只加给单独成边的助词，多字条目照旧。
+        assert_eq!(function_word_bonus("飘了", &span("piao'le")), 0.0);
+    }
+
+    /// 只认「下周四上线」这一句的打分器：它的前缀每字 -1，别的每字 -6。数一数被要了几条文字的分，看备忘有没有用上。
+    struct PrefersOneSentence {
+        sentence: &'static str,
+        scored: std::sync::atomic::AtomicUsize,
+    }
+
+    impl crate::ordering::SentenceScorer for PrefersOneSentence {
+        fn log_probabilities(&self, _context: &str, candidates: &[&str]) -> Vec<f32> {
+            self.scored
+                .fetch_add(candidates.len(), std::sync::atomic::Ordering::Relaxed);
+            candidates
+                .iter()
+                .map(|text| {
+                    if self.sentence.starts_with(text) {
+                        -1.0
+                    } else {
+                        -6.0
+                    }
+                })
+                .collect()
+        }
+    }
+
+    /// 只看词频，「下周死上线」领先「下周四上线」。模型在每一列剪枝之后给束里的前缀打分，分数随假设带到后面的列，「下周四」一路领先，成为首选；交出去的分里不带它的模型分，仍是它在词网格里的分。同一段上文再解一遍，前面各列的分全从备忘里取，不再问模型。
+    #[test]
+    fn the_beam_model_scores_prefixes_and_remembers_them() {
+        let rows = table(&[
+            ("xia'zhou", &[("下周", 50000)]),
+            ("si", &[("死", 9000), ("四", 8000)]),
+            ("si'shang", &[("死伤", 20000)]),
+            ("shang", &[("上", 9000)]),
+            ("xian", &[("线", 8000), ("闲", 7000)]),
+            ("shang'xian", &[("上线", 20000)]),
+        ]);
+        let mut options = LatticeOptions {
+            beam: 2,
+            ..LatticeOptions::default()
+        };
+        let plain = decode("xia'zhou'si'shang'xian", &rows, &options);
+        assert_eq!(plain[0].sentence, "下周死上线");
+        let lattice_score = plain
+            .iter()
+            .find(|path| path.sentence == "下周四上线")
+            .map(|path| path.log_prob)
+            .unwrap_or_else(|| panic!("下周四上线 is not among {plain:?}"));
+
+        let scorer = PrefersOneSentence {
+            sentence: "下周四上线",
+            scored: Default::default(),
+        };
+        let memo = RefCell::default();
+        options.beam_model = Some(BeamModel {
+            scorer: &scorer,
+            context: "",
+            weight: BEAM_MODEL_WEIGHT,
+            memo: &memo,
+        });
+        let scored_paths = decode("xia'zhou'si'shang'xian", &rows, &options);
+        assert_eq!(scored_paths[0].sentence, "下周四上线");
+        assert!((scored_paths[0].log_prob - lattice_score).abs() < 1e-9);
+        let scored = scorer.scored.load(std::sync::atomic::Ordering::Relaxed);
+        assert!(scored > 0);
+        assert_eq!(
+            best("xia'zhou'si'shang'xian", &rows, &options),
+            "下周四上线"
+        );
+        assert_eq!(
+            scorer.scored.load(std::sync::atomic::Ordering::Relaxed),
+            scored
+        );
     }
 
     #[test]
@@ -1810,6 +2453,68 @@ pub(super) mod tests {
         .is_none());
     }
 
+    /// 双拼的首选规则（#10018）拿 nonleading 模式给的那条纠错整句和字面整句比分：它必须是解出的路径里分数最高的那条带纠错边的路径。nonleading 取的是 64 条 n-best 里第一条带纠错边的，这只有在 n-best 按分数从高到低排时才成立，这里把两件事都钉住。
+    #[test]
+    fn the_nonleading_typo_sentence_is_the_best_scoring_typo_path() {
+        let rows = table(&[
+            ("ta", &[("他", 1000), ("她", 900)]),
+            ("shi", &[("时", 1000), ("是", 900)]),
+            ("jian", &[("间", 1000), ("见", 900)]),
+            ("ta'shi", &[("他时", 500)]),
+        ]);
+        let text = "ta'shi'jian";
+        let options = LatticeOptions::default();
+        let graph = build_graph(&syllables(text), &mut lookup(&rows), &options);
+        let wide = LatticeOptions {
+            nbest: 64,
+            ..options.clone()
+        };
+        let paths = decode_graph(&graph, &wide, None);
+        assert!(paths.len() > 3);
+        assert!(paths
+            .windows(2)
+            .all(|pair| pair[0].log_prob >= pair[1].log_prob));
+        let literal = &paths[0];
+        let edge = |start, end, key: &str, value: &str, weight, penalty| TypoEdge {
+            start,
+            end,
+            key: key.into(),
+            value: value.into(),
+            weight,
+            penalty,
+        };
+        // 三条互相重叠（一条路径只能用上其中一条）的纠错边，词频相近、罚分各不相同。
+        let edges = [
+            edge(1, 3, "shi'jian", "事件", 9000, 6.0),
+            edge(1, 3, "shi'jian", "实践", 9000, 2.0),
+            edge(0, 2, "ta'shi", "他是", 3000, 4.0),
+        ];
+        let best = decode_typo_on_graph_with_policy(&graph, &options, literal, &edges, true)
+            .expect("a typo path");
+        for single in &edges {
+            let alone = decode_typo_on_graph_with_policy(
+                &graph,
+                &options,
+                literal,
+                std::slice::from_ref(single),
+                true,
+            )
+            .expect("each edge alone gives a typo path");
+            assert!(
+                alone.score <= best.score,
+                "{} {}",
+                alone.sentence,
+                best.sentence
+            );
+        }
+        assert_eq!(best.sentence, "他实践");
+        assert_eq!(best.edges, 1);
+        // 只给罚分最高的那一条时，nonleading 仍给出用它的那条路径，分数更低。
+        let worse = decode_typo_on_graph_with_policy(&graph, &options, literal, &edges[..1], true)
+            .expect("a nonleading typo path");
+        assert!(worse.score < best.score);
+    }
+
     #[test]
     fn typo_leads_ignores_zero_edges() {
         let typo = TypoSentence {
@@ -1915,6 +2620,10 @@ mod return_tests;
 mod prefix_tests;
 
 #[cfg(test)]
+#[path = "decode_prefix_resume_tests.rs"]
+mod prefix_resume_tests;
+
+#[cfg(test)]
 #[path = "decode_outgoing_tests.rs"]
 mod outgoing_tests;
 
@@ -1949,3 +2658,7 @@ mod collocation_tests;
 #[cfg(test)]
 #[path = "decode_collocation_tail_tests.rs"]
 mod collocation_tail_tests;
+
+#[cfg(test)]
+#[path = "decode_offensive_tests.rs"]
+mod offensive_tests;

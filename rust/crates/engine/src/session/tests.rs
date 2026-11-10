@@ -1,5 +1,9 @@
 //! Session-level tests: the caret-prefix rules of upstream bc46f27, wubi mixed routing (overlays.md §3.3, no C++ oracle), the personal-learning windows through `set_clock`, and ports of the `test_input_session.cpp`, `test_temporary_input_session.cpp` and `test_runtime_isolation.cpp` cases the goldens do not pin down. Every fixture is built inline, as the reference ctests did.
 
+mod bilingual_glide;
+mod bilingual_glide_quality;
+mod sentence_excluded;
+
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -7,7 +11,7 @@ use std::time::{Duration, Instant};
 use rusqlite::Connection;
 
 use super::editing::quanpin_raw_boundaries;
-use super::{Clock, Session, SessionOptions};
+use super::{Clock, HelpcodeTrigger, Session, SessionOptions};
 use crate::assets;
 use crate::local::date_time::LocalDateTime;
 use crate::paths::RuntimePaths;
@@ -302,6 +306,72 @@ fn personal_rerank_refresh_reuses_shown_rows_and_preserves_learning_order() {
     }
 }
 
+#[test]
+fn personal_context_keeps_an_exact_reading_ahead_of_a_shorter_reading() {
+    let fixture = Fixture::new(
+        "CREATE TABLE tbl_1_h(key TEXT,jp TEXT,value TEXT,weight INTEGER);
+INSERT INTO tbl_1_h VALUES('hao','h','子',100);
+CREATE TABLE tbl_1_g(key TEXT,jp TEXT,value TEXT,weight INTEGER);
+INSERT INTO tbl_1_g VALUES('gei','g','甲',100);
+INSERT INTO tbl_1_g VALUES('ge','g','乙',1000);",
+    );
+    let journal = crate::user_dictionary::journal::open_journal(&fixture.journal()).unwrap();
+    journal
+        .execute(
+            "INSERT INTO personal_bigram(previous,word,count) VALUES('子','乙',32)",
+            [],
+        )
+        .unwrap();
+    drop(journal);
+    let mut session = fixture.session_with(|options| {
+        options.personal_context = true;
+        options.helpcode = false;
+    });
+    type_text(&mut session, "gei");
+    assert_eq!(words(&session)[0], "甲");
+    assert!(words(&session).iter().any(|word| word == "乙"));
+    session.command(Command::Cancel);
+    type_text(&mut session, "hao");
+    select_word(&mut session, "子");
+    type_text(&mut session, "gei");
+    assert_eq!(words(&session)[0], "甲");
+    assert_eq!(
+        session.command(Command::CommitCandidate).commit.as_deref(),
+        Some("甲")
+    );
+}
+
+#[test]
+fn personal_context_reranks_complete_alternative_segmentations_together() {
+    let fixture = Fixture::new(
+        "CREATE TABLE tbl_1_h(key TEXT,jp TEXT,value TEXT,weight INTEGER);
+INSERT INTO tbl_1_h VALUES('hen','h','很',100);
+CREATE TABLE tbl_2_f(key TEXT,jp TEXT,value TEXT,weight INTEGER);
+INSERT INTO tbl_2_f VALUES('fang''an','fa','方案',1000);
+INSERT INTO tbl_2_f VALUES('fan''gan','fg','反感',100);",
+    );
+    let journal = crate::user_dictionary::journal::open_journal(&fixture.journal()).unwrap();
+    journal
+        .execute(
+            "INSERT INTO personal_bigram(previous,word,count) VALUES('很','反感',32)",
+            [],
+        )
+        .unwrap();
+    drop(journal);
+    let mut session = fixture.session_with(|options| {
+        options.personal_context = true;
+        options.helpcode = false;
+    });
+    type_text(&mut session, "fangan");
+    assert_eq!(words(&session)[0], "方案");
+    assert!(words(&session).iter().any(|word| word == "反感"));
+    session.command(Command::Cancel);
+    type_text(&mut session, "hen");
+    select_word(&mut session, "很");
+    type_text(&mut session, "fangan");
+    assert_eq!(words(&session)[0], "反感");
+}
+
 /// One directory standing in for all four runtime roots, as the reference session tests used.
 struct Fixture {
     directory: tempfile::TempDir,
@@ -346,6 +416,31 @@ fn next_word_prediction_is_opt_in_and_has_no_composing_text() {
     assert!(snapshot.candidates.iter().all(|row| row.pinyin.is_empty()));
     assert_eq!(select_word(&mut on, "饭").commit.as_deref(), Some("饭"));
     assert!(on.snapshot().candidates.iter().any(|row| row.word == "菜"));
+}
+
+/// 联想按上屏的词查以它开头的长词，给的是后半截：上屏 巨 不联想出 巨乳 的 乳。
+#[test]
+fn next_word_prediction_skips_offensive_words() {
+    let fixture = Fixture::new(
+        "CREATE TABLE tbl_1_j(key TEXT,jp TEXT,value TEXT,weight INTEGER);
+INSERT INTO tbl_1_j VALUES('ju','j','巨',1000);
+CREATE TABLE tbl_2_j(key TEXT,jp TEXT,value TEXT,weight INTEGER);
+INSERT INTO tbl_2_j VALUES('ju''ru','jr','巨乳',300);
+INSERT INTO tbl_2_j VALUES('ju''ren','jr','巨人',100);",
+    );
+    let mut session = fixture.session_with(|options| {
+        options.next_word_prediction = true;
+        options.learning = false;
+    });
+    type_text(&mut session, "ju");
+    assert_eq!(
+        select_word(&mut session, "巨").commit.as_deref(),
+        Some("巨")
+    );
+    let snapshot = session.snapshot();
+    assert!(snapshot.prediction);
+    assert!(snapshot.candidates.iter().any(|row| row.word == "人"));
+    assert!(snapshot.candidates.iter().all(|row| row.word != "乳"));
 }
 
 #[test]
@@ -541,6 +636,9 @@ impl Fixture {
 
     fn options(&self) -> SessionOptions {
         let mut options = SessionOptions::new(self.paths());
+        // 这些测试按参照实现的默认值写成：辅助码开、表名 `lantian`（引擎库默认关，见 `SessionOptions::new`）。
+        options.helpcode = true;
+        options.helpcode_schema = "lantian".to_owned();
         // Frequency learning off, as the reference session tests configured it, so only the behaviour under test moves the order.
         options.frequency = FrequencyAdjustmentOptions {
             mode: FrequencyAdjustmentMode::Disabled,
@@ -1002,6 +1100,775 @@ fn caret_prefix_floors_to_a_shuangpin_unit() {
     assert_eq!(words(&session), words(&prefix));
 }
 
+// ---- 触屏触点（#10018） ----
+
+/// a 到 z 排成一行，键宽 10、键高 10。
+fn touch_geometry() -> Arc<crate::touch::KeyGeometry> {
+    let mut keys = [[0.0f32; 4]; 26];
+    for (index, key) in keys.iter_mut().enumerate() {
+        *key = [index as f32 * 10.0, 0.0, 10.0, 10.0];
+    }
+    Arc::new(crate::touch::KeyGeometry::new(3, &keys, None, &[]).unwrap())
+}
+
+/// 当前请求带着的触点。
+fn request_touches(session: &Session) -> Vec<Option<crate::touch::KeyTouch>> {
+    session.input.engine.request().key_touches.clone()
+}
+
+/// 待用触点只交给紧接着的那一个 26 键双拼字母：命令、选词这些入口一开头就丢掉它，改道到别处的按键不会把它留给后面的字母；全拼和没有几何时不带触点。
+#[test]
+fn a_pending_touch_reaches_only_the_next_shuangpin_letter() {
+    let touch = Some(crate::touch::KeyTouch {
+        dx: 1,
+        dy: 0,
+        copy: 0,
+    });
+    let fixture = Fixture::new(CARET_PREFIX_FIXTURE);
+    let mut session = fixture.session_with(|options| options.scheme = SchemeType::Shuangpin);
+    // 没有几何：触点进不了请求。
+    session.set_key_touch(touch);
+    session.character(b'n', false);
+    assert!(request_touches(&session).is_empty());
+    session.command(Command::Cancel);
+
+    session.set_key_geometry(Some(touch_geometry()));
+    session.set_key_touch(touch);
+    session.character(b'n', false);
+    session.character(b'i', false);
+    assert_eq!(request_touches(&session), [touch, None]);
+    // 退格删掉带触点的那个键之后，剩下的一个触点都没有。
+    session.command(Command::Backspace);
+    session.command(Command::Backspace);
+    session.character(b'n', false);
+    assert!(request_touches(&session).is_empty());
+    session.command(Command::Cancel);
+
+    // 设了触点、这一键却改道成命令：触点作废，下一个字母不带。
+    session.set_key_touch(touch);
+    session.command(Command::Cancel);
+    session.character(b'n', false);
+    assert!(request_touches(&session).is_empty());
+    // 选词、标点同理。
+    session.set_key_touch(touch);
+    session.select(0);
+    session.character(b'n', false);
+    assert!(request_touches(&session).is_empty());
+    session.set_key_touch(touch);
+    session.punctuation(b',');
+    session.character(b'n', false);
+    assert!(request_touches(&session).is_empty());
+    session.command(Command::Cancel);
+
+    // 清掉几何之后不再带触点。
+    session.set_key_geometry(None);
+    session.set_key_touch(touch);
+    session.character(b'n', false);
+    assert!(request_touches(&session).is_empty());
+    session.command(Command::Cancel);
+
+    // 全拼不收触点。
+    let mut quanpin = fixture.session_with(|_| {});
+    quanpin.set_key_geometry(Some(touch_geometry()));
+    quanpin.set_key_touch(touch);
+    quanpin.character(b'n', false);
+    assert!(quanpin.input.engine.request().key_touches.is_empty());
+}
+
+/// 以词定字、结束组字、移光标这些不派发字符的入口同样一开头丢掉待用触点：设了触点之后先调它们，下一个字母不带触点。
+#[test]
+fn non_character_entries_discard_the_pending_touch() {
+    let touch = Some(crate::touch::KeyTouch {
+        dx: 1,
+        dy: 0,
+        copy: 0,
+    });
+    let fixture = Fixture::new(CARET_PREFIX_FIXTURE);
+    let mut session = fixture.session_with(|options| options.scheme = SchemeType::Shuangpin);
+    session.set_key_geometry(Some(touch_geometry()));
+    type Entry = (&'static str, fn(&mut Session));
+    let entries: [Entry; 17] = [
+        ("select_edge", |session| {
+            session.select_edge(0, CandidateEdge::FirstHan);
+        }),
+        ("finish", |session| {
+            session.finish(0);
+        }),
+        ("set_caret", |session| session.set_caret(None)),
+        ("candidate_key", |session| {
+            session.candidate_key(b'1');
+        }),
+        ("conversion_left_from", |session| {
+            session.conversion_left_from(0);
+        }),
+        ("pin", |session| {
+            session.pin(0);
+        }),
+        ("remove", |session| {
+            session.remove(5);
+        }),
+        ("fix_position", |session| {
+            session.fix_position(0, 1);
+        }),
+        ("clear_position", |session| {
+            session.clear_position(0);
+        }),
+        ("choose_nine_key_spelling", |session| {
+            session.choose_nine_key_spelling(0);
+        }),
+        ("set_nine_key_filter", |session| {
+            session.set_nine_key_filter(false, "");
+        }),
+        ("expand_initial_candidates", |session| {
+            session.expand_initial_candidates();
+        }),
+        ("reset_context", Session::reset_context),
+        ("set_key_grid", |session| session.set_key_grid(None)),
+        ("set_dedicated_english", |session| {
+            session.set_dedicated_english(false)
+        }),
+        ("switch_scheme", |session| {
+            session.switch_scheme(SchemeType::Shuangpin).unwrap();
+        }),
+        ("set_key_geometry", |session| {
+            session.set_key_geometry(Some(touch_geometry()))
+        }),
+    ];
+    for (name, entry) in entries {
+        session.command(Command::Cancel);
+        // 先打一段不带触点的组字，选词、结束、移光标才有东西可动。
+        session.character(b'n', false);
+        session.character(b'i', false);
+        session.set_key_touch(touch);
+        entry(&mut session);
+        session.character(b'h', false);
+        assert!(
+            request_touches(&session).iter().all(Option::is_none),
+            "{name}: {:?}",
+            request_touches(&session)
+        );
+    }
+    // 对照：中间不调别的入口时，触点交给下一个字母。
+    session.command(Command::Cancel);
+    session.character(b'n', false);
+    session.character(b'i', false);
+    session.set_key_touch(touch);
+    session.character(b'h', false);
+    assert_eq!(request_touches(&session), [None, None, touch]);
+}
+
+/// 合成词库：小鹤 mw gr xi 是没关系，r 按成邻键 f 就成了 gen（跟）。
+const TOUCH_TYPO_FIXTURE: &str = "CREATE TABLE tbl_1_m(key TEXT, jp TEXT, value TEXT, weight INTEGER);INSERT INTO tbl_1_m VALUES('mei','m','没',1000);CREATE TABLE tbl_1_g(key TEXT, jp TEXT, value TEXT, weight INTEGER);INSERT INTO tbl_1_g VALUES('gen','g','跟',1000),('guan','g','关',500);CREATE TABLE tbl_1_x(key TEXT, jp TEXT, value TEXT, weight INTEGER);INSERT INTO tbl_1_x VALUES('xi','x','系',1000);CREATE TABLE tbl_2_g(key TEXT, jp TEXT, value TEXT, weight INTEGER);INSERT INTO tbl_2_g VALUES('guan''xi','gx','关系',100000);";
+
+/// QWERTY 字母键，键宽 10、键高 14，每排比上一排右移半个键。
+fn qwerty_geometry() -> Arc<crate::touch::KeyGeometry> {
+    qwerty_geometry_moving(&[])
+}
+
+/// 同一个代次（5）的 QWERTY 字母键，`moved` 里的键挪到给定的键心。
+fn qwerty_geometry_moving(moved: &[(u8, f32, f32)]) -> Arc<crate::touch::KeyGeometry> {
+    let mut keys = [[0.0f32; 4]; 26];
+    for (letters, left, y) in [
+        ("qwertyuiop", 5.0, 7.0),
+        ("asdfghjkl", 10.0, 21.0),
+        ("zxcvbnm", 20.0, 35.0),
+    ] {
+        for (column, letter) in letters.bytes().enumerate() {
+            keys[usize::from(letter - b'a')] = [left + 10.0 * column as f32, y, 10.0, 14.0];
+        }
+    }
+    for &(key, x, y) in moved {
+        keys[usize::from(key - b'a')][..2].copy_from_slice(&[x, y]);
+    }
+    Arc::new(crate::touch::KeyGeometry::new(5, &keys, None, &[]).unwrap())
+}
+
+/// 落点支持的纠错整句在快照里标上 `touch_supported`，runtime 才不把这一行挪到表尾；同一串键不带触点（平面表）时一行都没有。
+#[test]
+fn a_supported_touch_correction_is_reported_in_the_snapshot() {
+    let fixture = Fixture::new(TOUCH_TYPO_FIXTURE);
+    let shuangpin = |options: &mut SessionOptions| {
+        options.scheme = SchemeType::Shuangpin;
+        options.autocorrect_types = crate::types::autocorrect_type::TRANSPOSITION
+            | crate::types::autocorrect_type::NEIGHBOR;
+    };
+    let typed = |session: &mut Session, touched: bool| {
+        for (index, byte) in b"mwgfxi".iter().enumerate() {
+            if touched {
+                // f 那一键落在 f 和左上方的 r 之间。
+                let (dx, dy) = if index == 3 { (-5, -10) } else { (0, 0) };
+                session.set_key_touch(Some(crate::touch::KeyTouch { dx, dy, copy: 0 }));
+            }
+            session.character(*byte, false);
+        }
+    };
+    let mut flat = fixture.session_with(shuangpin);
+    typed(&mut flat, false);
+    let snapshot = flat.snapshot();
+    assert!(snapshot.candidates.iter().any(|item| item.word == "没关系"));
+    assert!(snapshot.candidates.iter().all(|item| !item.touch_supported));
+
+    let mut touched = fixture.session_with(shuangpin);
+    touched.set_key_geometry(Some(qwerty_geometry()));
+    typed(&mut touched, true);
+    let snapshot = touched.snapshot();
+    let row = snapshot
+        .candidates
+        .iter()
+        .find(|item| item.word == "没关系")
+        .unwrap();
+    assert!(row.touch_supported);
+    // 只有这一条纠错整句被标上，别的行（包括别的纠错行）不受影响。
+    assert!(snapshot
+        .candidates
+        .iter()
+        .filter(|item| item.word != "没关系")
+        .all(|item| !item.touch_supported));
+    assert!(snapshot.candidates[0].corrected_from.is_empty());
+}
+
+/// 宿主用同一个代次下发挪过键的几何：同样的量化触点在新布局下计价不同，词典缓存不能把旧布局算出的行交出来。r 挪到键盘最右边之后不再是 f 的邻键，f 改成 r 的那条纠错整句就不该再出现、更不该带着落点支持的标记。
+#[test]
+fn a_same_id_geometry_with_moved_keys_does_not_reuse_cached_touch_rows() {
+    let fixture = Fixture::new(TOUCH_TYPO_FIXTURE);
+    let mut session = fixture.session_with(|options| {
+        options.scheme = SchemeType::Shuangpin;
+        options.autocorrect_types = crate::types::autocorrect_type::TRANSPOSITION
+            | crate::types::autocorrect_type::NEIGHBOR;
+    });
+    let typed = |session: &mut Session| {
+        for (index, byte) in b"mwgfxi".iter().enumerate() {
+            // f 那一键落在 f 和左上方的 r 之间。
+            let (dx, dy) = if index == 3 { (-5, -10) } else { (0, 0) };
+            session.set_key_touch(Some(crate::touch::KeyTouch { dx, dy, copy: 0 }));
+            session.character(*byte, false);
+        }
+    };
+    let supported = |session: &Session| {
+        session
+            .snapshot()
+            .candidates
+            .iter()
+            .any(|item| item.word == "没关系" && item.touch_supported)
+    };
+    session.set_key_geometry(Some(qwerty_geometry()));
+    typed(&mut session);
+    assert!(supported(&session));
+    session.command(Command::Cancel);
+
+    let moved = qwerty_geometry_moving(&[(b'r', 205.0, 7.0)]);
+    assert_eq!(moved.id(), qwerty_geometry().id());
+    assert_ne!(moved.fingerprint(), qwerty_geometry().fingerprint());
+    session.set_key_geometry(Some(moved));
+    typed(&mut session);
+    assert!(!supported(&session));
+    session.command(Command::Cancel);
+
+    // 换回原来的布局，答案照旧。
+    session.set_key_geometry(Some(qwerty_geometry()));
+    typed(&mut session);
+    assert!(supported(&session));
+}
+
+// ---- 双拼触点纠错的学习（#10018） ----
+
+/// `TOUCH_TYPO_FIXTURE` 加上整句学习要写的三字表，选中纠错整句不带诊断。
+fn touch_learning_fixture() -> Fixture {
+    Fixture::new(&format!(
+        "{TOUCH_TYPO_FIXTURE}CREATE TABLE tbl_3_m(key TEXT, jp TEXT, value TEXT, weight INTEGER);"
+    ))
+}
+
+fn touch_shuangpin(options: &mut SessionOptions) {
+    options.scheme = SchemeType::Shuangpin;
+    options.autocorrect_types =
+        crate::types::autocorrect_type::TRANSPOSITION | crate::types::autocorrect_type::NEIGHBOR;
+}
+
+/// 带触点打小鹤 `mwgfxi`：`toward_r` 时 f 那一键落在 f 和左上方的 r 之间（落点支持改成 gr），否则每键都按在键心。
+fn type_touched(session: &mut Session, toward_r: bool) {
+    for (index, byte) in b"mwgfxi".iter().enumerate() {
+        let (dx, dy) = if index == 3 && toward_r {
+            (-5, -10)
+        } else {
+            (0, 0)
+        };
+        session.set_key_touch(Some(crate::touch::KeyTouch { dx, dy, copy: 0 }));
+        session.character(*byte, false);
+    }
+}
+
+fn shuangpin_typo_count(fixture: &Fixture, column: &str) -> Option<i64> {
+    Connection::open(fixture.journal())
+        .ok()?
+        .query_row(
+            &format!("SELECT {column} FROM shuangpin_typo_counts WHERE profile='xiaohe' AND typed='gf' AND intended='gr'"),
+            [],
+            |row| row.get(0),
+        )
+        .ok()
+}
+
+fn shuangpin_suppressions(fixture: &Fixture) -> i64 {
+    Connection::open(fixture.journal())
+        .and_then(|journal| {
+            journal.query_row(
+                "SELECT coalesce(sum(commits),0) FROM shuangpin_autocorrect_suppressions WHERE profile='xiaohe' AND input='mwgfxi'",
+                [],
+                |row| row.get(0),
+            )
+        })
+        .unwrap_or(0)
+}
+
+/// 带触点选中纠错整句记一次接受：键码对是按到的 gf 和变体集里解到 guan 的 gr，记在小鹤名下。关着学习、不带触点（平面表、桌面）时选同一行什么也不记。
+#[test]
+fn selecting_a_touch_correction_records_its_two_key_pair() {
+    let fixture = touch_learning_fixture();
+    let mut quiet = fixture.session_with(|options| {
+        touch_shuangpin(options);
+        options.learning = false;
+    });
+    quiet.set_key_geometry(Some(qwerty_geometry()));
+    type_touched(&mut quiet, true);
+    assert_eq!(select_word(&mut quiet, "没关系").diagnostic, None);
+    assert_eq!(shuangpin_typo_count(&fixture, "accepted"), None);
+
+    let mut flat = fixture.session_with(touch_shuangpin);
+    type_text(&mut flat, "mwgfxi");
+    assert_eq!(select_word(&mut flat, "没关系").diagnostic, None);
+    assert_eq!(shuangpin_typo_count(&fixture, "accepted"), None);
+
+    let mut touched = fixture.session_with(touch_shuangpin);
+    touched.set_key_geometry(Some(qwerty_geometry()));
+    for round in 1..=2 {
+        type_touched(&mut touched, true);
+        assert_eq!(select_word(&mut touched, "没关系").diagnostic, None);
+        assert_eq!(shuangpin_typo_count(&fixture, "accepted"), Some(round));
+        assert_eq!(shuangpin_typo_count(&fixture, "rejected"), Some(0));
+    }
+    // 全拼的纠错表一行不多。
+    assert_eq!(
+        Connection::open(fixture.journal())
+            .unwrap()
+            .query_row("SELECT count(*) FROM pinyin_typo_counts", [], |row| row
+                .get::<_, i64>(0))
+            .unwrap(),
+        0
+    );
+}
+
+/// 短词纠错消费整串原码；非法两键替换过同文前缀后，也不能留下一个键。
+#[test]
+fn selecting_short_touch_words_consumes_the_raw_code_and_learns_the_pair() {
+    for (typed, position, delta, target, intended) in [
+        ("gf", 1, (-5, -10), "关", "gr"),
+        ("gq", 1, (14, 0), "给", "gw"),
+        ("mwgf", 3, (-5, -10), "美观", "gr"),
+    ] {
+        let fixture = Fixture::new(
+            "CREATE TABLE tbl_1_g(key TEXT,jp TEXT,value TEXT,weight INTEGER);
+            INSERT INTO tbl_1_g VALUES('gen','g','跟',1000),('guan','g','关',2000000),('gei','g','给',1000000);
+            CREATE TABLE tbl_1_m(key TEXT,jp TEXT,value TEXT,weight INTEGER);
+            INSERT INTO tbl_1_m VALUES('mei','m','没',1000);
+            CREATE TABLE tbl_2_m(key TEXT,jp TEXT,value TEXT,weight INTEGER);
+            INSERT INTO tbl_2_m VALUES('mei''guan','mg','美观',1000000);",
+        );
+        let mut session = fixture.session_with(touch_shuangpin);
+        session.set_key_geometry(Some(qwerty_geometry()));
+        for (index, byte) in typed.bytes().enumerate() {
+            let (dx, dy) = if index == position { delta } else { (0, 0) };
+            session.set_key_touch(Some(crate::touch::KeyTouch { dx, dy, copy: 0 }));
+            session.character(byte, false);
+        }
+        let snapshot = session.snapshot();
+        let at = snapshot
+            .candidates
+            .iter()
+            .position(|row| row.word == target && row.touch_supported)
+            .expect("会话提供落点支持的短词纠错");
+        assert!(at > 0);
+        let result = session.select(at);
+        assert_eq!(result.commit.as_deref(), Some(target));
+        assert_eq!(result.diagnostic, None);
+        assert!(session.snapshot().editing_text.is_empty());
+        assert!(session.snapshot().preedit.is_empty());
+        let pressed = &typed[typed.len() - 2..];
+        let accepted: i64 = Connection::open(fixture.journal())
+            .unwrap()
+            .query_row(
+                "SELECT accepted FROM shuangpin_typo_counts WHERE profile='xiaohe' AND typed=?1 AND intended=?2",
+                [pressed, intended],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(accepted, 1);
+    }
+}
+
+/// 个人上下文重排只排字面首组：上一个词之后常接的短词纠错再重，也不能凭原始词频挤掉触点罚分后仍领先的字面首选。
+#[test]
+fn personal_context_keeps_short_touch_words_behind_the_literal_leader() {
+    let fixture = Fixture::new(
+        "CREATE TABLE tbl_1_g(key TEXT,jp TEXT,value TEXT,weight INTEGER);
+        INSERT INTO tbl_1_g VALUES('gen','g','跟',1000),('guan','g','关',2000000),('gei','g','给',1000000);
+        CREATE TABLE tbl_1_m(key TEXT,jp TEXT,value TEXT,weight INTEGER);
+        INSERT INTO tbl_1_m VALUES('mei','m','没',1000);",
+    );
+    let journal = crate::user_dictionary::journal::open_journal(&fixture.journal()).unwrap();
+    journal
+        .execute(
+            "INSERT INTO personal_bigram(previous,word,count) VALUES('没','关',32)",
+            [],
+        )
+        .unwrap();
+    drop(journal);
+    let mut session = fixture.session_with(|options| {
+        touch_shuangpin(options);
+        options.personal_context = true;
+    });
+    session.set_key_geometry(Some(qwerty_geometry()));
+    for byte in b"mw" {
+        session.set_key_touch(Some(crate::touch::KeyTouch {
+            dx: 0,
+            dy: 0,
+            copy: 0,
+        }));
+        session.character(*byte, false);
+    }
+    select_word(&mut session, "没");
+    for (byte, (dx, dy)) in b"gf".iter().zip([(0, 0), (-5, -10)]) {
+        session.set_key_touch(Some(crate::touch::KeyTouch { dx, dy, copy: 0 }));
+        session.character(*byte, false);
+    }
+    assert_eq!(session.input.chain.previous.as_deref(), Some("没"));
+    let snapshot = session.snapshot();
+    assert_eq!(snapshot.candidates[0].word, "跟");
+    assert!(snapshot.candidates[0].corrected_from.is_empty());
+    assert!(snapshot
+        .candidates
+        .iter()
+        .skip(1)
+        .any(|row| row.word == "关" && row.touch_supported));
+    assert_eq!(
+        session.command(Command::CommitCandidate).commit.as_deref(),
+        Some("跟")
+    );
+}
+
+/// 短词纠错行不进个人上下文首组，但也不截断首组：排在它后面的字面同音字照样按上一个词重排，纠错行留在引擎给它的位置。
+#[test]
+fn personal_context_reranks_literal_words_behind_a_short_touch_word() {
+    let fixture = Fixture::new(
+        "CREATE TABLE tbl_1_g(key TEXT,jp TEXT,value TEXT,weight INTEGER);
+        INSERT INTO tbl_1_g VALUES('gen','g','跟',1000),('gen','g','根',10),('guan','g','关',2000000),('gei','g','给',1000000);
+        CREATE TABLE tbl_1_m(key TEXT,jp TEXT,value TEXT,weight INTEGER);
+        INSERT INTO tbl_1_m VALUES('mei','m','没',1000);",
+    );
+    let journal = crate::user_dictionary::journal::open_journal(&fixture.journal()).unwrap();
+    journal
+        .execute(
+            "INSERT INTO personal_bigram(previous,word,count) VALUES('没','根',32)",
+            [],
+        )
+        .unwrap();
+    drop(journal);
+    let mut session = fixture.session_with(|options| {
+        touch_shuangpin(options);
+        options.personal_context = true;
+    });
+    session.set_key_geometry(Some(qwerty_geometry()));
+    for byte in b"mw" {
+        session.set_key_touch(Some(crate::touch::KeyTouch {
+            dx: 0,
+            dy: 0,
+            copy: 0,
+        }));
+        session.character(*byte, false);
+    }
+    select_word(&mut session, "没");
+    for (byte, (dx, dy)) in b"gf".iter().zip([(0, 0), (-5, -10)]) {
+        session.set_key_touch(Some(crate::touch::KeyTouch { dx, dy, copy: 0 }));
+        session.character(*byte, false);
+    }
+    assert_eq!(session.input.chain.previous.as_deref(), Some("没"));
+    // 引擎把纠错行排在字面首选之后、「根」之前，这正是首组需要跳过它的情形。
+    let ranking = session.input.ranking_list();
+    let position = |list: &[crate::types::WordItem], word: &str| {
+        list.iter()
+            .position(|row| row.word == word && row.corrected_from.is_empty() == (word != "关"))
+            .unwrap()
+    };
+    let corrected = position(ranking, "关");
+    assert!(ranking[corrected].touch_supported);
+    assert_eq!(ranking[0].word, "跟");
+    assert!(corrected < position(ranking, "根"));
+    let snapshot = session.snapshot();
+    assert_eq!(snapshot.candidates[0].word, "根");
+    assert!(snapshot.candidates[0].corrected_from.is_empty());
+    assert_eq!(snapshot.candidates[corrected].word, "关");
+    assert!(snapshot.candidates[corrected].touch_supported);
+    assert_eq!(
+        session.command(Command::CommitCandidate).commit.as_deref(),
+        Some("根")
+    );
+}
+
+/// 带触点的输入有落点支持的纠错可选、用户却按 Enter 原样上屏：记一次抑制，之后同一串输入带触点时按字面回答，一行纠错都没有、请求也不再带触点。不带触点（平面表）的会话不受这条记录影响，照旧给纠错整句。落点不支持（沉到表尾）的纠错行不算可选，上屏不记。
+#[test]
+fn committing_raw_over_a_touch_correction_suppresses_it() {
+    let fixture = touch_learning_fixture();
+    let mut session = fixture.session_with(touch_shuangpin);
+    session.set_key_geometry(Some(qwerty_geometry()));
+    // 每键都按在键心：纠错整句还在，但落点不支持它。
+    type_touched(&mut session, false);
+    assert!(session
+        .snapshot()
+        .candidates
+        .iter()
+        .all(|item| !item.touch_supported));
+    let raw = session.command(Command::CommitRaw);
+    assert_eq!(raw.commit.as_deref(), Some("mwgfxi"));
+    assert_eq!(shuangpin_suppressions(&fixture), 0);
+
+    type_touched(&mut session, true);
+    assert!(session
+        .snapshot()
+        .candidates
+        .iter()
+        .any(|item| item.touch_supported));
+    let raw = session.command(Command::CommitRaw);
+    assert_eq!(raw.commit.as_deref(), Some("mwgfxi"));
+    assert_eq!(raw.diagnostic, None);
+    assert_eq!(shuangpin_suppressions(&fixture), 1);
+
+    type_touched(&mut session, true);
+    assert!(
+        session
+            .snapshot()
+            .candidates
+            .iter()
+            .all(|item| item.corrected_from.is_empty()),
+        "{:?}",
+        words(&session)
+    );
+    assert!(request_touches(&session).is_empty());
+    // 已经按字面回答了，再按 Enter 也没有可拒绝的。
+    session.command(Command::CommitRaw);
+    assert_eq!(shuangpin_suppressions(&fixture), 1);
+    // 改一个键就是另一串输入，不受抑制。
+    type_touched(&mut session, true);
+    session.command(Command::Backspace);
+    session.set_key_touch(Some(crate::touch::KeyTouch {
+        dx: 0,
+        dy: 0,
+        copy: 0,
+    }));
+    session.character(b'u', false);
+    assert_eq!(request_touches(&session).len(), 6);
+    session.command(Command::Cancel);
+
+    let mut flat = fixture.session_with(touch_shuangpin);
+    type_text(&mut flat, "mwgfxi");
+    assert!(flat
+        .snapshot()
+        .candidates
+        .iter()
+        .any(|item| item.word == "没关系" && !item.corrected_from.is_empty()));
+    flat.command(Command::CommitRaw);
+    assert_eq!(shuangpin_suppressions(&fixture), 1);
+}
+
+/// 首选是纠错行、用户却选了别的行：选中的行覆盖到的、读音不是纠正后音节的位置记一次拒绝。只覆盖前一个音节的词没对改动表态，不记；选中纠错行本身是接受。这一期纠错行还坐不上首选（首选规则在后面一期），这里把它挪到第一行来测记账本身。
+#[test]
+fn picking_another_row_over_a_leading_correction_counts_a_rejection() {
+    let fixture = touch_learning_fixture();
+    let mut session = fixture.session_with(touch_shuangpin);
+    session.set_key_geometry(Some(qwerty_geometry()));
+    let lead_with_correction = |session: &mut Session| {
+        type_touched(session, true);
+        let rows = &mut session.input.mixed_candidates;
+        let at = rows
+            .iter()
+            .position(|item| item.word == "没关系" && !item.corrected_from.is_empty())
+            .unwrap();
+        let row = rows.remove(at);
+        rows.insert(0, row);
+        session.input.ranking_candidates = None;
+    };
+
+    lead_with_correction(&mut session);
+    assert_eq!(select_word(&mut session, "没").diagnostic, None);
+    session.command(Command::Cancel);
+    assert_eq!(shuangpin_typo_count(&fixture, "rejected"), None);
+
+    lead_with_correction(&mut session);
+    let literal = words(&session)
+        .into_iter()
+        .find(|word| word == "没跟系")
+        .unwrap();
+    assert_eq!(select_word(&mut session, &literal).diagnostic, None);
+    assert_eq!(shuangpin_typo_count(&fixture, "rejected"), Some(1));
+    assert_eq!(shuangpin_typo_count(&fixture, "accepted"), Some(0));
+
+    lead_with_correction(&mut session);
+    assert_eq!(select_word(&mut session, "没关系").diagnostic, None);
+    assert_eq!(shuangpin_typo_count(&fixture, "rejected"), Some(1));
+    assert_eq!(shuangpin_typo_count(&fixture, "accepted"), Some(1));
+}
+
+/// 首选规则可用时的计价参数（其余照默认值）：分数比字面整句高就算明显更优，改动的那一键原价不超过 10。f 那一键落在 f 和 r 正中时原价是 B = 8。
+fn lead_tuning() -> crate::touch::TouchTuning {
+    crate::touch::TouchTuning {
+        lead_margin: 0.0,
+        lead_penalty: 10.0,
+        ..crate::touch::TouchTuning::default()
+    }
+}
+
+/// 拒绝一票否决首选（#10018 PR3）：首选是按首选规则坐上去的纠错整句，用户选了字面整句，记一次拒绝；之后同一串输入带同样的触点，纠错整句不再坐首选，但仍在表里，选中它照样是接受。
+#[test]
+fn rejecting_a_confident_correction_vetoes_its_first_seat() {
+    let fixture = touch_learning_fixture();
+    let mut session = fixture.session_with(touch_shuangpin);
+    session.set_key_geometry(Some(qwerty_geometry()));
+    session.set_touch_tuning(lead_tuning());
+    type_touched(&mut session, true);
+    let snapshot = session.snapshot();
+    assert_eq!(
+        snapshot.candidates[0].word,
+        "没关系",
+        "{:?}",
+        words(&session)
+    );
+    assert!(snapshot.candidates[0].confident_correction);
+    assert!(snapshot.candidates[1..]
+        .iter()
+        .all(|row| !row.confident_correction));
+    assert_eq!(select_word(&mut session, "没跟系").diagnostic, None);
+    assert_eq!(shuangpin_typo_count(&fixture, "rejected"), Some(1));
+
+    type_touched(&mut session, true);
+    let snapshot = session.snapshot();
+    assert_ne!(
+        snapshot.candidates[0].word,
+        "没关系",
+        "{:?}",
+        words(&session)
+    );
+    assert!(snapshot
+        .candidates
+        .iter()
+        .all(|row| !row.confident_correction));
+    assert!(snapshot
+        .candidates
+        .iter()
+        .any(|row| row.word == "没关系" && !row.corrected_from.is_empty()));
+    assert_eq!(select_word(&mut session, "没关系").diagnostic, None);
+    assert_eq!(shuangpin_typo_count(&fixture, "accepted"), Some(1));
+    assert_eq!(shuangpin_typo_count(&fixture, "rejected"), Some(1));
+}
+
+/// 首选规则 (a)、(f) 落在会话上：撤回选词后重打的那一段没有触点、按键全在键心、或者不带触点（平面表），纠错整句都不坐首选；被抑制的输入（用户按原样上屏过）不再带触点，也不坐首选。
+#[test]
+fn the_session_puts_a_correction_first_only_with_every_key_touched() {
+    let fixture = touch_learning_fixture();
+    let first_is_confident = |session: &Session| {
+        let snapshot = session.snapshot();
+        assert!(snapshot.candidates[1..]
+            .iter()
+            .all(|row| !row.confident_correction));
+        snapshot.candidates[0].confident_correction
+    };
+    let mut session = fixture.session_with(touch_shuangpin);
+    session.set_key_geometry(Some(qwerty_geometry()));
+    session.set_touch_tuning(lead_tuning());
+    type_touched(&mut session, false);
+    assert!(!first_is_confident(&session));
+    session.command(Command::Cancel);
+    // 最后一键没有触点（宿主没送、无障碍点击）。
+    for (index, byte) in b"mwgfxi".iter().enumerate() {
+        let (dx, dy) = if index == 3 { (-5, -10) } else { (0, 0) };
+        if index < 5 {
+            session.set_key_touch(Some(crate::touch::KeyTouch { dx, dy, copy: 0 }));
+        }
+        session.character(*byte, false);
+    }
+    assert!(!first_is_confident(&session));
+    session.command(Command::Cancel);
+    type_touched(&mut session, true);
+    assert!(first_is_confident(&session));
+    // 用户按原样上屏：记抑制，之后同一串输入按字面回答、请求不带触点。
+    session.command(Command::CommitRaw);
+    type_touched(&mut session, true);
+    assert!(request_touches(&session).is_empty());
+    assert!(session
+        .snapshot()
+        .candidates
+        .iter()
+        .all(|row| !row.confident_correction && row.corrected_from.is_empty()));
+    session.command(Command::Cancel);
+
+    // 本地模式（超级简拼）里同样的按键带同样的触点：触点不进方案，没有一行坐首选。
+    let mut local = fixture.session_with(touch_shuangpin);
+    local.set_key_geometry(Some(qwerty_geometry()));
+    local.set_touch_tuning(lead_tuning());
+    local.character(b'J', true);
+    type_touched(&mut local, true);
+    let snapshot = local.snapshot();
+    assert_eq!(snapshot.local_mode, LocalInputMode::SuperJianpin);
+    assert!(snapshot
+        .candidates
+        .iter()
+        .all(|row| !row.confident_correction));
+
+    let mut flat = fixture.session_with(touch_shuangpin);
+    flat.set_touch_tuning(lead_tuning());
+    type_text(&mut flat, "mwgfxi");
+    assert!(flat
+        .snapshot()
+        .candidates
+        .iter()
+        .all(|row| !row.confident_correction));
+}
+
+/// 日志里有双拼的接受、拒绝和抑制记录，不带触点的会话（桌面、实体键盘）逐字节和没有这些记录时一样。
+#[test]
+fn shuangpin_typo_learning_never_reaches_a_session_without_touches() {
+    let learned = touch_learning_fixture();
+    let profile =
+        crate::user_dictionary::typo_profile::PersonalTypoProfile::shared(&learned.journal());
+    for outcome in [
+        crate::user_dictionary::typo_profile::ShuangpinTypoOutcome::Accepted,
+        crate::user_dictionary::typo_profile::ShuangpinTypoOutcome::Accepted,
+        crate::user_dictionary::typo_profile::ShuangpinTypoOutcome::Accepted,
+        crate::user_dictionary::typo_profile::ShuangpinTypoOutcome::Rejected,
+    ] {
+        profile
+            .record_shuangpin(
+                crate::types::ShuangpinProfileKind::Xiaohe,
+                &[(*b"gf", *b"gr")],
+                outcome,
+            )
+            .unwrap();
+    }
+    profile
+        .record_shuangpin_suppression(crate::types::ShuangpinProfileKind::Xiaohe, "mwgfxi")
+        .unwrap();
+    let fresh = touch_learning_fixture();
+    let typed = |fixture: &Fixture| {
+        let mut session = fixture.session_with(touch_shuangpin);
+        type_text(&mut session, "mwgfxi");
+        session.snapshot()
+    };
+    let snapshot = typed(&learned);
+    assert!(snapshot
+        .candidates
+        .iter()
+        .any(|item| !item.corrected_from.is_empty()));
+    assert_eq!(snapshot, typed(&fresh));
+}
+
 #[test]
 fn caret_commands_redecode_and_selection_returns_to_the_end() {
     let fixture = Fixture::new(CARET_PREFIX_FIXTURE);
@@ -1240,8 +2107,10 @@ fn candidate_sources(session: &Session) -> Vec<CandidateSource> {
 
 #[test]
 fn short_exact_mixed_english_keeps_chinese_first_and_commits_without_a_mode_switch() {
-    let fixture = Fixture::new(HELLO_FIXTURE)
-        .with_english("INSERT INTO english_words VALUES('he','HE',100),('hello','Hello',1000);");
+    // 权重取自 dict-v2.0.41 的 Google 计数：两到四个字母的输入能切成完整音节时，只有常见的英文坐首选之后的位置（`english::takes_priority_slot`）。
+    let fixture = Fixture::new(HELLO_FIXTURE).with_english(
+        "INSERT INTO english_words VALUES('he','HE',842847219),('hello','Hello',32960381);",
+    );
     for scheme in [SchemeType::Quanpin, SchemeType::Shuangpin] {
         let mut session = fixture.session_with(|options| {
             options.scheme = scheme;
@@ -1270,9 +2139,10 @@ fn short_exact_mixed_english_keeps_chinese_first_and_commits_without_a_mode_swit
 /// 拼音拆不开、英文完全匹配整段输入时英文占首位，空格上屏英文；结束组字的标点也整段上屏这个英文词。能切成完整音节的 `he` 照旧是中文首选。
 #[test]
 fn an_exact_english_word_leads_input_pinyin_cannot_spell() {
+    // 权重取自 dict-v2.0.41 的 Google 计数，见上一条。
     let fixture = Fixture::new(HELLO_FIXTURE).with_english(
-        "INSERT INTO english_words VALUES('hello','hello',100);\
-INSERT INTO english_words VALUES('he','he',500);",
+        "INSERT INTO english_words VALUES('hello','hello',32960381);\
+INSERT INTO english_words VALUES('he','he',842847219);",
     );
     let mut session = fixture.session_with(|options| options.english.mixed_candidates = true);
     type_text(&mut session, "hello");
@@ -2697,6 +3567,62 @@ fn shuangpin_manual_tab_owns_only_complete_normal_composition() {
 }
 
 #[test]
+fn shuangpin_indirect_triggers_are_published_only_while_they_mark() {
+    let fixture = Fixture::new(QUANPIN_FIXTURE);
+    // 末尾直接开着时 `;` 不开末尾间接段，不能发布，否则宿主会把它当输入而不是标点。
+    for (direct, marks) in [(false, true), (true, false)] {
+        // 这里只看辅助码触发键发不发布；组字末尾的 `/` 出厂归后置超级简拼（#10860），它的发布在 `tests/super_jianpin_slash.rs` 里测，这里关掉它才看得到 `/` 不当辅码触发键发布。
+        let mut session = fixture.session_with(|options| {
+            options.scheme = SchemeType::Shuangpin;
+            options.helpcode = true;
+            options.shuangpin_helpcode_modes.direct = direct;
+            options.local_modes.super_jianpin_slash = false;
+        });
+        assert!(!session.snapshot().spelling_symbols.contains(';'));
+        type_text(&mut session, "nihc");
+        let symbols = session.snapshot().spelling_symbols;
+        assert_eq!(symbols.contains(';'), marks, "direct={direct}");
+        assert!(!symbols.contains(['`', '/']), "direct={direct}");
+        assert_eq!(
+            session.character(b';', false).handled,
+            marks,
+            "direct={direct}"
+        );
+        if marks {
+            assert_eq!(session.snapshot().editing_text, "nihc|");
+            // 一段只认一枚触发键。
+            assert!(!session.snapshot().spelling_symbols.contains(';'));
+        }
+    }
+    let mut session = fixture.session_with(|options| {
+        options.scheme = SchemeType::Shuangpin;
+        options.helpcode = true;
+        options.shuangpin_helpcode_modes.mid_sentence = true;
+    });
+    type_text(&mut session, "ni");
+    assert!(session.snapshot().spelling_symbols.contains('`'));
+    let mut session = fixture.session_with(|options| {
+        options.scheme = SchemeType::Shuangpin;
+        options.helpcode = true;
+        options.shuangpin_helpcode_modes.direct_helpcode = true;
+    });
+    type_text(&mut session, "nihc");
+    assert!(session.snapshot().spelling_symbols.contains('/'));
+    // 全拼没有这几种触发方式。
+    let mut session = fixture.session_with(|options| {
+        options.scheme = SchemeType::Quanpin;
+        options.helpcode = true;
+        options.shuangpin_helpcode_modes.direct = false;
+        options.shuangpin_helpcode_modes.mid_sentence = true;
+    });
+    type_text(&mut session, "nihao");
+    assert!(!session
+        .snapshot()
+        .spelling_symbols
+        .contains([';', '`', '/']));
+}
+
+#[test]
 fn shuangpin_manual_tab_raw_commits_omit_internal_codes() {
     let fixture = Fixture::new(QUANPIN_FIXTURE);
     for finish in [false, true] {
@@ -3069,19 +3995,27 @@ fn shuangpin_direct_helpcode_slash_and_uppercase_endings() {
                 .collect(),
         )))
     };
-    let session_with_modes = |modes| {
+    let session_with = |modes, jianpin_slash| {
         let codes = codes();
         fixture.session_with(move |options| {
             options.scheme = SchemeType::Shuangpin;
             options.shuangpin_profile = ShuangpinProfileKind::Ziranma;
             options.helpcode_table = codes.clone();
             options.shuangpin_helpcode_modes = modes;
+            options.local_modes.super_jianpin_slash = jianpin_slash;
         })
     };
-    // slash 关着：`/` 还是标点键。
-    let mut off = session_with_modes(direct_modes(false, true));
+    let session_with_modes = |modes| session_with(modes, true);
+    // slash 关着：`/` 不是辅码结束键，不落进输入串。后置超级简拼也关着时它还是标点键。
+    let mut off = session_with(direct_modes(false, true), false);
     type_text(&mut off, "uibj");
     assert!(!off.character(b'/', false).handled);
+    // 出厂设置下组字末尾的 `/` 归后置超级简拼（#10860）：整段原文转成 J 模式，同样不当辅码结束键。
+    let mut off = session_with_modes(direct_modes(false, true));
+    type_text(&mut off, "uibj");
+    assert!(off.character(b'/', false).handled);
+    assert_eq!(off.snapshot().local_mode, LocalInputMode::SuperJianpin);
+    assert_eq!(off.snapshot().editing_text, "Juibj");
     // slash 开着：`ui` + `bj` 两码 + `/` 定字。
     let mut on = session_with_modes(direct_modes(true, false));
     type_text(&mut on, "uibj");
@@ -4046,6 +4980,91 @@ fn composed_words_become_both_wubi_profiles_only_when_learning_is_enabled() {
     }
 }
 
+/// 新世纪五笔读 `wubixsj` 表：同一个字的码与 86 不同（力 86 是 `lt`、新世纪是 `ent`；为 `ylyi` / `ytny`；上 `hhgg` / `hgd`），选着新世纪时出的是新世纪的码，86 的码不再出它；选着 86 时反过来。从拼音造的词也只在选着新世纪时学进 `wubixsj`。
+#[test]
+fn the_new_century_profile_answers_from_its_own_table() {
+    const TABLES: &str = "CREATE TABLE tbl_1_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);
+        INSERT INTO tbl_1_n VALUES('nan','n','男',100);
+        CREATE TABLE tbl_1_l(key TEXT,jp TEXT,value TEXT,weight INTEGER);
+        INSERT INTO tbl_1_l VALUES('li','l','力',100);
+        CREATE TABLE tbl_2_n(key TEXT,jp TEXT,value TEXT,weight INTEGER);
+        CREATE TABLE wubi86(key TEXT,value TEXT,weight INTEGER,UNIQUE(key,value));
+        INSERT INTO wubi86 VALUES('lt','力',100),('llb','男',100),('ylyi','为',100),('hhgg','上',100);
+        CREATE TABLE wubi98(key TEXT,value TEXT,weight INTEGER,UNIQUE(key,value));
+        INSERT INTO wubi98 VALUES('ent','办',100);
+        CREATE TABLE wubixsj(key TEXT,value TEXT,weight INTEGER,UNIQUE(key,value));
+        INSERT INTO wubixsj VALUES('ent','力',100),('ler','男',100),('ytny','为',100),('hgd','上',100);";
+    let fixture = Fixture::new(TABLES);
+    let wubi = |profile: crate::WubiProfileKind| {
+        fixture.session_with(|options| {
+            options.scheme = SchemeType::Wubi;
+            options.wubi.profile = profile;
+            options.learning = false;
+        })
+    };
+    let mut session = wubi(crate::WubiProfileKind::WubiXsj);
+    for (code, word) in [("ent", "力"), ("ler", "男"), ("ytny", "为"), ("hgd", "上")] {
+        type_text(&mut session, code);
+        assert_eq!(words(&session), [word], "{code}");
+        assert_eq!(
+            select_word(&mut session, word).commit.as_deref(),
+            Some(word)
+        );
+    }
+    drop(session);
+    for code in ["lt", "ylyi", "hhgg"] {
+        let mut session = wubi(crate::WubiProfileKind::WubiXsj);
+        type_text(&mut session, code);
+        assert!(words(&session).is_empty(), "{code}: {:?}", words(&session));
+    }
+    let mut session = wubi(crate::WubiProfileKind::Wubi86);
+    type_text(&mut session, "lt");
+    assert_eq!(words(&session), ["力"]);
+    let mut session = wubi(crate::WubiProfileKind::Wubi86);
+    type_text(&mut session, "ent");
+    assert!(words(&session).is_empty(), "{:?}", words(&session));
+    drop(session);
+
+    // 拼音造词：选着 86 时不写 `wubixsj`，选着新世纪时写，码按新世纪单字全码取（男 ler + 力 ent → leen）。
+    for (profile, learned) in [
+        (crate::WubiProfileKind::Wubi86, 0),
+        (crate::WubiProfileKind::WubiXsj, 1),
+    ] {
+        let fixture = Fixture::new(TABLES);
+        let mut session = fixture.session_with(|options| {
+            options.scheme = SchemeType::Quanpin;
+            options.wubi.profile = profile;
+            options.learning = true;
+        });
+        type_text(&mut session, "nanli");
+        assert_eq!(
+            select_word(&mut session, "男").commit.as_deref(),
+            Some("男")
+        );
+        assert_eq!(
+            select_word(&mut session, "力").commit.as_deref(),
+            Some("力")
+        );
+        drop(session);
+        assert_eq!(
+            count(
+                &fixture.main_db(),
+                "SELECT count(*) FROM wubixsj WHERE key='leen' AND value='男力'"
+            ),
+            learned,
+            "{profile:?}"
+        );
+        assert_eq!(
+            count(
+                &fixture.journal(),
+                "SELECT count(*) FROM user_dictionary_operations WHERE dictionary='wubixsj'"
+            ),
+            learned,
+            "{profile:?}"
+        );
+    }
+}
+
 /// A generated quanpin sentence selected beside a native wubi row is learned as a pinyin phrase (the per-row guards of `learn_sentence_candidate` and `follows_pinyin`); the wubi row itself writes nothing to the pinyin side.
 #[test]
 fn a_quanpin_sentence_beside_a_wubi_row_is_learned_and_the_wubi_row_is_not() {
@@ -4532,6 +5551,68 @@ INSERT INTO tbl_2_q VALUES('qi''guai','qg','奇怪',1000);",
         snapshot.candidates.iter().any(|item| item.word == "奇怪"),
         "{snapshot:?}"
     );
+}
+
+/// 四码时的续写判断只认真实读音前缀：前三码的简拼行让延长状态被继承，但 `wqiy` 之后的 `a` 续不上任何读音，不能挡住顶字。
+#[test]
+fn wubi_pinyin_continues_only_for_a_real_reading_after_a_four_code() {
+    let mixed = |fixture: &Fixture| {
+        fixture.session_with(|options| {
+            options.scheme = SchemeType::Wubi;
+            options.wubi.mixed_pinyin = true;
+        })
+    };
+    let fixture = Fixture::new(
+        "CREATE TABLE wubi86(key TEXT,value TEXT,weight INTEGER);\
+INSERT INTO wubi86 VALUES('wqiy','你',100);\
+CREATE TABLE tbl_2_w(key TEXT,jp TEXT,value TEXT,weight INTEGER);\
+INSERT INTO tbl_2_w VALUES('wan''qi','wq','晚期',1000);",
+    );
+    let mut session = mixed(&fixture);
+    type_text(&mut session, "wqi");
+    let rows = schemes(&session);
+    assert!(
+        rows.iter()
+            .any(|(_, scheme)| *scheme == SchemeType::Quanpin),
+        "{rows:?}"
+    );
+    type_text(&mut session, "y");
+    assert!(session.input.engine.wubi_has_complete_code());
+    assert!(!session.input.engine.wubi_pinyin_continues(b'a'));
+
+    let fixture = Fixture::new(
+        "CREATE TABLE wubi86(key TEXT,value TEXT,weight INTEGER);\
+INSERT INTO wubi86 VALUES('guiy','诡',100);\
+CREATE TABLE tbl_2_g(key TEXT,jp TEXT,value TEXT,weight INTEGER);\
+INSERT INTO tbl_2_g VALUES('gui''yi','gy','诡异',1000);",
+    );
+    let mut session = mixed(&fixture);
+    type_text(&mut session, "guiy");
+    assert!(session.input.engine.wubi_pinyin_continues(b'i'));
+
+    let fixture = Fixture::new(WUBI_BIANYI_FIXTURE);
+    let mut session = mixed(&fixture);
+    type_text(&mut session, "bian");
+    assert!(session.input.engine.wubi_pinyin_continues(b'y'));
+
+    let fixture = Fixture::new(
+        "CREATE TABLE wubi86(key TEXT,value TEXT,weight INTEGER);\
+INSERT INTO wubi86 VALUES('qigu','乐平',100);\
+CREATE TABLE tbl_2_q(key TEXT,jp TEXT,value TEXT,weight INTEGER);\
+INSERT INTO tbl_2_q VALUES('qi''gu','qg','其故',100);",
+    );
+    let mut session = mixed(&fixture);
+    type_text(&mut session, "qigu");
+    assert!(session.input.engine.wubi_pinyin_continues(b'a'));
+
+    // 整段四码加下一字母仍在同一个音节里。
+    let fixture = Fixture::new(
+        "CREATE TABLE wubi86(key TEXT,value TEXT,weight INTEGER);\
+INSERT INTO wubi86 VALUES('chan','合成',100);",
+    );
+    let mut session = mixed(&fixture);
+    type_text(&mut session, "chan");
+    assert!(session.input.engine.wubi_pinyin_continues(b'g'));
 }
 
 /// Backspace never goes through a reset, so the emptied composition itself has to end the tail; Cancel ends it too.
@@ -6488,15 +7569,96 @@ fn rejected_capital_after_bare_shortcut_keeps_both_letters_composing() {
     }
 }
 
+/// #10123：大写字母入口后只打了字母，模式不收的字母（小写或大写）把整串转回普通组字，驼峰英文不会在中途上屏。
+#[test]
+fn rejected_letter_after_letter_only_shortcut_keeps_the_whole_word_composing() {
+    let fixture = Fixture::new(QUANPIN_FIXTURE);
+    for scheme in [SchemeType::Quanpin, SchemeType::Shuangpin] {
+        for text in [
+            "TextBlock",
+            "TxB",
+            "TbU",
+            "UbU",
+            "TuU",
+            "Uu",
+            "Ui",
+            "Uq",
+            "Uw",
+            "Uo",
+            "Ur",
+            "Uy",
+            "Ut",
+            "Up",
+            "KabA",
+            "Trq",
+        ] {
+            let mut session = fixture.session_with(|options| options.scheme = scheme);
+            for byte in text.bytes() {
+                let result = session.character(byte, byte.is_ascii_uppercase());
+                assert!(
+                    result.handled && result.commit.is_none(),
+                    "{scheme:?} {text}: {} gave {result:?}",
+                    byte as char
+                );
+            }
+            let snapshot = session.snapshot();
+            // `Trq` 全是日期时间模式收的小写，留在模式里；其余都在第一个被拒字母处转回普通组字。
+            let expected_mode = if text == "Trq" {
+                LocalInputMode::DateTime
+            } else {
+                LocalInputMode::None
+            };
+            assert_eq!(snapshot.local_mode, expected_mode, "{scheme:?} {text}");
+            assert_eq!(snapshot.editing_text, text, "{scheme:?} {text}");
+            assert_eq!(
+                session.command(Command::CommitRaw).commit.as_deref(),
+                Some(text),
+                "{scheme:?} {text}"
+            );
+        }
+
+        // 转回后退格只删最后一个字母，仍是普通组字，不回到模式。
+        let mut session = fixture.session_with(|options| options.scheme = scheme);
+        assert!(session.character(b'U', true).handled);
+        assert!(session.character(b'i', false).handled);
+        assert!(session.command(Command::Backspace).handled);
+        let snapshot = session.snapshot();
+        assert_eq!(snapshot.local_mode, LocalInputMode::None);
+        assert_eq!(snapshot.editing_text, "U");
+
+        // 十六进制字母仍是 Unicode 码位。
+        let mut session = fixture.session_with(|options| options.scheme = scheme);
+        assert!(session.character(b'U', true).handled);
+        for byte in *b"ae" {
+            assert!(session.character(byte, false).handled);
+        }
+        assert_eq!(session.snapshot().local_mode, LocalInputMode::Unicode);
+        assert_eq!(session.snapshot().editing_text, "Uae");
+    }
+}
+
+/// 五笔不走拼音的大写字面组字，入口后的拒绝字母沿用提交并透传。
+#[test]
+fn wubi_rejected_letter_after_shortcut_still_commits_and_returns_the_key() {
+    let fixture = Fixture::new(QUANPIN_FIXTURE);
+    let mut session = fixture.session_with(|options| options.scheme = SchemeType::Wubi);
+    assert!(session.character(b'U', true).handled);
+    assert_eq!(session.snapshot().local_mode, LocalInputMode::Unicode);
+    let result = session.character(b'i', false);
+    assert!(!result.handled);
+    assert_eq!(result.commit.as_deref(), Some("U"));
+    assert_eq!(session.snapshot().local_mode, LocalInputMode::None);
+    assert!(session.snapshot().editing_text.is_empty());
+}
+
 #[test]
 fn rejected_local_mode_characters_commit_raw_and_return_the_key() {
     let fixture = Fixture::new(QUANPIN_FIXTURE);
     for (entry, spelling, rejected) in [
-        (b'U', "", b'i'),
         (b'U', "0041", b'I'),
         (b'U', "0041", b'g'),
-        (b'T', "rq", b'A'),
-        (b'K', "ab", b'A'),
+        (b'T', "rq", b'1'),
+        (b'K', "ab", b'1'),
         (b'E', "xiao", b'0'),
         (b'M', "xiao", b'0'),
         (b'J', "nh", b'0'),
@@ -8069,7 +9231,15 @@ fn convert_hanja_is_named_for_the_golden_scenarios() {
         Command::from_name("ConversionRight"),
         Some(Command::ConversionRight)
     );
-    assert_eq!(Command::from_u8(14), None);
+    assert_eq!(
+        Command::from_u8(14),
+        Some(Command::CommitRawWithoutLearning)
+    );
+    assert_eq!(
+        Command::from_name("CommitRawWithoutLearning"),
+        Some(Command::CommitRawWithoutLearning)
+    );
+    assert_eq!(Command::from_u8(15), None);
 }
 
 // ---- expression, command and mention modes ----
@@ -8126,11 +9296,16 @@ fn expression_mode_evaluates_what_follows_shift_v() {
     assert_eq!(snapshot.local_mode, LocalInputMode::Expression);
     assert_eq!(snapshot.spelling_symbols, "0123456789+-*/.()%^#$&");
     assert_eq!(words(&session), ["V"]);
-    // 数字之前的字母不能表示单位，提交入口字母后交还当前键。
+    // 数字之前的字母不能表示单位，入口和它一起转回普通组字（#10123），不提前上屏。
     let rejected = session.character(b'x', false);
-    assert!(!rejected.handled);
-    assert_eq!(rejected.commit.as_deref(), Some("V"));
-    assert!(session.snapshot().preedit.is_empty());
+    assert!(
+        rejected.handled && rejected.commit.is_none(),
+        "{rejected:?}"
+    );
+    let snapshot = session.snapshot();
+    assert_eq!(snapshot.local_mode, LocalInputMode::None);
+    assert_eq!(snapshot.editing_text, "Vx");
+    assert!(session.command(Command::Cancel).handled);
 
     session.character(b'V', true);
     assert!(session.character(b'1', false).handled);
@@ -8406,12 +9581,16 @@ fn slash_opens_the_command_list_and_letters_filter_it() {
             "2026年8月9日",
             "14:30",
             "星期日",
-            "丙午年六月二十七日"
+            "丙午年六月二十七日",
+            "2026年第3季度",
+            "已过220天/剩145天",
+            "已过31周/剩22周",
+            "马年"
         ]
     );
     assert_eq!(
         snapshot.candidate_annotations,
-        ["签名", "日期", "时间", "星期", "农历"]
+        ["签名", "日期", "时间", "星期", "农历", "季度", "天数", "周", "生肖"]
     );
 
     type_text(&mut session, "si");
@@ -8542,7 +9721,16 @@ fn at_lists_the_mention_list_and_letters_filter_it() {
     session.set_command_table(&[]);
     assert_eq!(
         words(&session),
-        ["2026年8月9日", "14:30", "星期日", "丙午年六月二十七日"]
+        [
+            "2026年8月9日",
+            "14:30",
+            "星期日",
+            "丙午年六月二十七日",
+            "2026年第3季度",
+            "已过220天/剩145天",
+            "已过31周/剩22周",
+            "马年"
+        ]
     );
 }
 
@@ -8976,6 +10164,7 @@ fn plugin_command(trigger: &str, title: &str) -> crate::types::PluginCommand {
     crate::types::PluginCommand {
         trigger: trigger.to_owned(),
         title: title.to_owned(),
+        extended: false,
     }
 }
 
@@ -9008,6 +10197,57 @@ fn open_uuid(session: &mut Session) -> crate::types::PluginCommandQuery {
     session
         .plugin_command_query()
         .expect("a plugin command query")
+}
+
+/// `arguments = "extended"` 的指令：完整打出触发词之后数字和运算符号是参数，引擎收下并列进 `spelling_symbols`（宿主照它把数字当输入、不当选词键）；触发词没打完、或者是只收字母的指令时，什么都和以前一样。
+#[test]
+fn extended_plugin_commands_take_digits_and_operators_after_the_trigger() {
+    let fixture = Fixture::new(QUANPIN_FIXTURE);
+    let mut session = plugin_session(&fixture, |options| {
+        options.plugin_commands.push(crate::types::PluginCommand {
+            extended: true,
+            ..plugin_command("calc", "计算")
+        });
+    });
+    assert!(session.character(b'/', false).handled);
+    type_text(&mut session, "cal");
+    assert_eq!(session.snapshot().spelling_symbols, "");
+    type_text(&mut session, "c");
+    let symbols = session.snapshot().spelling_symbols;
+    assert_eq!(symbols, "0123456789.+-*/%()=,");
+    for byte in b"12+3*(4)/5%=6,7.8-9" {
+        assert!(
+            session.character(*byte, false).handled,
+            "{}",
+            char::from(*byte)
+        );
+    }
+    let query = session
+        .plugin_command_query()
+        .expect("a plugin command query");
+    assert_eq!(query.preedit, "/calc12+3*(4)/5%=6,7.8-9");
+    assert_eq!(
+        (query.trigger.as_str(), query.argument.as_str()),
+        ("calc", "12+3*(4)/5%=6,7.8-9")
+    );
+    // 光标挪回触发词里：数字不再列出、也不收。
+    for _ in 0.."12+3*(4)/5%=6,7.8-9".len() + 1 {
+        session.command(Command::MoveLeft);
+    }
+    assert_eq!(session.snapshot().spelling_symbols, "");
+    // 光标在触发词里时数字不是参数：引擎上屏打出的原文，把数字交还宿主（和以前一样）。
+    let typed = session.character(b'1', false);
+    assert!(!typed.handled);
+    assert_eq!(typed.commit.as_deref(), Some("/calc12+3*(4)/5%=6,7.8-9"));
+
+    // 只收字母的指令：数字照旧交还宿主。
+    session.command(Command::Cancel);
+    session.character(b'/', false);
+    type_text(&mut session, "uuid");
+    assert_eq!(session.snapshot().spelling_symbols, "");
+    let typed = session.character(b'4', false);
+    assert!(!typed.handled);
+    assert_eq!(typed.commit.as_deref(), Some("/uuid"));
 }
 
 #[test]
@@ -9556,8 +10796,8 @@ fn cantonese_dictionary(directory: &Path) -> PathBuf {
         .expect("cantonese metadata");
     connection
         .execute_batch(
-            "INSERT INTO syllables VALUES ('nei'),('hou'),('ngo'),('ngoi'),('oi'),('i');\
-             INSERT INTO entries VALUES ('nei hou','你好',900),('nei hou','妳好',40),('nei','你',5000),('nei','妳',300),('hou','好',4000),('hou','號',500),('ngo','我',6000),('oi','愛',2500),('ngoi','外',1000);",
+            "INSERT INTO syllables VALUES ('nei'),('hou'),('ngo'),('ngoi'),('oi'),('i'),('ming');\
+             INSERT INTO entries VALUES ('nei hou','你好',900),('nei hou','妳好',40),('nei','你',5000),('nei','妳',300),('hou','好',4000),('hou','號',500),('ngo','我',6000),('oi','愛',2500),('i','衣',1000),('ngoi','外',1000),('ming','名',1000);",
         )
         .expect("cantonese rows");
     path
@@ -9630,13 +10870,115 @@ fn cantonese_without_its_dictionary_is_unavailable() {
 }
 
 #[test]
-fn cantonese_rows_are_never_learned_or_edited() {
+fn cantonese_double_pinyin_uses_the_existing_dictionary_and_spelling_symbols() {
+    let fixture = Fixture::new(QUANPIN_FIXTURE);
+    let cantonese = cantonese_dictionary(fixture.path());
+    let mut session = fixture.session_with(|options| {
+        options.scheme = SchemeType::Cantonese;
+        options.cantonese_dictionary = cantonese.clone();
+    });
+    type_text(&mut session, "nzhb");
+    assert_eq!(session.snapshot().editing_text, "nz hb");
+    assert!(session.snapshot().spelling_symbols.contains(';'));
+    assert_eq!(words(&session)[0], "你好");
+    assert!(session.select(0).commit.is_some());
+}
+
+/// #10557：粤语双拼的整句候选一次上屏；关掉「双拼显示原始按键」时宿主画展开后的粤拼，编辑文字和原始快照仍是按键。
+#[test]
+fn cantonese_shuangpin_sentence_commits_whole_and_preedit_follows_the_raw_key_preference() {
+    let fixture = Fixture::new(QUANPIN_FIXTURE);
+    let cantonese = cantonese_dictionary(fixture.path());
+    for raw in [true, false] {
+        let mut session = fixture.session_with(|options| {
+            options.scheme = SchemeType::Cantonese;
+            options.cantonese_dictionary = cantonese.clone();
+            options.force_cantonese_shuangpin = true;
+            options.shuangpin_preedit_uses_raw = raw;
+        });
+        type_text(&mut session, "vonzhb");
+        assert_eq!(words(&session)[0], "我你好");
+        let display = session.display_snapshot();
+        assert_eq!(
+            display.preedit,
+            if raw { "vonzhb" } else { "ngo nei hou" },
+            "raw={raw}"
+        );
+        assert_eq!(display.editing_text, "vo nz hb");
+        assert_eq!(session.snapshot().preedit, "vonzhb");
+        // 末尾单独的声母键原样显示。
+        type_text(&mut session, "n");
+        assert_eq!(
+            session.display_snapshot().preedit,
+            if raw { "vonzhbn" } else { "ngo nei hou n" },
+            "raw={raw}"
+        );
+        session.command(Command::Backspace);
+        let result = session.select(0);
+        assert_eq!(result.commit.as_deref(), Some("我你好"));
+        assert!(session.snapshot().preedit.is_empty());
+    }
+    // 「粤语」入口自动识别进了双拼后，偶数长度照样展开；奇数长度改按普通粤拼查候选，宿主退回原来的预编辑，不按两键一码展开成和候选对不上的粤拼。
+    let mut session = fixture.session_with(|options| {
+        options.scheme = SchemeType::Cantonese;
+        options.cantonese_dictionary = cantonese.clone();
+        options.shuangpin_preedit_uses_raw = false;
+    });
+    type_text(&mut session, "vonzhb");
+    assert_eq!(session.display_snapshot().preedit, "ngo nei hou");
+    type_text(&mut session, "n");
+    assert_eq!(
+        session.display_snapshot().preedit,
+        session.snapshot().preedit
+    );
+}
+
+#[test]
+fn selected_cantonese_shuangpin_survives_scheme_switches() {
+    let fixture = Fixture::new(QUANPIN_FIXTURE);
+    let cantonese = cantonese_dictionary(fixture.path());
+    let mut plain = fixture.session_with(|options| {
+        options.scheme = SchemeType::Cantonese;
+        options.cantonese_dictionary = cantonese.clone();
+    });
+    type_text(&mut plain, "oi");
+    assert_eq!(words(&plain)[0], "愛");
+
+    let mut selected = fixture.session_with(|options| {
+        options.scheme = SchemeType::Cantonese;
+        options.cantonese_dictionary = cantonese;
+        options.force_cantonese_shuangpin = true;
+    });
+    type_text(&mut selected, "oi");
+    assert_eq!(words(&selected)[0], "衣");
+    selected.switch_scheme(SchemeType::Quanpin).unwrap();
+    selected.switch_scheme(SchemeType::Cantonese).unwrap();
+    type_text(&mut selected, "oi");
+    assert_eq!(words(&selected)[0], "衣");
+}
+
+#[test]
+fn cantonese_double_pinyin_routes_semicolon_as_a_final_key() {
+    let fixture = Fixture::new(QUANPIN_FIXTURE);
+    let cantonese = cantonese_dictionary(fixture.path());
+    let mut session = fixture.session_with(|options| {
+        options.scheme = SchemeType::Cantonese;
+        options.cantonese_dictionary = cantonese;
+    });
+    type_text(&mut session, "m;");
+    assert_eq!(session.snapshot().editing_text, "m;");
+    assert_eq!(words(&session)[0], "名");
+}
+
+/// 「学习」关着（隐私会话里宿主也这样建会话）时粤语什么也不学，调频方式开着也一样；粤语行也不能置顶、删除、固定位置。
+#[test]
+fn cantonese_rows_are_not_edited_and_learn_nothing_with_learning_off() {
     let fixture = Fixture::new(QUANPIN_FIXTURE);
     let cantonese = cantonese_dictionary(fixture.path());
     let configure = |options: &mut SessionOptions| {
         options.scheme = SchemeType::Cantonese;
         options.cantonese_dictionary = cantonese.clone();
-        options.learning = true;
+        options.learning = false;
         options.personal_context = true;
         options.frequency = FrequencyAdjustmentOptions {
             mode: FrequencyAdjustmentMode::Promote,
@@ -9685,6 +11027,252 @@ fn cantonese_rows_are_never_learned_or_edited() {
     assert_eq!(words(&session), ["你好", "妳好", "你", "妳"]);
 }
 
+/// 测试用的输出转换：只认夹具里的繁体字，代替宿主的繁转简。
+fn synthetic_cantonese_simplification(text: &str) -> String {
+    text.replace('妳', "你")
+        .replace('號', "号")
+        .replace('愛', "爱")
+}
+
+#[test]
+fn cantonese_output_conversion_rewrites_and_deduplicates_rows() {
+    let fixture = Fixture::new(QUANPIN_FIXTURE);
+    let cantonese = cantonese_dictionary(fixture.path());
+    let conversion = crate::TextConversion(synthetic_cantonese_simplification);
+    let mut session = fixture.session_with(|options| {
+        options.scheme = SchemeType::Cantonese;
+        options.cantonese_dictionary = cantonese.clone();
+        options.cantonese_output_conversion = Some(conversion);
+    });
+
+    // 妳好、妳转换后与你好、你相同，同一读音段只留排在前面的那条。
+    type_text(&mut session, "neihou");
+    assert_eq!(words(&session), ["你好", "你"]);
+    let result = session.select(1);
+    assert_eq!(result.commit.as_deref(), Some("你"));
+    assert_eq!(session.snapshot().editing_text, "hou");
+    assert_eq!(words(&session), ["好", "号"]);
+    assert_eq!(session.select(1).commit.as_deref(), Some("号"));
+    assert!(session.snapshot().preedit.is_empty());
+
+    // 默认学习留下的「你號」和原有词库行，在不传转换时都输出繁体原文。
+    let mut plain = fixture.session_with(|options| {
+        options.scheme = SchemeType::Cantonese;
+        options.cantonese_dictionary = cantonese;
+    });
+    type_text(&mut plain, "neihou");
+    assert_eq!(words(&plain), ["你號", "你好", "妳好", "你", "妳"]);
+}
+
+fn cantonese_learning_options(
+    cantonese: &Path,
+    mode: FrequencyAdjustmentMode,
+) -> impl Fn(&mut SessionOptions) + '_ {
+    move |options: &mut SessionOptions| {
+        options.scheme = SchemeType::Cantonese;
+        options.cantonese_dictionary = cantonese.to_path_buf();
+        options.learning = true;
+        options.frequency = FrequencyAdjustmentOptions {
+            mode,
+            trigger_count: 1,
+            linear_step: 1,
+        };
+    }
+}
+
+fn cantonese_journal_rows(fixture: &Fixture) -> Vec<(String, String, i64, bool)> {
+    let connection = Connection::open(fixture.journal()).expect("journal");
+    connection
+        .prepare(
+            "SELECT key,value,weight,user_inserted FROM user_dictionary_operations WHERE dictionary='cantonese' AND operation='upsert' ORDER BY key,value",
+        )
+        .and_then(|mut statement| {
+            statement
+                .query_map([], |row| {
+                    Ok((row.get(0)?, row.get(1)?, row.get(2)?, row.get::<_, i64>(3)? != 0))
+                })
+                .and_then(|rows| rows.collect())
+        })
+        .expect("cantonese rows")
+}
+
+/// 「学习」开着、调频方式不是「关闭」时，一再选同一个非首选的粤语候选，它一步步往前挪，新会话里也是这个顺序；权重只写进日志（`user_inserted=0`，不进「我的词条」），主词库不动。
+#[test]
+fn a_cantonese_candidate_picked_again_and_again_rises() {
+    let fixture = Fixture::new(QUANPIN_FIXTURE);
+    let cantonese = cantonese_dictionary(fixture.path());
+    Connection::open(&cantonese)
+        .unwrap()
+        .execute_batch("INSERT INTO entries VALUES ('hou','豪',300),('hou','毫',200);")
+        .unwrap();
+    let configure = cantonese_learning_options(&cantonese, FrequencyAdjustmentMode::Promote);
+    let main = table_counts(&fixture.main_db());
+    let mut session = fixture.session_with(&configure);
+
+    type_text(&mut session, "hou");
+    assert_eq!(words(&session), ["好", "號", "豪", "毫"]);
+    let result = session.select(3);
+    assert_eq!(result.commit.as_deref(), Some("毫"));
+    assert_eq!(result.diagnostic, None);
+    type_text(&mut session, "hou");
+    assert_eq!(words(&session), ["好", "號", "毫", "豪"]);
+    session.select(2);
+    type_text(&mut session, "hou");
+    assert_eq!(words(&session), ["好", "毫", "號", "豪"]);
+    session.select(1);
+    type_text(&mut session, "hou");
+    assert_eq!(words(&session), ["毫", "好", "號", "豪"]);
+    // 首选是默认的选择，选它不写什么。
+    session.select(0);
+    drop(session);
+    crate::flush_personal_learning();
+
+    assert_eq!(
+        cantonese_journal_rows(&fixture),
+        [("hou".to_owned(), "毫".to_owned(), 4001, false)]
+    );
+    assert_eq!(table_counts(&fixture.main_db()), main);
+    let mut session = fixture.session_with(&configure);
+    type_text(&mut session, "hou");
+    assert_eq!(words(&session), ["毫", "好", "號", "豪"]);
+
+    // 一段只覆盖前几个音节的行只和同一段的行比：选「妳」越过的是「你」，不是整段的「你好」。
+    session.command(Command::Cancel);
+    type_text(&mut session, "neihou");
+    assert_eq!(words(&session), ["你好", "妳好", "你", "妳"]);
+    session.select(3);
+    session.command(Command::Cancel);
+    type_text(&mut session, "neihou");
+    assert_eq!(words(&session), ["你好", "妳好", "妳", "你"]);
+}
+
+/// 用户在「我的词条」里删掉的粤语词若发布的词库里也有，候选里照样有这一行；再选它（非首选）调频，学到的权重照常生效，但它不回到「我的词条」。
+#[test]
+fn a_deleted_cantonese_word_stays_deleted_when_it_is_picked_again() {
+    use crate::types::{PersonalDictionaryEntry, PersonalDictionaryKind};
+    use crate::user_dictionary::personal::{
+        edit_personal_dictionary_with, personal_dictionary_entries_for_kind,
+    };
+    let fixture = Fixture::new(QUANPIN_FIXTURE);
+    let cantonese = cantonese_dictionary(fixture.path());
+    let configure = cantonese_learning_options(&cantonese, FrequencyAdjustmentMode::Pin);
+    let word = PersonalDictionaryEntry {
+        kind: PersonalDictionaryKind::Cantonese,
+        key: "nei hou".to_owned(),
+        value: "妳好".to_owned(),
+        weight: 30,
+    };
+    edit_personal_dictionary_with(&fixture.paths(), true, None, Some(&word), "").unwrap();
+    edit_personal_dictionary_with(&fixture.paths(), true, Some(&word), None, "").unwrap();
+    let listed = || {
+        personal_dictionary_entries_for_kind(
+            &fixture.paths(),
+            true,
+            PersonalDictionaryKind::Cantonese,
+            0,
+            10,
+        )
+        .unwrap()
+        .entries
+    };
+    assert!(listed().is_empty());
+
+    let mut session = fixture.session_with(&configure);
+    type_text(&mut session, "neihou");
+    assert_eq!(words(&session), ["你好", "妳好", "你", "妳"]);
+    assert_eq!(session.select(1).commit.as_deref(), Some("妳好"));
+    type_text(&mut session, "neihou");
+    assert_eq!(words(&session), ["妳好", "你好", "你", "妳"]);
+    drop(session);
+    crate::flush_personal_learning();
+
+    assert!(listed().is_empty());
+    assert_eq!(
+        cantonese_journal_rows(&fixture),
+        [("nei hou".to_owned(), "妳好".to_owned(), 901, false)]
+    );
+}
+
+/// 一次组字分几次选完时，整段记成一个词（`user_inserted=1`，和拼音造的词一样进「我的词条」），下次打同一读音就在候选里；这和调频方式无关，调频关着也造词，但不调频。
+#[test]
+fn cantonese_pieces_picked_in_one_composition_become_a_word() {
+    let fixture = Fixture::new(QUANPIN_FIXTURE);
+    let cantonese = cantonese_dictionary(fixture.path());
+    let configure = cantonese_learning_options(&cantonese, FrequencyAdjustmentMode::Disabled);
+    let mut session = fixture.session_with(&configure);
+
+    type_text(&mut session, "neihou");
+    assert_eq!(session.select(2).commit.as_deref(), Some("你"));
+    assert_eq!(words(&session), ["好", "號"]);
+    let result = session.select(1);
+    assert_eq!(result.commit.as_deref(), Some("號"));
+    assert_eq!(result.diagnostic, None);
+    assert!(session.snapshot().preedit.is_empty());
+    assert_eq!(
+        cantonese_journal_rows(&fixture),
+        [(
+            "nei hou".to_owned(),
+            "你號".to_owned(),
+            crate::cantonese::learning::LEARNED_WORD_WEIGHT,
+            true
+        )]
+    );
+
+    // 活着的会话下一次查询就看得到，再分几段选同一个词不会重写它。
+    type_text(&mut session, "neihou");
+    assert_eq!(words(&session), ["你號", "你好", "妳好", "你", "妳"]);
+    session.select(3);
+    session.select(1);
+    // 半路取消的组字不造词。
+    type_text(&mut session, "neihou");
+    assert_eq!(session.select(4).commit.as_deref(), Some("妳"));
+    session.command(Command::Cancel);
+    type_text(&mut session, "hou");
+    session.select(0);
+    assert_eq!(cantonese_journal_rows(&fixture).len(), 1);
+    assert_eq!(
+        crate::user_dictionary::journal::test_support::count(
+            &fixture.journal(),
+            "SELECT count(*) FROM candidate_selection_state"
+        ),
+        0
+    );
+}
+
+/// 选中组出来的整句（词库里没有这一行）时把它记成一个词，下次它就是词库里的一行，不再是组句；「学习」关着时不记。
+#[test]
+fn a_composed_cantonese_sentence_is_learned_as_a_word() {
+    let fixture = Fixture::new(QUANPIN_FIXTURE);
+    let cantonese = cantonese_dictionary(fixture.path());
+    let configure = cantonese_learning_options(&cantonese, FrequencyAdjustmentMode::Promote);
+
+    let mut off = fixture.session_with(|options| {
+        configure(options);
+        options.learning = false;
+    });
+    type_text(&mut off, "ngo'oi");
+    assert_eq!(words(&off)[0], "我愛");
+    assert_eq!(off.select(0).commit.as_deref(), Some("我愛"));
+    drop(off);
+    assert!(table_counts(&fixture.journal())
+        .iter()
+        .all(|(_, rows)| *rows == 0));
+
+    let mut session = fixture.session_with(&configure);
+    type_text(&mut session, "ngo'oi");
+    assert_eq!(words(&session)[0], "我愛");
+    assert_eq!(session.select(0).commit.as_deref(), Some("我愛"));
+    assert_eq!(
+        cantonese_journal_rows(&fixture),
+        [(
+            "ngo oi".to_owned(),
+            "我愛".to_owned(),
+            crate::cantonese::learning::LEARNED_WORD_WEIGHT,
+            true
+        )]
+    );
+}
+
 #[test]
 fn selecting_a_cantonese_candidate_does_not_clone_the_full_row() {
     let fixture = Fixture::new(QUANPIN_FIXTURE);
@@ -9714,12 +11302,12 @@ fn cantonese_caret_edits_keep_the_shown_syllables() {
     });
     type_text(&mut session, "ngo'oi");
     assert_eq!(session.snapshot().editing_text, "ngo oi");
-    assert_eq!(words(&session), ["我"]);
+    assert_eq!(words(&session), ["我愛", "我"]);
     assert!(session.command(Command::MoveLeft).handled);
     assert!(session.command(Command::Backspace).handled);
     // `ngo i`, not the single syllable `ngoi` (外).
     assert_eq!(session.snapshot().editing_text, "ngo i");
-    assert_eq!(words(&session), ["我"]);
+    assert_eq!(words(&session), ["我衣", "我"]);
 }
 
 #[test]
@@ -9797,6 +11385,53 @@ fn cantonese_key_refresh_reuses_query_rows() {
         session.input.engine.candidates()[0].word.as_ptr(),
         word_pointer
     );
+}
+
+/// 个人词库里加的粤语词在活着的会话下一次查询时就进候选，不用重建会话；改回去也一样。
+#[test]
+fn a_personal_cantonese_word_joins_the_candidates_of_a_live_session() {
+    use crate::types::{PersonalDictionaryEntry, PersonalDictionaryKind};
+    let fixture = Fixture::new(QUANPIN_FIXTURE);
+    let mut session = fixture.session_with(|options| {
+        options.scheme = SchemeType::Cantonese;
+        options.cantonese_dictionary = cantonese_dictionary(fixture.path());
+    });
+    type_text(&mut session, "neihou");
+    assert_eq!(words(&session), ["你好", "妳好", "你", "妳"]);
+    session.command(Command::Cancel);
+
+    let word = PersonalDictionaryEntry {
+        kind: PersonalDictionaryKind::Cantonese,
+        key: "nei5 hou2".to_owned(),
+        value: "禮好".to_owned(),
+        weight: 100_000,
+    };
+    crate::user_dictionary::personal::edit_personal_dictionary_with(
+        &fixture.paths(),
+        true,
+        None,
+        Some(&word),
+        "",
+    )
+    .unwrap();
+    type_text(&mut session, "neihou");
+    assert_eq!(words(&session), ["禮好", "你好", "妳好", "你", "妳"]);
+    assert_eq!(session.select(0).commit.as_deref(), Some("禮好"));
+
+    let stored = PersonalDictionaryEntry {
+        key: "nei hou".to_owned(),
+        ..word
+    };
+    crate::user_dictionary::personal::edit_personal_dictionary_with(
+        &fixture.paths(),
+        true,
+        Some(&stored),
+        None,
+        "",
+    )
+    .unwrap();
+    type_text(&mut session, "neihou");
+    assert_eq!(words(&session), ["你好", "妳好", "你", "妳"]);
 }
 
 #[test]
@@ -11213,7 +12848,13 @@ fn url_scheme_colon_in_quanpin_and_shuangpin() {
     for scheme in [SchemeType::Quanpin, SchemeType::Shuangpin] {
         let mut session = fixture.session_with(|options| options.scheme = scheme);
         type_text(&mut session, "https");
-        assert_eq!(session.snapshot().spelling_symbols, ":@#$%&", "{scheme:?}");
+        // 双拼组字末尾的 `/` 还要发布给后置超级简拼（#10860）。
+        let expected = if scheme == SchemeType::Shuangpin {
+            ":@#$%&/"
+        } else {
+            ":@#$%&"
+        };
+        assert_eq!(session.snapshot().spelling_symbols, expected, "{scheme:?}");
         type_url(&mut session, "://github.com/a?b=1");
         assert_eq!(session.snapshot().local_mode, LocalInputMode::Url);
         let committed = session.command(Command::CommitRaw);
@@ -12734,6 +14375,19 @@ fn set_punctuation_marks_applies_live_without_resetting_alternation() {
     assert_eq!(session.punctuation(b'[').commit.as_deref(), Some("【"));
 }
 
+#[test]
+fn idle_backspace_undoes_a_deleted_quote_but_not_an_older_one() {
+    let fixture = Fixture::new(QUANPIN_FIXTURE);
+    let mut session = fixture.session();
+    assert_eq!(session.punctuation(b'"').commit.as_deref(), Some("“"));
+    assert!(!session.command(Command::Backspace).handled);
+    assert_eq!(session.punctuation(b'"').commit.as_deref(), Some("“"));
+
+    assert_eq!(session.punctuation(b':').commit.as_deref(), Some("："));
+    assert!(!session.command(Command::Backspace).handled);
+    assert_eq!(session.punctuation(b'"').commit.as_deref(), Some("”"));
+}
+
 /// #7616：已经透传给宿主的大写串不会中途进入快捷模式；未启用的 Shift 入口则在同一拼音组字里继续。
 #[test]
 fn only_the_first_letter_of_an_uppercase_run_opens_a_shortcut() {
@@ -13204,6 +14858,147 @@ fn custom_helpcode_trigger_preserves_microsoft_final_and_other_input_modes() {
     assert!(session.input.helpcode_entry.is_none());
 }
 
+// #10731：前导键按下后组字区要看得见它。只改显示：`editing_text`、回放用的 `snapshot().preedit` 和辅助码语义都不变；前导键在还能接收辅助码时（0 或 1 位）显示，两位码齐了就不再插入。
+#[test]
+fn custom_helpcode_trigger_is_visible_while_it_waits_for_codes() {
+    let fixture = isolation_root("你", "甲");
+    std::fs::write(
+        fixture.path().join("helpcodes/helpcode.txt"),
+        "你=rx\n拟=fr\n",
+    )
+    .unwrap();
+    let at = |key: char, position: usize| Some(HelpcodeTrigger { key, position });
+    // (方案, 双拼方案, 显示原始按键, 原始按键分隔, 一位码时的显示, 两位码时的显示)
+    for (scheme, profile, uses_raw, separated, one_code, two_codes) in [
+        (
+            SchemeType::Quanpin,
+            ShuangpinProfileKind::Xiaohe,
+            true,
+            false,
+            "ni';F",
+            "ni'FR",
+        ),
+        (
+            SchemeType::Shuangpin,
+            ShuangpinProfileKind::Xiaohe,
+            true,
+            false,
+            "ni;F",
+            "nifR",
+        ),
+        (
+            SchemeType::Shuangpin,
+            ShuangpinProfileKind::Xiaohe,
+            true,
+            true,
+            "ni';F",
+            "ni'fR",
+        ),
+        (
+            SchemeType::Shuangpin,
+            ShuangpinProfileKind::Xiaohe,
+            false,
+            false,
+            "ni';f",
+            "ni'fR",
+        ),
+        (
+            SchemeType::Shuangpin,
+            ShuangpinProfileKind::Microsoft,
+            true,
+            false,
+            "ni;F",
+            "nifR",
+        ),
+        (
+            SchemeType::Shuangpin,
+            ShuangpinProfileKind::Microsoft,
+            false,
+            false,
+            "ni';f",
+            "ni'fR",
+        ),
+    ] {
+        let label = format!("{scheme:?} {profile:?} raw={uses_raw} separated={separated}");
+        let mut session = fixture.session_with(|options| {
+            options.scheme = scheme;
+            options.shuangpin_profile = profile;
+            options.shuangpin_preedit_uses_raw = uses_raw;
+            options.shuangpin_preedit_separated = separated;
+            options.helpcode_trigger_key = Some(b';');
+        });
+        type_text(&mut session, "ni");
+        assert_eq!(session.display_snapshot().helpcode_trigger, None, "{label}");
+        assert!(session.character(b';', false).handled);
+        let shown = session.display_snapshot();
+        assert_eq!(shown.preedit, "ni;", "{label}");
+        assert_eq!(shown.editing_text, "ni", "{label}");
+        assert_eq!(shown.caret_position, 2, "{label}");
+        assert_eq!(shown.helpcode_trigger, at(';', 2), "{label}");
+        // 回放比对的快照仍是原文。
+        assert!(!session.snapshot().preedit.contains(';'), "{label}");
+
+        session.character(b'f', false);
+        let shown = session.display_snapshot();
+        assert_eq!(shown.preedit, one_code, "{label}");
+        assert_eq!(shown.editing_text, "niF", "{label}");
+        assert_eq!(shown.helpcode_trigger, at(';', 2), "{label}");
+        assert_eq!(words(&session)[0], "拟", "{label}");
+
+        session.character(b'r', false);
+        let shown = session.display_snapshot();
+        assert_eq!(shown.preedit, two_codes, "{label}");
+        assert_eq!(shown.helpcode_trigger, None, "{label}");
+        assert_eq!(words(&session)[0], "拟", "{label}");
+
+        // 退回一位码时前导键重新出现，再退到前导键本身，最后一次退格把它删掉。
+        session.command(Command::Backspace);
+        let shown = session.display_snapshot();
+        assert_eq!(shown.preedit, one_code, "{label}");
+        assert_eq!(shown.helpcode_trigger, at(';', 2), "{label}");
+        session.command(Command::Backspace);
+        let shown = session.display_snapshot();
+        assert_eq!(shown.preedit, "ni;", "{label}");
+        assert_eq!(shown.helpcode_trigger, at(';', 2), "{label}");
+        session.command(Command::Backspace);
+        let shown = session.display_snapshot();
+        assert_eq!(shown.preedit, "ni", "{label}");
+        assert_eq!(shown.editing_text, "ni", "{label}");
+        assert_eq!(shown.helpcode_trigger, None, "{label}");
+
+        // 两位码之后的下一个字母开始新的拼音，前导状态结束。
+        type_text(&mut session, ";frh");
+        assert_eq!(session.display_snapshot().helpcode_trigger, None, "{label}");
+        assert!(!session.display_snapshot().preedit.contains(';'), "{label}");
+        session.command(Command::Cancel);
+    }
+
+    // 微软双拼半音节后的分号仍是韵母，不当前导键显示。
+    let mut microsoft = fixture.session_with(|options| {
+        options.scheme = SchemeType::Shuangpin;
+        options.shuangpin_profile = ShuangpinProfileKind::Microsoft;
+        options.helpcode_trigger_key = Some(b';');
+    });
+    type_text(&mut microsoft, "n;");
+    let shown = microsoft.display_snapshot();
+    assert_eq!(shown.editing_text, "n;");
+    assert_eq!(shown.helpcode_trigger, None);
+
+    // 用户自己打的隔音符留着，前导键接在它后面；别的前导键原样显示。
+    let mut quanpin = fixture.session_with(|options| {
+        options.helpcode_trigger_key = Some(b'/');
+    });
+    type_text(&mut quanpin, "ni'/");
+    let shown = quanpin.display_snapshot();
+    assert_eq!(shown.editing_text, "ni'");
+    assert_eq!(shown.preedit, "ni'/");
+    assert_eq!(shown.helpcode_trigger, at('/', 3));
+    quanpin.character(b'f', false);
+    let shown = quanpin.display_snapshot();
+    assert_eq!(shown.preedit, "ni'/F");
+    assert_eq!(shown.helpcode_trigger, at('/', 3));
+}
+
 // 顿号开关不能抢占词首的命令模式；组字和裸前缀提交仍按相同的标点表出字。
 #[test]
 fn enumeration_comma_respects_command_prefix_and_composition() {
@@ -13237,7 +15032,7 @@ fn relative_date_keywords_reach_quanpin_and_nine_key_and_commit() {
         CREATE TABLE tbl_2_m(key TEXT,jp TEXT,value TEXT,weight INTEGER);\
         INSERT INTO tbl_2_m VALUES('ming''tian','mt','明天',500),('ming''nian','mn','明年',500);\
         CREATE TABLE tbl_2_h(key TEXT,jp TEXT,value TEXT,weight INTEGER);\
-        INSERT INTO tbl_2_h VALUES('hou''tian','ht','后天',500);\
+        INSERT INTO tbl_2_h VALUES('hou''tian','ht','后天',500),('hou''nian','hn','后年',500);\
         CREATE TABLE tbl_2_l(key TEXT,jp TEXT,value TEXT,weight INTEGER);\
         INSERT INTO tbl_2_l VALUES('lai''nian','ln','来年',500);\
         CREATE TABLE tbl_2_r(key TEXT,jp TEXT,value TEXT,weight INTEGER);\
@@ -13254,6 +15049,7 @@ fn relative_date_keywords_reach_quanpin_and_nine_key_and_commit() {
         ("qunian", "去年", "去年(2025年)"),
         ("jinnian", "今年", "今年(2026年)"),
         ("lainian", "来年", "来年(2027年)"),
+        ("hounian", "后年", "后年(2028年)"),
     ];
     for nine_key in [false, true] {
         let mut session = fixture.session_with(|options| options.learning = true);
@@ -13522,3 +15318,13 @@ INSERT INTO quick_parases VALUES('qq','腾讯',20);"
     type_text(&mut session, "qq");
     assert!(words(&session).contains(&"腾讯".to_owned()));
 }
+
+mod caret_suffix;
+mod grid_helpcode;
+mod lifecycle;
+mod offensive_placement;
+mod prediction_pool;
+mod raw_commit;
+mod super_jianpin_slash;
+
+mod cantonese_output;

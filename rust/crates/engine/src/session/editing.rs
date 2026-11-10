@@ -215,7 +215,9 @@ impl InputSession {
                 }
                 LocalInputMode::Command | LocalInputMode::Mention => {
                     accepted = text.len() < GENERATED_MODE_INPUT_LIMIT
-                        && (lower || (value == b'\'' && self.command_takes_word_separator(caret)));
+                        && (lower
+                            || (value == b'\'' && self.command_takes_word_separator(caret))
+                            || self.command_takes_argument_symbol(value, caret));
                 }
                 // 与 `handle_local_character` 同一组规则：收字母，`'` 不能插在入口字母 `C` 之后（连续的 `'` 由下面的通用检查吞掉），`;` 只在微软双拼补完奇数长度的片段时收。
                 LocalInputMode::Chaizi => {
@@ -413,6 +415,10 @@ impl InputSession {
     /// Decode only the complete units before the caret; cached by prefix.
     pub(super) fn refresh_prefix_candidates(&mut self) {
         self.prefix_active = false;
+        // 光标后编辑开着且生效时，候选是光标后那段的，不做光标前缀解码。
+        if self.refresh_caret_edit() {
+            return;
+        }
         if self.caret.is_none() || self.dedicated_english || self.local_mode != LocalInputMode::None
         {
             self.prefix_candidates.clear();

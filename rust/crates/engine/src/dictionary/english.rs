@@ -1,6 +1,11 @@
 //! `msime-english.db` (schemes-lang.md §4, data-formats.md §5): prefix completion, the en↔zh gloss tables, the custom translations sidecar and the learned-gloss store. English weights exceed `i32` in the shipped data.
 
 mod correction;
+mod priority_slot;
+
+pub(crate) use priority_slot::{
+    seat_nine_key_english, takes_priority_slot, takes_priority_slot_or_own,
+};
 
 use std::borrow::Cow;
 use std::cell::RefCell;
@@ -366,6 +371,8 @@ fn read_prefix_rows_at(
                         candidate.corrected_from.clear();
                         candidate.sentence_association = false;
                         candidate.sentence_words.clear();
+                        candidate.touch_supported = false;
+                        candidate.confident_correction = false;
                     } else {
                         if index == candidates.capacity() {
                             candidates.reserve_exact(capacity - index);

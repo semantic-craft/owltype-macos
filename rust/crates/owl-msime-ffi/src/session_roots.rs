@@ -2,10 +2,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use msime_engine::host::{EngineOptions, HelpcodeKeymap};
+use msime_engine::host::EngineOptions;
 use msime_engine::{
     reject_redirected_directory, roots_overlap, weakly_canonical, FrequencyAdjustmentMode,
-    SchemeSet, SchemeType, SentenceAssociationOptions, ShuangpinHelpcodeModes,
+    HelpcodeKeymap, SchemeSet, SchemeType, SentenceAssociationOptions, ShuangpinHelpcodeModes,
     ShuangpinProfileKind, WubiProfileKind,
 };
 use rusqlite::Connection;
@@ -327,7 +327,11 @@ pub(crate) fn product_engine_options(
         shuangpin_profile: ShuangpinProfileKind::Xiaohe as u8,
         shuangpin_custom_profile: None,
         shuangpin_preedit_uses_raw: true,
+        shuangpin_preedit_separated: false,
+        force_cantonese_shuangpin: false,
+        cantonese_output_conversion: None,
         single_character_only: false,
+        caret_edit_suffix: false,
         learning: true,
         learn_english_on_enter: true,
         autocorrect_transposition: true,
@@ -336,13 +340,17 @@ pub(crate) fn product_engine_options(
         wubi_mixed_pinyin: false,
         wubi_z_wildcard: false,
         wubi_profile: WubiProfileKind::Wubi86 as u8,
+        wubi_reverse_code: true,
         helpcode: false,
+        strict_quanpin_helpcode: false,
         show_helpcode: false,
         shuangpin_helpcode_modes: ShuangpinHelpcodeModes::default(),
+        grid_helpcode: false,
         helpcode_schema: "ziranma".to_owned(),
         helpcode_trigger_key: None,
         helpcode_table: Some(Arc::new(HelpcodeKeymap::default())),
         helpcode_fallback_resources: None,
+        custom_helpcode_root: None,
         chinese_punctuation: true,
         paired_punctuation: true,
         punctuation_lock: 0,
@@ -369,6 +377,7 @@ pub(crate) fn product_engine_options(
         local_emoji: true,
         local_kaomoji: true,
         local_super_jianpin: true,
+        local_super_jianpin_slash: true,
         local_temporary_english: true,
         local_temporary_japanese: false,
         local_expression: false,

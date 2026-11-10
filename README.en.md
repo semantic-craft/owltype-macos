@@ -76,7 +76,7 @@ The project originally started on top of **[RIME / Squirrel (鼠须管)](https:/
 ### 1. MSIME Rust engine and bundled full dictionaries
 
 - **Input schemes**: Full Pinyin, Flypy and other Double Pinyin layouts, Wubi 86 Jidian, Wubi 98, Pinyin-Wubi mixed input, English and mixed Chinese-English typing, and simplified-to-traditional conversion.
-- **Bundled SQLite dictionaries and neural reranking**: Ships with pinned (`dict-v2.0.39`) SQLite dictionaries (Pinyin, Wubi 86/98, English, Emoji, and kaomoji) plus dual reranking models (`keyboard-model.bin` and `settled-model.bin`). Confirming setup prepares the dictionaries transactionally on disk while replaying your learned word frequencies and pinned candidates (`⌃⇧P`).
+- **Bundled SQLite dictionaries and neural reranking**: Ships with pinned (`dict-v2.1.2`) SQLite dictionaries (Pinyin, Wubi 86/98, English, Emoji, and kaomoji) plus dual reranking models (`keyboard-model.bin` and `settled-model.bin`). Confirming setup prepares the dictionaries transactionally on disk while replaying your learned word frequencies and pinned candidates (`⌃⇧P`).
 - **4-tab keyboard settings and candidate layout**: Keyboard settings are organized into four horizontal tabs (`方案与状态` / `拼音设置` / `五笔设置` / `标点与习惯`). Candidates default to a vertical 4-item list with Wubi code hints off by default (toggleable in Wubi settings).
 
 ### 2. Cloud voice input (ASR) and non-activating voice capsule
@@ -155,7 +155,7 @@ See [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY.md) for details.
 
 Licensed under **GPL-3.0**; see [LICENSE.txt](LICENSE.txt).
 
-Owltype stands on the shoulders of many open-source input methods, dictionaries, and libraries. Its macOS frontend originally derived from [RIME Squirrel](https://github.com/rime/squirrel) and [librime](https://github.com/rime/librime). Starting in `2.1.0`, the input core uses the [Metasequoia IME (MSIME)](https://github.com/metasequoiaime/msime) Rust engine (currently pinned to engine `macos-v0.55.0` and dictionary release `dict-v2.0.39`), and shipped builds no longer bundle or link `librime`. See [PROVENANCE.md](PROVENANCE.md) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for complete lineage and third-party license notices.
+Owltype stands on the shoulders of many open-source input methods, dictionaries, and libraries. Its macOS frontend originally derived from [RIME Squirrel](https://github.com/rime/squirrel) and [librime](https://github.com/rime/librime). Starting in `2.1.0`, the input core uses the [Metasequoia IME (MSIME)](https://github.com/metasequoiaime/msime) Rust engine (currently pinned to engine `macos-v0.59.1` and dictionary release `dict-v2.1.2`), and shipped builds no longer bundle or link `librime`. See [PROVENANCE.md](PROVENANCE.md) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for complete lineage and third-party license notices.
 
 ### Acknowledgments
 
@@ -165,7 +165,7 @@ Owltype stands on the shoulders of many open-source input methods, dictionaries,
   - **[Squirrel (鼠须管)](https://github.com/rime/squirrel)** (GPL-3.0): The macOS InputMethodKit frontend from which Owltype originally derived.
   - **[RIME / librime (中州韻输入法引擎)](https://github.com/rime/librime)** ([rime.im](https://rime.im), BSD-3-Clause): The historical engine foundation that shaped Owltype's input habits and schema conventions.
 - **Dictionaries, tables, and linguistic resources**:
-  - **[msime-dictionary (水杉词库)](https://github.com/metasequoiaime/msime-dictionary)** (`dict-v2.0.39`): Bundled SQLite dictionaries for Pinyin, Wubi 86/98, English, Emoji, kaomoji, and n-gram context tables.
+  - **[msime-dictionary (水杉词库)](https://github.com/metasequoiaime/msime-dictionary)** (`dict-v2.1.2`): Bundled SQLite dictionaries for Pinyin, Wubi 86/98, English, Emoji, kaomoji, and n-gram context tables.
   - **[rime-ice (雾凇拼音, iDvel)](https://github.com/iDvel/rime-ice)** (GPL-3.0): Core upstream source for Pinyin vocabulary, word frequencies, English supplements, Emoji mappings, and schema conventions.
   - **[rime-wubi86-jidian (极点五笔 86, KyleBing)](https://github.com/KyleBing/rime-wubi86-jidian)** (Apache-2.0): Wubi 86 base table.
   - **[98wubi-tables (yanhuacuo · 98五笔小组)](https://github.com/yanhuacuo/98wubi-tables)** (Unlicense) and **[fcitx5-table-extra](https://github.com/fcitx/fcitx5-table-extra)** (GPL-3.0-or-later): Wubi 98 base and supplemental tables.

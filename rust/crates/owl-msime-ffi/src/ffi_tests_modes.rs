@@ -810,11 +810,11 @@ fn wubi_code_hint_off_hides_native_codes_while_preserving_lookup_and_wildcard_an
     );
     assert!(call_action(session, r#"{"op":"insert","ch":"i"}"#).ok);
     let hint_on = call_snapshot(session);
-    let zibo = hint_on
+    let chaoliu = hint_on
         .candidates
         .iter()
-        .find(|candidate| candidate.text == "淄博")
-        .expect("淄博 in i candidates");
-    assert_eq!(zibo.comment.as_deref(), Some("vfg"));
+        .find(|candidate| candidate.text == "潮流")
+        .expect("潮流 in i candidates");
+    assert_eq!(chaoliu.comment.as_deref(), Some("fiy"));
     owl_msime_session_destroy(session);
 }

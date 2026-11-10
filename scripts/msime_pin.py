@@ -127,6 +127,8 @@ def literal_sites(pin: Pin) -> dict[str, list[str]]:
         'scripts/secret-finding-policy.py': [
             f'Public {pin.release} msime-english.db', f'"{f["msime-english.db"]}"'],
         'rust/crates/owl-msime-ffi/tests/model_parity.rs': [f'{pin.engine_tag} Host API', f'official {pin.release}'],
+        'rust/resources/licenses/rime-wanxiang-CC-BY-4.0.txt': [
+            f'from release {pin.release} (source data commit {pin.data_commit})'],
     }
 
 
@@ -154,8 +156,8 @@ def check_baseline(pin: Pin, root: Path) -> list[str]:
 # release on purpose.
 STALE_TAG_EXEMPT = (
     'rust/crates/engine/', 'rust/crates/input-runtime/', 'rust/crates/path-trust/',
-    'rust/crates/client-core/', 'LESSONS.md', 'CHANGELOG.md', 'progress/',
-    'docs/operations/msime-repin.md',
+    'rust/crates/client-core/', 'rust/resources/licenses/rime-wanxiang-CC-BY-4.0.txt',
+    'LESSONS.md', 'CHANGELOG.md', 'progress/', 'docs/operations/msime-repin.md',
 )
 TAG = re.compile(r'dict-v\d+\.\d+\.\d+')
 

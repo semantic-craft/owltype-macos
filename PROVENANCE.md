@@ -13,8 +13,8 @@
   动态链接 librime；保留此项以说明前端与方案配置的历史派生谱系。
 - **RIME / 中州韻输入法引擎** —— <https://rime.im>
 - **水杉输入法 Metasequoia IME (`msime`)** —— <https://github.com/metasequoiaime/msime>（GPLv3）
-  Rust 输入引擎与运行时 crate 固定于 `macos-v0.55.0` /
-  `208c10e848bbed99373ca8b609fd2142b6b0b4e2`（`rust/crates/`，经窄 C-ABI 静态链接入
+  Rust 输入引擎与运行时 crate 固定于 `macos-v0.59.1` /
+  `d72bf12105469f4faeb94213404d9abc84ff799f`（`rust/crates/`，经窄 C-ABI 静态链接入
   `Owltype.app`）。提取边界与宿主适配见 [`rust/msime-source.json`](rust/msime-source.json)。
   `rust/crates/owl-msime-ffi`、`rust/crates/owl-agent-mcp` 与 `rust/shared/contracts/` 是 Owltype 自有代码，
   不属于上游提取范围。
@@ -23,7 +23,7 @@
   crates.io 依赖、版本与许可见 [`rust/crates/owl-agent-mcp/THIRD-PARTY-CRATES.md`](rust/crates/owl-agent-mcp/THIRD-PARTY-CRATES.md)
   （由 `scripts/owl-agent-mcp-licenses.py` 从 `rust/Cargo.lock` 生成，门禁核对；均为 MIT 或 Apache-2.0 可选许可），
   随对应源码归档分发；MIT 与 Apache-2.0 原文随 App 保存在 `Contents/SharedSupport/licenses`。
-- **完整官方拼音、五笔、英文与上下文资源** —— 固定 `dict-v2.0.39`，来源、大小、摘要和逐项许可见
+- **完整官方拼音、五笔、英文与上下文资源** —— 固定 `dict-v2.1.2`，来源、大小、摘要和逐项许可见
   [`msime-resources-NOTICE.md`](data/msime-resources-NOTICE.md)。生产拼音、独立五笔 86/98 码表、英文和 bigram/trigram 均原样交付。
 - **chinese-ime-lm reference crate** —— <https://github.com/metasequoiaime/chinese-ime-lm>（Apache-2.0）
   Owltype 仅 vendored 上游 `reference/` 子树到 `rust/crates/chinese-ime-lm`，固定于
@@ -37,11 +37,11 @@
   与 settled 两个 safetensors，训练语料为 C4 中文部分（ODC-BY）与 LCCC（MIT）；署名随权重元数据和
   [`NOTICE`](resources/licenses/chinese-ime-lm-model-NOTICE.txt) 一同保留。
 - **msime-others.db（派生 emoji 与颜文字目录）** ——
-  [`dict-v2.0.39`](https://github.com/metasequoiaime/msime-dictionary/releases/tag/dict-v2.0.39)，
-  固定大小 1,314,816 字节、SHA-256
-  `9f3cae5b407038e0e4536c40582a0bc0feb732657f0ae2d38196374cede52f94`。发布清单记录的
-  msime 构建器提交为 `8bb181be2ed36ed9559a87434cc4c9048077ff29`，msime-dictionary
-  数据提交为 `75978c6a6470171cc805c74e87ef465d894a7be4`。Owltype 不发布该多来源
+  [`dict-v2.1.2`](https://github.com/metasequoiaime/msime-dictionary/releases/tag/dict-v2.1.2)，
+  固定大小 1,323,008 字节、SHA-256
+  `2a53f91302928c47a45eb2f91aac02d17f0c21c354f0c838eaf1584f702d4206`。发布清单记录的
+  msime 构建器提交为 `24852caa38e76f316cac69fd3fdba0d428d4d249`，msime-dictionary
+  数据提交为 `c239ba1a584511d15d33ff9c1c520897993f2013`。Owltype 不发布该多来源
   整包，只在生成 seed 时保留 `emoji`、`emoji_pinyin`、`kaomoji` 与
   `kaomoji_catalog` 四表。中文关键词来自
   rime-ice（GPL-3.0-only，固定提交 `9e66b072…`），英文名称来自 Unicode Emoji
@@ -51,15 +51,15 @@
   [`msime-others-NOTICE.txt`](data/msime-others-NOTICE.txt)。颜文字来自
   aoguai/rime_kaomoji_dict（MIT，Copyright (c) 2023 aoguai），许可证原文保留为
   [`rime-kaomoji.LICENSE`](licenses/rime-kaomoji.LICENSE)。固定 release 中的
-  `kaomoji` 1,675 行、`kaomoji_catalog` 1,400 行原样保留，逐表 canonical row
+  `kaomoji` 1,673 行、`kaomoji_catalog` 1,398 行原样保留，逐表 canonical row
   SHA-256 见上述 notice 与 `scripts/fetch-msime-others.py`；交付检查复用相同契约。
   未确认再分发许可的 PiliApp `symbol_catalog` 及其他表仍被排除。
 
 ## 内置数据与方案 Bundled data & schemas
 
 - 雾凇拼音 rime-ice —— <https://github.com/iDvel/rime-ice>
-- **水杉官方五笔 86 / 98 码表** —— 固定 `dict-v2.0.39/msime-wubi.db`，
-  SHA-256 `54ee94799d8e33d5356468bdae164d21f68ce8ca0de9e6464ed4b3783924b93c`。
+- **水杉官方五笔 86 / 98 码表** —— 固定 `dict-v2.1.2/msime-wubi.db`，
+  SHA-256 `2e1ff8eaaa4a6dee7fc0947c17c4bf58f5bf5fc5c8a2f87c2ed7ccbf9926b146`。
   两表包含原表与水杉补充词组，保留官方权重与 rowid 顺序；不再由 Owl 极点原表覆盖。
   极点 86 基础编码来自 [KyleBing/rime-wubi86-jidian](https://github.com/KyleBing/rime-wubi86-jidian)
   （Apache-2.0）；98 原表来自 [98wubi-tables](https://github.com/yanhuacuo/98wubi-tables)

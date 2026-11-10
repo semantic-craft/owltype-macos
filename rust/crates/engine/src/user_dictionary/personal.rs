@@ -41,6 +41,12 @@ pub const INVALID_WUBI_CODE: &str = "Wubi codes contain one to four letters";
 pub const INVALID_QUICK_PHRASE_CODE: &str =
     "Quick-phrase codes contain one to 32 letters or digits";
 pub const INVALID_ENGLISH_CODE: &str = "English codes contain letters, hyphens and apostrophes";
+pub const INVALID_CANTONESE_CODE: &str =
+    "Use Jyutping syllables separated by spaces or apostrophes";
+pub const CANTONESE_SYLLABLE_COUNT_MISMATCH: &str =
+    "Each character must have one Jyutping syllable (maximum 64)";
+/// 最长的粤拼音节（`gwaang`）六个字母；多留两个，只挡明显不是音节的长串。
+const MAX_JYUTPING_SYLLABLE_LETTERS: usize = 8;
 
 // ---- Edits, pages and lookups (J:1792-2317); `bundled` shares them ----
 pub(super) const INVALID_REQUEST_ID: &str = "Invalid personal dictionary request ID";
@@ -64,9 +70,17 @@ pub(super) const STORAGE_UNAVAILABLE: &str = "Cannot access personal dictionary 
 pub(super) const INVALID_PAGE: &str = "Invalid personal dictionary page";
 pub(super) const DICTIONARY_NOT_READ: &str = "Cannot read personal dictionary";
 pub(super) const PAGE_READ_UNFINISHED: &str = "Cannot finish reading personal dictionary";
-/// 没有 `msime-pinyin.db` 的代次（方案集合不读它）只收英文词：拼音、五笔和快捷短语都写在 `msime-pinyin.db` 里。
+/// 没有 `msime-pinyin.db` 的代次（方案集合不读它）只收英文词和粤语词：拼音、五笔和快捷短语都写在 `msime-pinyin.db` 里。
 pub(super) const NO_CHINESE_DICTIONARY: &str =
     "This input method has no Chinese dictionary; only English words can be edited";
+/// 既没有 `msime-pinyin.db` 也没有 `msime-english.db` 的代次（方案集合两者都不要求，资源目录也没带英文库）什么词也存不下。
+pub(super) const NO_ENGLISH_DICTIONARY: &str =
+    "This input method has no English dictionary; no words can be edited";
+
+/// 代次里有没有 `msime-pinyin.db`。不分方案集合的入口（[`edit_personal_dictionary`]、[`personal_dictionary_entries`]、`edit_bundled_dictionary_entry`）按代次实际准备出的内容决定：方案集合不读主库时代次里没有它（`prepare_runtime_paths_for`），这时只有英文词和粤语词能编辑、列出。
+pub(super) fn generation_has_main_dictionary(paths: &RuntimePaths) -> bool {
+    paths.dictionary(assets::MAIN_DICTIONARY).is_file()
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct PersonalDictionaryPage {
@@ -78,22 +92,22 @@ pub struct PersonalDictionaryPage {
 pub fn validate_personal_dictionary_entry(
     entry: &PersonalDictionaryEntry,
 ) -> Result<PersonalDictionaryEntry> {
-    validate_entry(entry, MAX_ENTRY_WEIGHT)
+    validate_entry(entry, 1..=MAX_ENTRY_WEIGHT)
 }
 
-/// The same checks for a row being edited or removed. It is one the list returned and is matched exactly against the journal, and English frequency learning lifts a user's own word past `MAX_ENTRY_WEIGHT` without a ceiling (J:1027-1031), so only the floor applies to its weight. The reference refused such a row (personal_dictionary.cpp:11-12), which left it impossible to edit or remove.
+/// The same checks for a row being edited or removed. It is one the list returned and is matched exactly against the journal, so its weight is held only to what the store can hold, not to the range a new entry must fall in. English frequency learning lifts a user's own word past `MAX_ENTRY_WEIGHT` without a ceiling (J:1027-1031), and a wubi word derived from the user's pinyin word ranks below the rows already on its code and can be stored at weight 0 (`wubi_learning::learn`); no writer stores a negative weight. The reference refused such rows (personal_dictionary.cpp:11-12), which left them impossible to edit or remove.
 pub(crate) fn validate_existing_entry(
     entry: &PersonalDictionaryEntry,
 ) -> Result<PersonalDictionaryEntry> {
-    validate_entry(entry, i64::MAX)
+    validate_entry(entry, 0..=i64::MAX)
 }
 
 fn validate_entry(
     entry: &PersonalDictionaryEntry,
-    max_weight: i64,
+    weights: std::ops::RangeInclusive<i64>,
 ) -> Result<PersonalDictionaryEntry> {
     let invalid = |message: &str| Err(EngineError::invalid(message));
-    if !(1..=max_weight).contains(&entry.weight) {
+    if !weights.contains(&entry.weight) {
         return invalid(WEIGHT_OUT_OF_RANGE);
     }
     if entry.key.is_empty()
@@ -129,7 +143,9 @@ fn validate_entry(
                 return invalid(SYLLABLE_COUNT_MISMATCH);
             }
         }
-        PersonalDictionaryKind::Wubi | PersonalDictionaryKind::Wubi98 => {
+        PersonalDictionaryKind::Wubi
+        | PersonalDictionaryKind::Wubi98
+        | PersonalDictionaryKind::WubiXsj => {
             if key.len() > 4 || !key.bytes().all(letters) {
                 return invalid(INVALID_WUBI_CODE);
             }
@@ -153,6 +169,16 @@ fn validate_entry(
                 return invalid(INVALID_ENGLISH_CODE);
             }
         }
+        PersonalDictionaryKind::Cantonese => {
+            let Some(syllables) = jyutping_key(&key) else {
+                return invalid(INVALID_CANTONESE_CODE);
+            };
+            let count = syllables.split(' ').count();
+            if count > MAX_PINYIN_SYLLABLES || count != entry.value.chars().count() {
+                return invalid(CANTONESE_SYLLABLE_COUNT_MISMATCH);
+            }
+            key = syllables;
+        }
     }
     Ok(PersonalDictionaryEntry {
         kind: entry.kind,
@@ -162,19 +188,55 @@ fn validate_entry(
     })
 }
 
+/// 粤语编码收成 `msime-cantonese.db` 的键：音节之间的空格或 `'`（连续几个算一个）换成单个空格，每个音节末尾的声调数字 1–6 去掉（`nei5 hou2` 存成 `nei hou`），粤语方案的编码本来就不带声调。音节只能是小写字母；首尾的分隔符忽略。这里只查写法，不查音节表：音节表在 `msime-cantonese.db` 里，没装粤语词库时也要能加词。
+fn jyutping_key(key: &str) -> Option<String> {
+    let mut normalized = String::with_capacity(key.len());
+    for part in key.split([' ', '\'']).filter(|part| !part.is_empty()) {
+        let letters = match part.as_bytes() {
+            [rest @ .., b'1'..=b'6'] => rest,
+            bytes => bytes,
+        };
+        if letters.is_empty()
+            || letters.len() > MAX_JYUTPING_SYLLABLE_LETTERS
+            || !letters.iter().all(u8::is_ascii_lowercase)
+        {
+            return None;
+        }
+        if !normalized.is_empty() {
+            normalized.push(' ');
+        }
+        // 上面只放过 ASCII 小写字母。
+        normalized.push_str(std::str::from_utf8(letters).ok()?);
+    }
+    (!normalized.is_empty()).then_some(normalized)
+}
+
 /// Add (`previous = None`), remove (`replacement = None`) or replace, in one attached transaction with its receipt. `previous` must still be user-inserted with the same weight. A request id (1..=128 of `[A-Za-z0-9_-]`) makes a retry of the same edit a no-op and a reuse for different content a failure.
 ///
 /// An empty request id edits without a receipt, as the reference allowed.
+///
+/// 自己取独占的维护租约（`DictionaryAccess::try_maintenance`）：还有会话或别的维护持着租约时以 `Busy`（`DICTIONARY_MAINTENANCE_BUSY`）失败，什么也不写。不合法的改动在取租约之前就报出来。代次里没有 `msime-pinyin.db`（方案集合不读它）时只能编辑英文词和粤语词，规则同 `edit_personal_dictionary_with`。
 pub fn edit_personal_dictionary(
     paths: &RuntimePaths,
     previous: Option<&PersonalDictionaryEntry>,
     replacement: Option<&PersonalDictionaryEntry>,
     request_id: &str,
 ) -> Result<()> {
-    edit_personal_dictionary_with(paths, true, previous, replacement, request_id)
+    let main_dictionary = generation_has_main_dictionary(paths);
+    normalize_edit(main_dictionary, previous, replacement, request_id)?;
+    let _access = maintenance(paths)?;
+    edit_personal_dictionary_with(paths, main_dictionary, previous, replacement, request_id)
 }
 
-/// [`edit_personal_dictionary`]，`main_dictionary` 说明代次里有没有 `msime-pinyin.db`（`SchemeSet::reads_main_dictionary`）。没有时只能编辑英文词，其余种类的增删改都以 `NO_CHINESE_DICTIONARY` 失败，什么也不写。
+/// 引擎层编辑接口取维护租约；取不到之外的失败（目录打不开、锁文件不对）按本模块的说法报存储不可用。
+pub(super) fn maintenance(paths: &RuntimePaths) -> Result<crate::access::DictionaryAccess> {
+    crate::access::maintenance(paths).map_err(|error| match error {
+        EngineError::Busy(_) => error,
+        _ => failed(STORAGE_UNAVAILABLE),
+    })
+}
+
+/// [`edit_personal_dictionary`]，`main_dictionary` 说明代次里有没有 `msime-pinyin.db`（`SchemeSet::reads_main_dictionary`）。没有时只能编辑英文词和粤语词，其余种类的增删改都以 `NO_CHINESE_DICTIONARY` 失败，什么也不写；代次里连 `msime-english.db` 也没有时，编辑连接建不起来，英文词和粤语词都以 `NO_ENGLISH_DICTIONARY` 失败。不取维护租约，调用方（host 门面背后的 host-api）已经持有。
 pub fn edit_personal_dictionary_with(
     paths: &RuntimePaths,
     main_dictionary: bool,
@@ -353,7 +415,7 @@ fn normalize_edit(
         && [old.as_ref(), new.as_ref()]
             .into_iter()
             .flatten()
-            .any(|entry| entry.kind != PersonalDictionaryKind::English)
+            .any(|entry| !entry.kind.stored_without_main_dictionary())
     {
         return Err(failed(NO_CHINESE_DICTIONARY));
     }
@@ -462,7 +524,9 @@ fn bundled_entry_present(connection: &Connection, entry: &PersonalDictionaryEntr
             };
             ("main", table, "key", "value")
         }
-        PersonalDictionaryKind::Wubi | PersonalDictionaryKind::Wubi98 => {
+        PersonalDictionaryKind::Wubi
+        | PersonalDictionaryKind::Wubi98
+        | PersonalDictionaryKind::WubiXsj => {
             let Some(table) = entry.kind.wubi_table() else {
                 return Ok(false);
             };
@@ -475,6 +539,8 @@ fn bundled_entry_present(connection: &Connection, entry: &PersonalDictionaryEntr
             "word",
             "display",
         ),
+        // 粤语的发布词在只读的 `msime-cantonese.db` 里，编辑连接上没有它；同一个词再加一遍只是多一行，方案出候选时按词去重。
+        PersonalDictionaryKind::Cantonese => return Ok(false),
     };
     let table_exists = connection
         .query_row(
@@ -510,10 +576,16 @@ pub fn personal_dictionary_entries(
     limit: usize,
     include_learned_pinyin: bool,
 ) -> Result<PersonalDictionaryPage> {
-    personal_dictionary_entries_with(paths, true, offset, limit, include_learned_pinyin)
+    personal_dictionary_entries_with(
+        paths,
+        generation_has_main_dictionary(paths),
+        offset,
+        limit,
+        include_learned_pinyin,
+    )
 }
 
-/// [`personal_dictionary_entries`]，`main_dictionary` 为假（代次里没有 `msime-pinyin.db`）时只列英文词：别的种类的行（例如从别的版本恢复来的快照）在这里既用不上也改不了，所以不列出。
+/// [`personal_dictionary_entries`]，`main_dictionary` 为假（代次里没有 `msime-pinyin.db`）时只列英文词和粤语词：别的种类的行（例如从别的版本恢复来的快照）在这里既用不上也改不了，所以不列出。
 pub fn personal_dictionary_entries_with(
     paths: &RuntimePaths,
     main_dictionary: bool,
@@ -591,9 +663,9 @@ fn read_personal_dictionary_page(
     let connection = open_database(&journal, OpenFlags::SQLITE_OPEN_READ_ONLY)
         .map_err(|_| failed(DICTIONARY_NOT_READ))?;
     let sql = if kind.is_some() {
-        "SELECT dictionary,key,value,weight FROM user_dictionary_operations WHERE operation='upsert' AND (user_inserted=1 OR (?3 AND dictionary='pinyin')) AND NOT (?3 AND ?5 AND dictionary='pinyin' AND length(value)<=1) AND (?4 OR dictionary='english') AND dictionary=?6 ORDER BY dictionary,key,value LIMIT ?1 OFFSET ?2"
+        "SELECT dictionary,key,value,weight FROM user_dictionary_operations WHERE operation='upsert' AND (user_inserted=1 OR (?3 AND dictionary='pinyin')) AND NOT (?3 AND ?5 AND dictionary='pinyin' AND length(value)<=1) AND (?4 OR dictionary IN ('english','cantonese')) AND dictionary=?6 ORDER BY dictionary,key,value LIMIT ?1 OFFSET ?2"
     } else {
-        "SELECT dictionary,key,value,weight FROM user_dictionary_operations WHERE operation='upsert' AND (user_inserted=1 OR (?3 AND dictionary='pinyin')) AND NOT (?3 AND ?5 AND dictionary='pinyin' AND length(value)<=1) AND (?4 OR dictionary='english') ORDER BY dictionary,key,value LIMIT ?1 OFFSET ?2"
+        "SELECT dictionary,key,value,weight FROM user_dictionary_operations WHERE operation='upsert' AND (user_inserted=1 OR (?3 AND dictionary='pinyin')) AND NOT (?3 AND ?5 AND dictionary='pinyin' AND length(value)<=1) AND (?4 OR dictionary IN ('english','cantonese')) ORDER BY dictionary,key,value LIMIT ?1 OFFSET ?2"
     };
     let mut statement = connection
         .prepare(sql)
@@ -642,13 +714,18 @@ fn read_personal_dictionary_page(
     Ok(page)
 }
 
-/// The main dictionary opened for writing with the journal attached as `personal_journal` and the English dictionary as `replay_english`, both prepared first (J:1822-1836). `main_dictionary` 为假（代次里没有 `msime-pinyin.db`）时以一个内存库代替它，只有 attach 的日志和英文词库可写。
+/// The main dictionary opened for writing with the journal attached as `personal_journal` and the English dictionary as `replay_english`, both prepared first (J:1822-1836). `main_dictionary` 为假（代次里没有 `msime-pinyin.db`）时以一个内存库代替它，只有 attach 的日志和英文词库可写；这时代次里也没有 `msime-english.db` 就以 `NO_ENGLISH_DICTIONARY` 失败，不在代次里建一个空的英文库。
+///
+/// 日志是 WAL 时（iOS 以外）编辑事务只在每个文件内原子：崩溃可能留下日志已记下、词库工作副本回滚，下一次回放补齐，见 `journal::prefer_write_ahead_log`。
 pub(super) fn open_edit_connection(
     paths: &RuntimePaths,
     main_dictionary: bool,
 ) -> Result<Connection> {
     let journal = paths.user(assets::USER_JOURNAL);
     let english = paths.dictionary(assets::ENGLISH_DICTIONARY);
+    if !main_dictionary && !english.is_file() {
+        return Err(failed(NO_ENGLISH_DICTIONARY));
+    }
     if ensure_user_database(&journal).is_err() || ensure_english_schema(&english).is_err() {
         return Err(failed(STORAGE_NOT_PREPARED));
     }
@@ -747,7 +824,9 @@ fn apply_personal_edit(
         PersonalDictionaryKind::Pinyin => {
             apply_pinyin(connection, key_bytes, value_bytes, remove, weight)?
         }
-        PersonalDictionaryKind::Wubi | PersonalDictionaryKind::Wubi98 => apply_simple(
+        PersonalDictionaryKind::Wubi
+        | PersonalDictionaryKind::Wubi98
+        | PersonalDictionaryKind::WubiXsj => apply_simple(
             connection,
             entry.kind.wubi_table().unwrap_or_default(),
             key_bytes,
@@ -771,6 +850,8 @@ fn apply_personal_edit(
             weight,
             value_bytes,
         )?,
+        // 粤语词只记在日志里，下面那一行就是它的全部存储。
+        PersonalDictionaryKind::Cantonese => true,
     };
     if !applied {
         return Ok(false);
@@ -840,6 +921,7 @@ pub(super) fn column_i64(row: &Row<'_>, index: usize) -> rusqlite::Result<i64> {
 mod tests {
     use super::*;
     use crate::user_dictionary::generation::prepare_runtime_paths;
+    use crate::user_dictionary::replay::replay;
     use crate::user_dictionary::replay::tests::{sql, weight};
     use std::path::Path;
 
@@ -880,7 +962,9 @@ mod tests {
                 assets::ENGLISH_DICTIONARY,
                 "SELECT count(*) FROM english_words WHERE word=?1 AND display=?2".to_owned(),
             ),
-            PersonalDictionaryKind::Wubi | PersonalDictionaryKind::Wubi98 => (
+            PersonalDictionaryKind::Wubi
+            | PersonalDictionaryKind::Wubi98
+            | PersonalDictionaryKind::WubiXsj => (
                 assets::MAIN_DICTIONARY,
                 format!(
                     "SELECT count(*) FROM {} WHERE key=?1 AND value=?2",
@@ -898,8 +982,18 @@ mod tests {
                     crate::user_dictionary::journal::pinyin_table(&entry.key).unwrap()
                 ),
             ),
+            // 粤语词没有工作表，粤语方案从日志读它。
+            PersonalDictionaryKind::Cantonese => (
+                assets::USER_JOURNAL,
+                "SELECT count(*) FROM user_dictionary_operations WHERE dictionary='cantonese' AND key=?1 AND value=?2 AND operation='upsert'".to_owned(),
+            ),
         };
-        let count: i64 = Connection::open(paths.dictionary(database))
+        let file = if entry.kind == PersonalDictionaryKind::Cantonese {
+            paths.user(database)
+        } else {
+            paths.dictionary(database)
+        };
+        let count: i64 = Connection::open(file)
             .unwrap()
             .query_row(&query, params![entry.key, entry.value], |row| row.get(0))
             .unwrap();
@@ -1021,6 +1115,21 @@ mod tests {
                 .unwrap(),
             entry(English, "hello", "different", 100_000)
         );
+        // 粤语：空格、`'` 和连续的分隔都收成单个空格，音节末尾的声调数字去掉。
+        for typed in [
+            "nei hou",
+            "Nei5 Hou2",
+            "nei'hou",
+            "  nei''hou ",
+            "nei2 'hou",
+        ] {
+            assert_eq!(
+                validate_personal_dictionary_entry(&entry(Cantonese, typed, "你好", 100_000))
+                    .unwrap(),
+                entry(Cantonese, "nei hou", "你好", 100_000),
+                "{typed:?}"
+            );
+        }
         assert_eq!(
             validate_personal_dictionary_entry(&entry(
                 QuickPhrase,
@@ -1043,6 +1152,25 @@ mod tests {
             (entry(Wubi, "abcde", "词", 1), INVALID_WUBI_CODE),
             (entry(Wubi, "ab1", "词", 1), INVALID_WUBI_CODE),
             (entry(Wubi98, "abcde", "词", 1), INVALID_WUBI_CODE),
+            (entry(WubiXsj, "abcde", "词", 1), INVALID_WUBI_CODE),
+            (
+                entry(Cantonese, "neihou", "你好", 1),
+                CANTONESE_SYLLABLE_COUNT_MISMATCH,
+            ),
+            (
+                entry(Cantonese, "nei", "你好", 1),
+                CANTONESE_SYLLABLE_COUNT_MISMATCH,
+            ),
+            (
+                entry(Cantonese, "nei7 hou", "你好", 1),
+                INVALID_CANTONESE_CODE,
+            ),
+            (entry(Cantonese, "nei 1", "你好", 1), INVALID_CANTONESE_CODE),
+            (
+                entry(Cantonese, "nei-hou", "你好", 1),
+                INVALID_CANTONESE_CODE,
+            ),
+            (entry(Cantonese, " ' ", "你", 1), INVALID_CANTONESE_CODE),
             (
                 entry(QuickPhrase, "bad;code", "text", 1),
                 INVALID_QUICK_PHRASE_CODE,
@@ -1077,6 +1205,41 @@ mod tests {
     }
 
     // test_personal_dictionary.cpp:61-163, probing the working tables where the reference typed into a session.
+    /// 引擎层的编辑接口自己取维护租约：还有会话持共享租约时报 `Busy`、什么也不写；不合法的改动照旧先报出来；会话结束后同一改动照常生效。
+    #[test]
+    fn engine_level_edits_take_the_maintenance_lease() {
+        use PersonalDictionaryKind::*;
+        let root = tempfile::tempdir().unwrap();
+        let paths = fixture(root.path());
+        let pinyin =
+            validate_personal_dictionary_entry(&entry(Pinyin, "NI HAO", "拟好", 12345)).unwrap();
+        let session = crate::DictionaryAccess::try_session(&paths.user_data, &paths.dictionaries)
+            .unwrap()
+            .unwrap();
+
+        let error = edit_personal_dictionary(&paths, None, Some(&pinyin), "busy-1").unwrap_err();
+        assert_eq!(error.code(), crate::ErrorCode::Busy);
+        assert_eq!(
+            error.to_string(),
+            crate::diagnostics::DICTIONARY_MAINTENANCE_BUSY
+        );
+        assert!(!has(&paths, &pinyin));
+        let invalid = entry(Pinyin, "nihao", "你好", 1);
+        let error = edit_personal_dictionary(&paths, None, Some(&invalid), "").unwrap_err();
+        assert_eq!(error.code(), crate::ErrorCode::Failed);
+        // 门面的 `_with` 版本假定调用方已持有租约，不再取锁。
+        drop(session);
+        let maintenance =
+            crate::DictionaryAccess::try_maintenance(&paths.user_data, &paths.dictionaries)
+                .unwrap()
+                .unwrap();
+        edit_personal_dictionary_with(&paths, true, None, Some(&pinyin), "busy-1").unwrap();
+        assert!(has(&paths, &pinyin));
+        drop(maintenance);
+        edit_personal_dictionary(&paths, Some(&pinyin), None, "busy-2").unwrap();
+        assert!(!has(&paths, &pinyin));
+    }
+
     #[test]
     fn edits_replace_page_refuse_stale_and_survive_an_upgrade() {
         use PersonalDictionaryKind::*;
@@ -1308,7 +1471,15 @@ mod tests {
         let journal = paths.user(assets::USER_JOURNAL);
         ensure_user_database(&journal).unwrap();
         let connection = open_database(&journal, OpenFlags::SQLITE_OPEN_READ_WRITE).unwrap();
-        for kind in [Pinyin, Wubi, QuickPhrase, English, Wubi98] {
+        for kind in [
+            Pinyin,
+            Wubi,
+            QuickPhrase,
+            English,
+            Wubi98,
+            Cantonese,
+            WubiXsj,
+        ] {
             for (key, value, weight) in [
                 ("a", "合成甲", 11),
                 ("a", "合成乙", 12),
@@ -1330,7 +1501,15 @@ mod tests {
              ('japanese','a','合成未知','upsert',23,1);",
         ).unwrap();
         drop(connection);
-        for kind in [Pinyin, Wubi, QuickPhrase, English, Wubi98] {
+        for kind in [
+            Pinyin,
+            Wubi,
+            QuickPhrase,
+            English,
+            Wubi98,
+            Cantonese,
+            WubiXsj,
+        ] {
             let mut expected = vec![
                 entry(kind, "a", "合成乙", 12),
                 entry(kind, "a", "合成甲", 11),
@@ -1356,7 +1535,7 @@ mod tests {
                 personal_dictionary_export_entries_for_kind(&paths, false, kind, 0, 1000).unwrap();
             assert_eq!(
                 restricted.entries,
-                if kind == English {
+                if kind.stored_without_main_dictionary() {
                     expected
                 } else {
                     Vec::new()
@@ -1364,6 +1543,52 @@ mod tests {
             );
             assert!(!restricted.has_more);
         }
+    }
+
+    /// 粤语词只记在日志里：增、改权重、删都只动日志那一行，列表照常列出；回放新代次时跳过它，不会因为不认识而让整次回放回滚。
+    #[test]
+    fn cantonese_words_live_in_the_journal_and_survive_replay() {
+        use PersonalDictionaryKind::*;
+        let root = tempfile::tempdir().unwrap();
+        let paths = fixture(root.path());
+        let word = entry(Cantonese, "Nei5 Hou2", "你好", 100_000);
+        edit_personal_dictionary(&paths, None, Some(&word), "cantonese-add").unwrap();
+        let stored = entry(Cantonese, "nei hou", "你好", 100_000);
+        assert!(has(&paths, &stored));
+        assert_eq!(
+            personal_dictionary_entries_for_kind(&paths, true, Cantonese, 0, 10)
+                .unwrap()
+                .entries,
+            vec![stored.clone()]
+        );
+        // 没有主词库的代次（例如只有粤语的方案集合）同样能列出、编辑粤语词。
+        assert_eq!(
+            personal_dictionary_entries_with(&paths, false, 0, 10, false)
+                .unwrap()
+                .entries,
+            vec![stored.clone()]
+        );
+        let heavier = entry(Cantonese, "nei hou", "你好", 200_000);
+        edit_personal_dictionary_with(&paths, false, Some(&stored), Some(&heavier), "").unwrap();
+        assert!(has(&paths, &heavier));
+
+        let result = replay(
+            &paths.user(assets::USER_JOURNAL),
+            &paths.dictionary(assets::MAIN_DICTIONARY),
+            &paths.dictionary(assets::ENGLISH_DICTIONARY),
+        );
+        assert!(result.error.is_empty(), "{}", result.error);
+        assert_eq!((result.failed, result.skipped), (0, 1));
+        assert!(has(&paths, &heavier));
+
+        edit_personal_dictionary(&paths, Some(&heavier), None, "").unwrap();
+        assert!(!has(&paths, &heavier));
+        assert!(
+            personal_dictionary_entries_for_kind(&paths, true, Cantonese, 0, 10)
+                .unwrap()
+                .entries
+                .is_empty()
+        );
     }
 
     #[test]
@@ -1445,6 +1670,60 @@ mod tests {
         // The replacement keeps the ceiling.
         let too_heavy = entry(English, "bar", "bar", MAX_ENTRY_WEIGHT + 1);
         assert!(edit_personal_dictionary(&paths, None, Some(&too_heavy), "").is_err());
+    }
+
+    /// 由拼音自造词派生的五笔词排在同码已有词之后（`wubi_learning::learn` 取同码最小权重减一，最低到 0），所以列表会返回权重为 0 的用户词。这一行必须能删除、能调权重；新写入的词仍不得低于 1。
+    #[test]
+    fn a_derived_wubi_word_with_weight_zero_stays_editable() {
+        use PersonalDictionaryKind::Wubi;
+        let root = tempfile::tempdir().unwrap();
+        let paths = fixture(root.path());
+        sql(
+            &paths.dictionary(assets::MAIN_DICTIONARY),
+            "INSERT INTO wubi86 VALUES('abcd','甲',100),('efgh','乙',100),('abef','占位',1);",
+        );
+        assert!(crate::user_dictionary::wubi_learning::learn(
+            &paths,
+            "甲乙",
+            crate::WubiProfileKind::Wubi86
+        )
+        .unwrap());
+        let listed = || {
+            personal_dictionary_entries(&paths, 0, 10, false)
+                .unwrap()
+                .entries
+        };
+        let derived = entry(Wubi, "abef", "甲乙", 0);
+        assert_eq!(listed(), vec![derived.clone()]);
+
+        let reweighted = entry(Wubi, "abef", "甲乙", 5);
+        edit_personal_dictionary(&paths, Some(&derived), Some(&reweighted), "reweight").unwrap();
+        assert_eq!(listed(), vec![reweighted.clone()]);
+        edit_personal_dictionary(&paths, Some(&reweighted), Some(&derived), "")
+            .expect_err("a new weight stays at 1 or above");
+
+        // 回到权重 0 的状态，再按列表原样删除。
+        sql(
+            &paths.dictionary(assets::MAIN_DICTIONARY),
+            "DELETE FROM wubi86 WHERE value='甲乙'",
+        );
+        sql(
+            &paths.user(assets::USER_JOURNAL),
+            "DELETE FROM user_dictionary_operations",
+        );
+        assert!(crate::user_dictionary::wubi_learning::learn(
+            &paths,
+            "甲乙",
+            crate::WubiProfileKind::Wubi86
+        )
+        .unwrap());
+        assert_eq!(listed(), vec![derived.clone()]);
+        edit_personal_dictionary(&paths, Some(&derived), None, "remove").unwrap();
+        assert!(listed().is_empty());
+        assert!(!has(&paths, &derived));
+
+        // 存储里没有负权重；这样的“已有行”仍按越界拒绝。
+        assert!(validate_existing_entry(&entry(Wubi, "abef", "甲乙", -1)).is_err());
     }
 
     #[test]

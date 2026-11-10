@@ -16,9 +16,11 @@ use crate::types::{
     FrequencyAdjustmentOptions, FuzzyPinyinOptions, LocalModeOptions, MentionEntry,
     MixedExpressiveOptions, PluginCommand, QuickPhraseEntry, SchemeSet, SchemeType,
     SentenceAssociationOptions, ShuangpinCustomTable, ShuangpinHelpcodeModes, ShuangpinProfileKind,
-    WubiInputOptions, WubiProfileKind, DEFAULT_FIRST_PAGE_ROWS,
+    TextConversion, WubiInputOptions, WubiProfileKind, DEFAULT_FIRST_PAGE_ROWS,
 };
-use crate::user_dictionary::generation::{merge_downloaded_wubi, prepare_runtime_paths_for};
+use crate::user_dictionary::generation::{
+    merge_downloaded_wubi, open_prepared_runtime_paths_for, prepare_runtime_paths_for,
+};
 use crate::vietnamese::{InputMethod as VietnameseInputMethod, ToneStyle as VietnameseToneStyle};
 
 const MAX_TRANSLATION_SIDECAR_BYTES: u64 = 1024 * 1024;
@@ -66,8 +68,14 @@ pub struct EngineOptions {
     /// `shuangpin_profile` 为 4 时的键位表（`SessionOptions::shuangpin_custom_profile`）。双拼在 `enabled_schemes` 里时缺表或表不合法，建会话失败（`INVALID_CUSTOM_SHUANGPIN_PROFILE`）；宿主应先用 `validate_shuangpin_custom_profile` 校验，不合法就不要传 4。
     pub shuangpin_custom_profile: Option<ShuangpinCustomTable>,
     pub shuangpin_preedit_uses_raw: bool,
+    /// `SessionOptions::shuangpin_preedit_separated`：原始按键按音节插 `'`。
+    pub shuangpin_preedit_separated: bool,
+    /// 独立粤语双拼入口强制解释同形两键码；其余入口为 false。
+    pub force_cantonese_shuangpin: bool,
+    /// 粤拼候选的输出转换（`SessionOptions::cantonese_output_conversion`）；`None` 输出繁体。
+    pub cantonese_output_conversion: Option<TextConversion>,
     pub learning: bool,
-    /// 回车上屏英文拼写时是否学进英文词库（`SessionOptions::learn_english_on_enter`）。参照实现出厂为开。
+    /// 回车上屏英文拼写时是否学进英文词库（`SessionOptions::learn_english_on_enter`）。参照实现出厂为开。门面同时打开 `SessionOptions::learn_typed_spellings_on_enter`，所以学的不只是专用英文里打的词。
     pub learn_english_on_enter: bool,
     /// 上屏后联想；默认关闭，宿主只在支持空闲候选的键盘上启用。
     pub next_word_prediction: bool,
@@ -78,13 +86,19 @@ pub struct EngineOptions {
     pub wubi_mixed_pinyin: bool,
     /// 五笔 `z` 通配（`WubiInputOptions::z_wildcard`）。
     pub wubi_z_wildcard: bool,
-    /// 0 是 86 五笔，1 是 98 五笔（`WubiProfileKind`）。
+    /// 0 是 86 五笔，1 是 98 五笔，2 是新世纪五笔（`WubiProfileKind`）。
     pub wubi_profile: u8,
+    /// 五笔方案里给五笔原生候选的注释附上完整五笔码（反查码）。只管显示，不影响候选的 `code` 字段，宿主照旧用它算剩余编码。宿主按共享偏好 `wubi_code_hint` 填：用户关掉「候选显示剩余编码」时，五笔候选旁不该再出现五笔码。拼音来的候选（混输拼音和 `z` 引导的临时拼音反查）附的是用拼音查到的五笔码，不是剩余编码，不受它管；`z` 通配查出的五笔候选也不受它管，那里的完整码回答的是 `z` 那一位是什么。默认开。
+    pub wubi_reverse_code: bool,
     pub helpcode: bool,
+    /// 一码辅助码严格筛选；关闭时仍按原来的规则重排候选。
+    pub strict_quanpin_helpcode: bool,
     /// Display only: filtering stays on while annotations are hidden.
     pub show_helpcode: bool,
     /// 双拼辅助码的触发方式（`SessionOptions::shuangpin_helpcode_modes`）；宿主按偏好 `shuangpin_helpcode.modes` 填，其它方案给默认值也不会被读。
     pub shuangpin_helpcode_modes: ShuangpinHelpcodeModes,
+    /// 十四／十八键网格辅助码（`SessionOptions::grid_helpcode`）；宿主按当前方案偏好的 `grid` 填，默认关。
+    pub grid_helpcode: bool,
     pub helpcode_schema: String,
     /// 辅助码前导标点；None 保留现有 Shift 加字母。
     pub helpcode_trigger_key: Option<u8>,
@@ -92,6 +106,8 @@ pub struct EngineOptions {
     pub helpcode_table: Option<SharedKeymap>,
     /// 主资源缺少内置辅助码表时，从宿主指定的随包资源根目录读取；自定义表不回退。
     pub helpcode_fallback_resources: Option<String>,
+    /// 用户自己的辅助码表所在的根目录（宿主的状态根）：`custom/<stem>` 先读这里的 `helpcodes/custom`，没有时再读 `resources` 里的，见 `load_helpcode_keymap_in`。
+    pub custom_helpcode_root: Option<String>,
     pub chinese_punctuation: bool,
     pub paired_punctuation: bool,
     pub punctuation_lock: u8,
@@ -131,6 +147,8 @@ pub struct EngineOptions {
     pub local_emoji: bool,
     pub local_kaomoji: bool,
     pub local_super_jianpin: bool,
+    /// 双拼组字末尾按 `/` 转超级简拼（`LocalModeOptions::super_jianpin_slash`），依附 `local_super_jianpin`。
+    pub local_super_jianpin_slash: bool,
     pub local_temporary_english: bool,
     pub local_temporary_japanese: bool,
     /// `V`: calculator, Chinese numerals and dates.
@@ -169,6 +187,8 @@ pub struct EngineOptions {
     pub first_page_rows: usize,
     /// 只出单字（`SessionOptions::single_character_only`）。
     pub single_character_only: bool,
+    /// 移动光标后编辑光标后的部分（`SessionOptions::caret_edit_suffix`）。
+    pub caret_edit_suffix: bool,
     /// 0 Telex, 1 VNI (`vietnamese::InputMethod`).
     pub vietnamese_input_method: u8,
     /// 0 modern (hoà), 1 classic (hòa) (`vietnamese::ToneStyle`).
@@ -212,9 +232,53 @@ pub fn prepare_options_for(
         content_id,
         enabled_schemes,
     )?;
+    Ok(options_for_paths(&paths, enabled_schemes))
+}
+
+/// [`prepare_options_for`] 的只读版本：打开别的进程已经准备好的代次，不写 `user_data` 和代次（`open_prepared_runtime_paths_for`），产品默认值相同。给对共享状态目录没有写权限的宿主用（iOS 键盘没有完全访问）；代次没准备好或缺东西时报错，调用方改用 [`read_only_layout_options_for`]。
+pub fn open_prepared_options_for(
+    resources: &str,
+    user_data: &str,
+    cache: &str,
+    content_id: &str,
+    enabled_schemes: SchemeSet,
+) -> Result<EngineOptions> {
+    let paths = open_prepared_runtime_paths_for(
+        Path::new(resources),
+        Path::new(user_data),
+        Path::new(cache),
+        content_id,
+        enabled_schemes,
+    )?;
+    Ok(options_for_paths(&paths, enabled_schemes))
+}
+
+/// 只读布局：代次目录就是 `resources`，词库只读、不准备代次；`user_data` 和 `cache` 是宿主自己能写的目录，没有就建。给拿不到已准备代次的只读宿主用（iOS 键盘没有完全访问，App 还没准备过这个版本的代次）：打得出字，但没有用户词库和学到的东西。产品默认值与 [`prepare_options_for`] 相同。
+pub fn read_only_layout_options_for(
+    resources: &str,
+    user_data: &str,
+    cache: &str,
+    enabled_schemes: SchemeSet,
+) -> Result<EngineOptions> {
+    let paths = RuntimePaths {
+        resources: PathBuf::from(resources),
+        user_data: PathBuf::from(user_data),
+        cache: PathBuf::from(cache),
+        dictionaries: PathBuf::from(resources),
+    };
+    paths.validate()?;
+    msime_path_trust::reject_symlinked_components(&paths.user_data)?;
+    msime_path_trust::reject_symlinked_components(&paths.cache)?;
+    fs::create_dir_all(&paths.user_data)?;
+    fs::create_dir_all(&paths.cache)?;
+    Ok(options_for_paths(&paths, enabled_schemes))
+}
+
+/// `paths` 上的产品默认选项，见 [`prepare_options`]。
+fn options_for_paths(paths: &RuntimePaths, enabled_schemes: SchemeSet) -> EngineOptions {
     // The C++ handed the paths back through `u8string()`; every root came in as UTF-8 and the generation only appends an ASCII content id, so the lossy conversion never actually replaces anything.
     let text = |path: &Path| path.to_string_lossy().into_owned();
-    Ok(EngineOptions {
+    EngineOptions {
         resources: text(&paths.resources),
         user_data: text(&paths.user_data),
         cache: text(&paths.cache),
@@ -224,7 +288,11 @@ pub fn prepare_options_for(
         shuangpin_profile: ShuangpinProfileKind::Xiaohe as u8,
         shuangpin_custom_profile: None,
         shuangpin_preedit_uses_raw: true,
+        shuangpin_preedit_separated: false,
+        force_cantonese_shuangpin: false,
+        cantonese_output_conversion: None,
         single_character_only: false,
+        caret_edit_suffix: false,
         learning: false,
         learn_english_on_enter: true,
         next_word_prediction: false,
@@ -234,13 +302,17 @@ pub fn prepare_options_for(
         wubi_mixed_pinyin: false,
         wubi_z_wildcard: false,
         wubi_profile: WubiProfileKind::Wubi86 as u8,
+        wubi_reverse_code: true,
         helpcode: true,
+        strict_quanpin_helpcode: false,
         show_helpcode: true,
         shuangpin_helpcode_modes: ShuangpinHelpcodeModes::default(),
+        grid_helpcode: false,
         helpcode_schema: "ziranma".to_owned(),
         helpcode_trigger_key: None,
         helpcode_table: None,
         helpcode_fallback_resources: None,
+        custom_helpcode_root: None,
         chinese_punctuation: true,
         paired_punctuation: true,
         punctuation_lock: 0,
@@ -268,6 +340,7 @@ pub fn prepare_options_for(
         local_emoji: true,
         local_kaomoji: true,
         local_super_jianpin: true,
+        local_super_jianpin_slash: true,
         local_temporary_english: true,
         local_temporary_japanese: true,
         local_expression: false,
@@ -296,7 +369,7 @@ pub fn prepare_options_for(
         stroke_dictionary: String::new(),
         japanese_dictionary: String::new(),
         wubi_dictionary: String::new(),
-    })
+    }
 }
 
 /// `options_for`: map and validate (`UNSUPPORTED_INPUT_SCHEME`, `UNSUPPORTED_SHUANGPIN_PROFILE`, `UNSUPPORTED_WUBI_PROFILE`, `UNSUPPORTED_FREQUENCY_MODE`, `UNSUPPORTED_VIETNAMESE_METHOD`, `UNSUPPORTED_VIETNAMESE_TONE_STYLE`), and refresh the translations sidecar in the generation directory.
@@ -307,7 +380,9 @@ pub fn session_options(options: &EngineOptions) -> Result<SessionOptions> {
         if let Err(error) =
             merge_downloaded_wubi(&runtime_paths(options), Path::new(&options.wubi_dictionary))
         {
-            eprintln!("msime: downloaded wubi tables not merged into the generation: {error}");
+            crate::logging::warn(format_args!(
+                "downloaded wubi tables not merged into the generation: {error}"
+            ));
         }
     }
     let scheme = SchemeType::from_u8(options.scheme)
@@ -334,109 +409,122 @@ pub fn session_options(options: &EngineOptions) -> Result<SessionOptions> {
     } else {
         0
     };
-    let mut session = SessionOptions::new(runtime_paths(options));
-    session.scheme = scheme;
-    session.enabled_schemes = options.enabled_schemes;
-    session.shuangpin_profile = shuangpin_profile;
-    session.shuangpin_custom_profile = options.shuangpin_custom_profile.clone();
-    session.shuangpin_preedit_uses_raw = options.shuangpin_preedit_uses_raw;
-    session.single_character_only = options.single_character_only;
-    session.vietnamese_input_method = vietnamese_input_method;
-    session.vietnamese_tone_style = vietnamese_tone_style;
-    session.korean_layout = korean_layout;
-    session.cantonese_dictionary = PathBuf::from(&options.cantonese_dictionary);
-    session.zhuyin_dictionary = PathBuf::from(&options.zhuyin_dictionary);
-    session.stroke_dictionary = PathBuf::from(&options.stroke_dictionary);
-    session.japanese_dictionary = PathBuf::from(&options.japanese_dictionary);
-    session.learning = options.learning;
-    session.learn_english_on_enter = options.learn_english_on_enter;
-    session.next_word_prediction = options.next_word_prediction;
-    session.autocorrect_types = autocorrect_types;
-    session.fuzzy_pinyin = FuzzyPinyinOptions {
-        rules: options.fuzzy_pinyin_rules & fuzzy_rule::ALL,
-    };
-    session.wubi = WubiInputOptions {
-        mixed_pinyin: options.wubi_mixed_pinyin,
-        z_wildcard: options.wubi_z_wildcard,
-        z_pinyin_lookup: true,
-        profile: wubi_profile,
-    };
-    session.chinese_punctuation = options.chinese_punctuation;
-    session.paired_punctuation = options.paired_punctuation;
-    session.punctuation_lock = i32::from(options.punctuation_lock);
-    session.punctuation_marks = PunctuationMarks {
-        quotes: if options.corner_quotes {
-            QuoteMarks::Corner
-        } else {
-            QuoteMarks::Curly
+    // 逐字段写出产品取值，不从 `SessionOptions::new` 继承：引擎库的默认值（例如辅助码默认关）与产品不同，以后再改也不会悄悄改到产品。核心层加了字段，这里不写就编译不过。
+    Ok(SessionOptions {
+        paths: runtime_paths(options),
+        scheme,
+        enabled_schemes: options.enabled_schemes,
+        shuangpin_profile,
+        shuangpin_custom_profile: options.shuangpin_custom_profile.clone(),
+        shuangpin_preedit_uses_raw: options.shuangpin_preedit_uses_raw,
+        shuangpin_preedit_separated: options.shuangpin_preedit_separated,
+        vietnamese_input_method,
+        vietnamese_tone_style,
+        korean_layout,
+        cantonese_dictionary: PathBuf::from(&options.cantonese_dictionary),
+        force_cantonese_shuangpin: options.force_cantonese_shuangpin,
+        cantonese_output_conversion: options.cantonese_output_conversion,
+        zhuyin_dictionary: PathBuf::from(&options.zhuyin_dictionary),
+        stroke_dictionary: PathBuf::from(&options.stroke_dictionary),
+        japanese_dictionary: PathBuf::from(&options.japanese_dictionary),
+        helpcode_schema: options.helpcode_schema.clone(),
+        helpcode_trigger_key: options.helpcode_trigger_key,
+        helpcode_table: options.helpcode_table.clone(),
+        helpcode_fallback_resources: options
+            .helpcode_fallback_resources
+            .as_ref()
+            .map(PathBuf::from),
+        custom_helpcode_root: options.custom_helpcode_root.as_ref().map(PathBuf::from),
+        autocorrect_types,
+        helpcode: options.helpcode,
+        strict_quanpin_helpcode: options.strict_quanpin_helpcode,
+        shuangpin_helpcode_modes: options.shuangpin_helpcode_modes,
+        grid_helpcode: options.grid_helpcode,
+        chinese_punctuation: options.chinese_punctuation,
+        paired_punctuation: options.paired_punctuation,
+        punctuation_lock: i32::from(options.punctuation_lock),
+        punctuation_marks: PunctuationMarks {
+            quotes: if options.corner_quotes {
+                QuoteMarks::Corner
+            } else {
+                QuoteMarks::Curly
+            },
+            brackets: if options.hollow_brackets {
+                BracketMarks::Hollow
+            } else {
+                BracketMarks::Solid
+            },
+            enumeration_comma_backslash: options.enumeration_comma_backslash,
+            enumeration_comma_slash: options.enumeration_comma_slash,
         },
-        brackets: if options.hollow_brackets {
-            BracketMarks::Hollow
-        } else {
-            BracketMarks::Solid
+        learning: options.learning,
+        learn_english_on_enter: options.learn_english_on_enter,
+        // 产品的回车学词策略（bridge.cpp:1332-1359）：专用英文之外，临时模式里原样上屏的字母和拼不成音节的拼音也学成英文词。总开关仍是 `learn_english_on_enter`。
+        learn_typed_spellings_on_enter: true,
+        sentence_alternatives: options.sentence_alternatives,
+        first_page_rows: options.first_page_rows,
+        single_character_only: options.single_character_only,
+        caret_edit_suffix: options.caret_edit_suffix,
+        fuzzy_pinyin: FuzzyPinyinOptions {
+            rules: options.fuzzy_pinyin_rules & fuzzy_rule::ALL,
         },
-        enumeration_comma_backslash: options.enumeration_comma_backslash,
-        enumeration_comma_slash: options.enumeration_comma_slash,
-    };
-    session.helpcode = options.helpcode;
-    session.helpcode_trigger_key = options.helpcode_trigger_key;
-    session.shuangpin_helpcode_modes = options.shuangpin_helpcode_modes;
-    session.helpcode_schema = options.helpcode_schema.clone();
-    session.helpcode_table = options.helpcode_table.clone();
-    session.helpcode_fallback_resources = options
-        .helpcode_fallback_resources
-        .as_ref()
-        .map(PathBuf::from);
-    session.frequency = FrequencyAdjustmentOptions {
-        mode,
-        trigger_count: i32::from(options.frequency_trigger_count),
-        linear_step: i32::from(options.frequency_linear_step),
-    };
-    session.mixed_candidates = options.mixed_candidates;
-    session.english = EnglishInputOptions {
-        mixed_candidates: options.mixed_english,
-        minimum_prefix: usize::from(options.english_minimum_prefix),
-        first_page_count: usize::from(options.english_first_page_count),
-    };
-    session.expressive = MixedExpressiveOptions {
-        emoji_candidates: options.mixed_emoji,
-        kaomoji_candidates: options.mixed_kaomoji,
-        symbol_candidates: options.mixed_symbols,
-    };
-    session.japanese_mixing = options.mixed_japanese;
-    session.multilingual_languages = options.multilingual_languages.clone();
-    session.local_modes = LocalModeOptions {
-        unicode: options.local_unicode,
-        date_time: options.local_date_time,
-        date_time_inline: options.local_date_time_inline,
-        date_time_menu: options.local_date_time_menu,
-        quick_phrase: options.local_quick_phrase,
-        emoji: options.local_emoji,
-        kaomoji: options.local_kaomoji,
-        super_jianpin: options.local_super_jianpin,
-        temporary_english: options.local_temporary_english,
-        temporary_japanese: options.local_temporary_japanese,
-        expression: options.local_expression,
-        command: options.local_command,
-        mention: options.local_mention,
-        chaizi: options.local_chaizi,
-        symbol: options.local_symbol,
-        shift_letter_entry: options.local_shift_letter_entry,
-    };
-    session.chaizi_traditional_output = options.chaizi_traditional_output;
-    session.command_table = options.command_table.clone();
-    session.plugin_commands = options.plugin_commands.clone();
-    session.mention_entries = options.mention_entries.clone();
-    session.quick_phrase_table = options.quick_phrase_table.clone();
-    session.quick_phrase_table_in_candidates = options.quick_phrase_table_in_candidates;
-    session.quick_phrase_candidates = options.quick_phrase_candidates;
-    session.quick_phrase_frequency = options.quick_phrase_frequency;
-    session.sentence_alternatives = options.sentence_alternatives;
-    session.sentence_association = options.sentence_association.clone();
-    session.first_page_rows = options.first_page_rows;
-    session.rescoring_context = options.rescoring_context.clone();
-    // `personal_context` keeps its default: the bridge never exposed it (api-contract §1a).
-    Ok(session)
+        frequency: FrequencyAdjustmentOptions {
+            mode,
+            trigger_count: i32::from(options.frequency_trigger_count),
+            linear_step: i32::from(options.frequency_linear_step),
+        },
+        local_modes: LocalModeOptions {
+            unicode: options.local_unicode,
+            date_time: options.local_date_time,
+            date_time_inline: options.local_date_time_inline,
+            date_time_menu: options.local_date_time_menu,
+            quick_phrase: options.local_quick_phrase,
+            emoji: options.local_emoji,
+            kaomoji: options.local_kaomoji,
+            super_jianpin: options.local_super_jianpin,
+            super_jianpin_slash: options.local_super_jianpin_slash,
+            temporary_english: options.local_temporary_english,
+            temporary_japanese: options.local_temporary_japanese,
+            expression: options.local_expression,
+            command: options.local_command,
+            mention: options.local_mention,
+            chaizi: options.local_chaizi,
+            symbol: options.local_symbol,
+            shift_letter_entry: options.local_shift_letter_entry,
+        },
+        mixed_candidates: options.mixed_candidates,
+        english: EnglishInputOptions {
+            mixed_candidates: options.mixed_english,
+            minimum_prefix: usize::from(options.english_minimum_prefix),
+            first_page_count: usize::from(options.english_first_page_count),
+        },
+        expressive: MixedExpressiveOptions {
+            emoji_candidates: options.mixed_emoji,
+            kaomoji_candidates: options.mixed_kaomoji,
+            symbol_candidates: options.mixed_symbols,
+        },
+        japanese_mixing: options.mixed_japanese,
+        multilingual_languages: options.multilingual_languages.clone(),
+        wubi: WubiInputOptions {
+            mixed_pinyin: options.wubi_mixed_pinyin,
+            z_wildcard: options.wubi_z_wildcard,
+            z_pinyin_lookup: true,
+            profile: wubi_profile,
+        },
+        // 桥接层从没把它交给宿主（api-contract §1a），产品一直按开。
+        personal_context: true,
+        next_word_prediction: options.next_word_prediction,
+        sentence_association: options.sentence_association.clone(),
+        rescoring_context: options.rescoring_context.clone(),
+        command_table: options.command_table.clone(),
+        plugin_commands: options.plugin_commands.clone(),
+        mention_entries: options.mention_entries.clone(),
+        quick_phrase_table: options.quick_phrase_table.clone(),
+        quick_phrase_table_in_candidates: options.quick_phrase_table_in_candidates,
+        quick_phrase_candidates: options.quick_phrase_candidates,
+        quick_phrase_frequency: options.quick_phrase_frequency,
+        chaizi_traditional_output: options.chaizi_traditional_output,
+    })
 }
 
 /// Copy `user_data/custom_translations.txt`, else the resource one, over `dictionaries/custom_translations.txt`, or delete it when neither exists (`TRANSLATION_SIDECAR_FAILED`).

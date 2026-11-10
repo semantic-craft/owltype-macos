@@ -1,1 +1,1 @@
-{"jsonrpc":"2.0","id":2,"result":{"appVersion":"2.2.0","appBuild":"2026102901","resourceGeneration":"dict-v2.0.39-4","inputSchema":{"id":"wubi86_jidian","name":"极点五笔86"},"inputMode":"chinese","exposedTemplateCount":2}}
+{"jsonrpc":"2.0","id":2,"result":{"appVersion":"2.2.0","appBuild":"2026102901","resourceGeneration":"dict-v2.1.2-5","inputSchema":{"id":"wubi86_jidian","name":"极点五笔86"},"inputMode":"chinese","exposedTemplateCount":2}}

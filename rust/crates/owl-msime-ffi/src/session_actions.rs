@@ -1,8 +1,8 @@
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
 
-use msime_engine::host::{check_shuangpin_custom_profile, Command, QuickPhraseEntry};
-use msime_engine::{fuzzy_rule, ShuangpinCustomTable, WubiProfileKind};
+use msime_engine::host::{check_shuangpin_custom_profile, Command};
+use msime_engine::{fuzzy_rule, QuickPhraseEntry, ShuangpinCustomTable, WubiProfileKind};
 use msime_input_runtime::{Action, CandidateId};
 use serde_json::{json, Value};
 

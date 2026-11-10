@@ -21,6 +21,8 @@ struct TransformEngine {
     /// 非空表示正在整句改字。
     conversion: String,
     candidate_list_open: bool,
+    /// 候选是网格辅助码筛过的。
+    grid_helpcode_constrained: bool,
     /// 打满四码时报告五笔唯一码。
     wubi_unique: bool,
     /// `expand_initial_candidates` 接到末尾的候选。
@@ -77,6 +79,7 @@ impl InputEngine for TransformEngine {
             candidate_corrected: vec![false; count],
             candidate_answers_key: vec![true; count],
             candidate_list_open: self.candidate_list_open,
+            grid_helpcode_constrained: self.grid_helpcode_constrained,
             shuangpin_profile: "xiaohe".into(),
             answered_by_pinyin_fallback: false,
             wubi_unique_four_code: self.wubi_unique && self.text.len() == 4,
@@ -84,6 +87,7 @@ impl InputEngine for TransformEngine {
             preedit: self.text.clone(),
             editing_text: self.text.clone(),
             caret_position: self.text.len(),
+            helpcode_trigger: None,
             conversion: self.conversion.clone(),
             conversion_focus_start: 0,
             conversion_focus_end: usize::from(!self.conversion.is_empty()),
@@ -196,6 +200,7 @@ fn ops(order: &[u32], hidden: &[u32], annotations: &[(u32, &str)]) -> CandidateO
             .iter()
             .map(|(row, text)| (*row, (*text).to_owned()))
             .collect(),
+        inserts: Vec::new(),
     }
 }
 
@@ -526,10 +531,13 @@ fn duplicate_rows_follow_their_own_rerank_and_annotation() {
 fn skipped_lists_run_no_transform_and_hide_nothing() {
     // 聚焦会取消组字，所以这些状态在聚焦之后才设。
     type Setup = fn(&mut TransformEngine);
-    let cases: [(&str, Setup); 3] = [
+    let cases: [(&str, Setup); 4] = [
         ("conversion", |engine| engine.conversion = "甲乙".into()),
         ("open list", |engine| engine.candidate_list_open = true),
         ("arrays out of step", |engine| engine.short_codes = true),
+        ("grid helpcode", |engine| {
+            engine.grid_helpcode_constrained = true
+        }),
     ];
     for (name, set) in cases {
         let mut harness = Harness::new(
@@ -796,3 +804,240 @@ fn a_suspended_transform_neither_runs_nor_replays() {
 
 #[path = "candidate_transform/allocation_tests.rs"]
 mod allocation_tests;
+
+// ---- 插件插进普通候选的行（`insert_candidates`）----
+
+const PLUGIN_SOURCE: u8 = msime_engine::CandidateSource::Plugin as u8;
+
+fn insert(position: u32, text: &str, note: &str) -> InsertedRow {
+    InsertedRow {
+        position,
+        text: text.to_owned(),
+        note: note.to_owned(),
+    }
+}
+
+fn inserting(order: &[u32], hidden: &[u32], inserts: Vec<InsertedRow>) -> CandidateOps {
+    CandidateOps {
+        inserts,
+        ..ops(order, hidden, &[])
+    }
+}
+
+/// 丁、乙排到前面，丙隐藏，在第 1 位插一行 🙂（注释「表情」）：显示 丁 🙂 乙 甲 戊。
+fn with_inserted_row() -> Harness {
+    let mut harness = Harness::new(
+        TransformEngine::new(&FIVE),
+        vec![inserting(&[3, 1], &[2], vec![insert(1, "🙂", "表情")])],
+    );
+    harness.key(b'a');
+    harness
+}
+
+#[test]
+fn an_inserted_row_lands_after_rerank_and_hide_and_commits_verbatim() {
+    let mut harness = with_inserted_row();
+    let view = harness.runtime.view();
+    assert_eq!(shown(&view), ["丁", "🙂", "乙", "甲", "戊"]);
+    let row = &view.candidates[1];
+    assert_eq!(row.source, PLUGIN_SOURCE);
+    assert_eq!(row.script_annotation.as_deref(), Some("表情"));
+    assert_eq!(row.annotation, "");
+    // 插入的行没有引擎下标，被隐藏的丙仍在末尾。
+    assert_eq!(harness.runtime.engine_order, [3, usize::MAX, 1, 0, 4, 2]);
+    let picked = harness.runtime.dispatch(Action::Select(row.id)).unwrap();
+    assert_eq!(picked.commit.as_deref(), Some("🙂"));
+    // 不经过引擎选词，组字丢掉；不计打字统计，作为插件行交给宿主（不转全角、不进 AI 上文）。
+    assert!(harness.runtime.engine.picks.is_empty());
+    assert!(harness.runtime.engine.text.is_empty());
+    let context = picked.commit_context.unwrap();
+    assert!(context.plugin_row);
+    assert!(!context.typing_statistics);
+    assert!(picked.view.candidates.is_empty());
+}
+
+#[test]
+fn every_selection_path_commits_a_highlighted_inserted_row_verbatim() {
+    let highlighted = || {
+        let mut harness = Harness::new(
+            TransformEngine::new(&FIVE),
+            vec![inserting(&[], &[], vec![insert(0, "ok", "")])],
+        );
+        harness.key(b'a');
+        assert_eq!(harness.shown()[0], "ok");
+        harness
+    };
+    for (name, action, expected) in [
+        ("finish", Action::Finish, "ok"),
+        ("space", Action::SelectHighlighted, "ok"),
+        ("punctuation", Action::Punctuation(b'.'), "ok."),
+        ("ascii punctuation", Action::PunctuationAscii(b'.'), "ok."),
+        (
+            "digit",
+            Action::Character {
+                value: b'1',
+                shift: false,
+            },
+            "ok",
+        ),
+    ] {
+        let mut harness = highlighted();
+        let committed = harness.runtime.dispatch(action).unwrap();
+        assert_eq!(committed.commit.as_deref(), Some(expected), "{name}");
+        assert!(harness.runtime.engine.picks.is_empty(), "{name}");
+        assert!(committed.commit_context.unwrap().plugin_row, "{name}");
+    }
+    // 第二格是引擎的甲：照常交给引擎，下标 0。
+    let mut harness = highlighted();
+    let picked = harness.key(b'2');
+    assert_eq!(picked.commit.as_deref(), Some("甲"));
+    assert_eq!(harness.runtime.engine.picks, [0]);
+    assert!(!picked.commit_context.unwrap().plugin_row);
+}
+
+#[test]
+fn focus_loss_and_edge_actions_never_commit_or_touch_an_inserted_row() {
+    let mut harness = Harness::new(
+        TransformEngine::new(&FIVE),
+        vec![inserting(&[], &[], vec![insert(0, "ok", "")])],
+    );
+    harness.key(b'a');
+    // 以词定字、置顶、删除、固定位置：什么都不做，组字还在。
+    let actions: [fn(CandidateId) -> Action; 5] = [
+        |id| Action::SelectEdge(id, CandidateEdge::FirstHan),
+        Action::PinCandidate,
+        Action::RemoveCandidate,
+        |id| Action::FixCandidatePosition(id, 1),
+        Action::ClearCandidatePosition,
+    ];
+    for action in actions {
+        let id = harness.runtime.view().candidates[0].id;
+        assert_eq!(harness.shown()[0], "ok");
+        let result = harness.runtime.dispatch(action(id)).unwrap();
+        assert!(result.commit.is_none());
+    }
+    assert!(harness.runtime.engine.picks.is_empty());
+    assert_eq!(harness.runtime.engine.text, "a");
+    // 失焦结束组字：上屏引擎的首行，不是插入的行。
+    let finished = harness.runtime.dispatch(Action::FinishOnFocusLoss).unwrap();
+    assert_eq!(finished.commit.as_deref(), Some("甲"));
+    assert_eq!(harness.runtime.engine.picks, [0]);
+}
+
+#[test]
+fn inserted_positions_are_clamped_capped_deduplicated_and_ordered_by_plugin() {
+    // 位置超出可见行数时插在可见行末尾（被隐藏的行仍在后面）；同一位置按执行顺序；同文只留第一行；合计最多 6 行。
+    let mut harness = Harness::new(
+        TransformEngine::new(&FIVE),
+        vec![
+            inserting(
+                &[],
+                &[4],
+                vec![
+                    insert(9, "末", ""),
+                    insert(1, "一", ""),
+                    insert(1, "二", ""),
+                ],
+            ),
+            inserting(
+                &[],
+                &[],
+                vec![
+                    insert(1, "三", ""),
+                    insert(0, "一", ""),
+                    insert(2, "四", ""),
+                    insert(2, "五", ""),
+                    insert(2, "六", ""),
+                ],
+            ),
+        ],
+    );
+    harness.key(b'a');
+    let all: Vec<String> = harness
+        .runtime
+        .all_candidates()
+        .candidates
+        .into_iter()
+        .map(|candidate| candidate.text)
+        .collect();
+    assert_eq!(
+        all,
+        ["甲", "一", "二", "三", "乙", "四", "五", "丙", "丁", "末"]
+    );
+    assert_eq!(harness.runtime.cached.candidates.last().unwrap(), "戊");
+    // 用不了的行被丢掉：空白、首尾空白、控制字符。
+    let mut harness = Harness::new(
+        TransformEngine::new(&FIVE),
+        vec![inserting(
+            &[],
+            &[],
+            vec![
+                insert(0, " ", ""),
+                insert(0, " a", ""),
+                insert(0, "a\nb", ""),
+                insert(0, "好", "a\u{7}"),
+            ],
+        )],
+    );
+    harness.key(b'a');
+    assert_eq!(harness.shown(), FIVE);
+}
+
+#[test]
+fn locked_seats_keep_their_place_when_rows_are_inserted() {
+    let mut fixed = TransformEngine::new(&["甲", "乙", "丙"]);
+    fixed.positions = vec![0, 2, 0];
+    let mut harness = Harness::new(fixed, vec![inserting(&[], &[], vec![insert(0, "新", "")])]);
+    harness.key(b'a');
+    // 乙固定在第二位（座位 1），插在最前的行把甲推到乙后面。
+    assert_eq!(harness.shown(), ["新", "乙", "甲", "丙"]);
+}
+
+#[test]
+fn side_calls_replay_inserts_by_anchor_and_drop_them_when_the_anchor_changed() {
+    let mut harness = with_inserted_row();
+    assert_eq!(harness.calls(), 1);
+    // 旁路刷新只重放：插入的行还在原位，插件没有再被调用。
+    harness.runtime.refresh_online_candidates().unwrap();
+    assert_eq!(harness.shown(), ["丁", "🙂", "乙", "甲", "戊"]);
+    assert_eq!(harness.calls(), 1);
+    // 插入位置上的候选变了（这里是引擎换掉了乙）：插入的行丢弃，不猜位置。
+    harness.runtime.engine.words[1] = "己".into();
+    harness.runtime.refresh_online_candidates().unwrap();
+    assert!(!harness.shown().contains(&"🙂".to_owned()));
+    assert_eq!(harness.calls(), 1);
+    // 下一次派发重新运行插件，插件这次没有插行：列表里也就没有。
+    *harness.ops.borrow_mut() = vec![ops(&[], &[], &[])];
+    harness.key(b'a');
+    assert_eq!(harness.shown(), ["甲", "己", "丙", "丁", "戊"]);
+}
+
+#[test]
+fn a_settled_rerank_leaves_a_list_with_inserted_rows_alone() {
+    let mut engine = TransformEngine::new(&["甲", "乙", "丙"]);
+    engine.sources = vec![LATTICE_SOURCE, LATTICE_SOURCE, 0];
+    let mut harness = Harness::new(engine, vec![inserting(&[], &[], vec![insert(1, "新", "")])]);
+    let model = favouring_model(&['甲', '乙', '丙'], &['乙']);
+    harness
+        .runtime
+        .set_settled_reranker(Some(Reranker::new(std::sync::Arc::new(model))));
+    harness.key(b'a');
+    assert_eq!(harness.shown(), ["甲", "新", "乙", "丙"]);
+    assert!(!harness.runtime.rerank_settled());
+    assert!(harness.runtime.begin_settled_rerank().is_none());
+    assert_eq!(harness.shown(), ["甲", "新", "乙", "丙"]);
+}
+
+#[test]
+fn wubi_top_commit_takes_the_engines_first_row_past_an_inserted_one() {
+    let mut wubi = TransformEngine::new(&["工", "式", "戒"]);
+    wubi.scheme = 2;
+    let mut harness = Harness::new(wubi, vec![inserting(&[], &[], vec![insert(0, "新", "")])]);
+    for key in b"aaaa" {
+        harness.key(*key);
+    }
+    assert_eq!(harness.shown(), ["新", "工", "式", "戒"]);
+    let topped = harness.key(b'a');
+    assert!(topped.commit.unwrap().starts_with('工'));
+    assert_eq!(harness.runtime.engine.picks, [0]);
+}

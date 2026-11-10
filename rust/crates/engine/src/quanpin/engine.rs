@@ -5,8 +5,8 @@ use std::collections::HashMap;
 use crate::dictionary::DictRow;
 use crate::error::Result;
 use crate::helpcode::{
-    filter_candidates_with_double_helpcodes, reorder_candidates_with_single_helpcode,
-    HelpcodeKeymap,
+    filter_candidates_with_double_helpcodes, filter_candidates_with_single_helpcode,
+    reorder_candidates_with_single_helpcode, HelpcodeKeymap,
 };
 use crate::lattice::decode::PinnedSpan;
 use crate::paths::RuntimePaths;
@@ -20,11 +20,20 @@ pub struct QuanpinEngine {
     dictionary: QuanpinDictionary,
 }
 
+#[cfg(test)]
+#[path = "engine/initial_helpcode_tests.rs"]
+mod initial_helpcode_tests;
+
 impl QuanpinEngine {
     pub fn new(paths: &RuntimePaths) -> Self {
         Self {
             dictionary: QuanpinDictionary::new(paths),
         }
+    }
+
+    /// 全拼词库的粗俗词表，见 `QuanpinDictionary::offensive_words`。
+    pub(crate) fn offensive_words(&self) -> &crate::lattice::offensive::OffensiveWords {
+        self.dictionary.offensive_words()
     }
 
     /// Double helpcode: query the base and keep matches; single: query the base and reorder; otherwise query the raw input with its segmentation, mask and fuzzy options (QE:39-81). Empty for an invalid request.
@@ -41,6 +50,9 @@ impl QuanpinEngine {
         // Each setter is a no-op when the value is unchanged, so this costs nothing per keystroke. The association options and the context select the series slot rather than clearing it; only a change of the sentence-alternatives answer clears the cached lists.
         self.dictionary
             .set_sentence_alternatives(request.sentence_alternatives);
+        self.dictionary.set_sentence_pool(request.sentence_pool);
+        self.dictionary
+            .set_sentence_scorer(&request.sentence_scorer);
         self.dictionary
             .set_sentence_association(request.sentence_association.clone());
         self.dictionary.set_first_page_rows(request.first_page_rows);
@@ -72,13 +84,24 @@ impl QuanpinEngine {
             .map(|segments| join_segments(segments))
             .unwrap_or_default();
         let codes = &request.raw_input[request.raw_input.len() - helpcode_length..];
-        let rows = self
-            .dictionary
-            .query(&base, &base_segmentation, types, request.fuzzy_pinyin);
+        let mut rows =
+            self.dictionary
+                .query(&base, &base_segmentation, types, request.fuzzy_pinyin);
+        // 有效辅助码已保证基础读音完整；单字母不能沿用首屏的 24 行截断。
+        if base.len() == 1 {
+            self.dictionary.complete_initial_candidates(
+                &base,
+                &base_segmentation,
+                types,
+                &mut rows,
+            );
+        }
         let empty = HelpcodeKeymap::default();
         let keymap = keymap.unwrap_or(&empty);
         if helpcode_length == 2 {
             filter_candidates_with_double_helpcodes(rows, codes, keymap)
+        } else if request.strict_quanpin_helpcode {
+            filter_candidates_with_single_helpcode(rows, codes, keymap)
         } else {
             reorder_candidates_with_single_helpcode(rows, codes, keymap)
         }

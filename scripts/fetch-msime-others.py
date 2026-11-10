@@ -27,17 +27,17 @@ SOURCE_SIZE = PIN.files["msime-others.db"]["size"]
 SOURCE_SHA256 = PIN.files["msime-others.db"]["sha256"]
 DATA_COMMIT = PIN.data_commit
 BUILDER_COMMIT = PIN.builder_commit
-EXPECTED_ROWS = {"emoji": 1_935, "emoji_pinyin": 21_541, "kaomoji": 1_675, "kaomoji_catalog": 1_400}
+EXPECTED_ROWS = {"emoji": 1_935, "emoji_pinyin": 21_534, "kaomoji": 1_673, "kaomoji_catalog": 1_398}
 EXPECTED_ROW_HASHES = {
-    "kaomoji": "31ecdb996b3d5dcd30d350d779651685fbc0d9d83578d846ac16c241b89b506f",
-    "kaomoji_catalog": "149d3a2bea71d38cc5b4d853d5b889abac3c5deb1a098c518ffa42c63d36d15f",
-    "emoji": "b3939c2005a8d46b18a5421eeee35698ba7b1ae01b3c24e6f470a524710905a7",
-    "emoji_pinyin": "e761e06bb14331d27d48786fe6be4e998f289344e139e1252ce53f9090a4c306",
+    "kaomoji": "b9cbb90fce8e526b52931f0a6841e9667d591ca72e54d31c6b6f37a17359cfea",
+    "kaomoji_catalog": "9d868e969ed3543d5afa54014864dc805f08daf2d085d01ff2c81d9ef4004c2c",
+    "emoji": "7288ec95029ab8927fa1dd1aa9f3dfd56ceff07a1797ca4a43966aeafc6d1273",
+    "emoji_pinyin": "2b49bfe0fadd13456725d9d67509abc6a2dbfa23131284ab0b6e2246a1167dd2",
 }
 LICENSE_EXPRESSION = "GPL-3.0-only AND Unicode-3.0 AND MIT"
 REQUIRED_NOTICE_HASHES = {
     "rime-kaomoji.LICENSE": "bc4f44c16c8a6ea28e30ac4e1e9a737e8711ba3140f241fea9c8404a86f3ffe1",
-    "msime-others-NOTICE.txt": "2a8f11ff86c458cf1a18969af474705564d7b032ca762f7e3b9af5551e6220ff",
+    "msime-others-NOTICE.txt": "1f68c5e9935a91f5ad494e05e61cb48e19250bba68de1eeb6b240367feef5b6c",
 }
 TABLE_ORDER = {
     "kaomoji": ("pinyin", "jianpin", "kaomoji"),

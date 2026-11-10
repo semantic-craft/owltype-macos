@@ -133,6 +133,7 @@ def normalize_history_trufflehog(record: dict[str, Any]) -> Finding | None:
         raw=_text(record.get("Raw")),
         location="file" if path else "commit_message",
         commit=_text(git_data.get("commit"), "unknown")[:12],
+        verified=record.get("Verified") if isinstance(record.get("Verified"), bool) else None,
     )
 
 
@@ -204,12 +205,15 @@ def lob_test_identifier(finding: Finding) -> bool:
     return in_test_directory or is_selftest_source
 
 
-# Public dict-v2.0.39 msime-english.db is shipped byte-for-byte from the
+# Public dict-v2.1.2 msime-english.db is shipped byte-for-byte from the
 # SHA-pinned official manifest. Eraser matches one serialized word/display
-# pair rather than a credential. Pin this single raw match as well as the
-# complete public file; do not exempt a path, table, detector or generic shape.
-PUBLIC_ENGLISH_DB_SHA256 = "1b5497d6764f15ebd2f86225c29b0fa1e45961638dfb0e13859214fbfc6f4bfd"
+# pair and TravisCI matches one serialized word/display/weight record rather
+# than credentials. Pin these single raw matches as well as the complete
+# public file; do not exempt a path, table, detector or generic shape.
+PUBLIC_ENGLISH_DB_SHA256 = "4e9e96e7cc764d05b5b1b434c7065bc9a754b9f8b941cf99e4d9190321cb2210"
 PUBLIC_ENGLISH_PAIR_SHA256 = "0765860a9a46aa632108905db5870971f1e74c377435cf6df910651abd976298"
+PUBLIC_ENGLISH_TRAVIS_RAW_SHA256 = "71cd9c16d9681405dd48e8a2e6a18fa9744bc8583bb438c5d6c5607552ebb2f1"
+UPSTREAM_NOTICE_OCC_DIGEST_SHA256 = "2a94ef08e0bd47079e3e946441a98f7236bdcab093b1018548f2834fb2563f9d"
 
 
 _COHORT_CHECKER = None
@@ -304,13 +308,26 @@ def public_english_location(finding: Finding, path: pathlib.Path) -> bool:
 
 
 def public_english_row_pair(finding: Finding) -> bool:
-    """Allow only the proven unverified Eraser match in the unchanged public DB."""
+    """Allow only proven unverified serialized row matches in the unchanged public DB."""
     if (finding.source != "artifact" or finding.scanner != "trufflehog"
-            or finding.detector != "Eraser" or finding.verified is not False):
+            or finding.verified is not False):
         return False
     raw = finding.raw
-    if (len(raw) != 20 or not raw.isascii() or not raw.isalpha() or not raw.islower()
-            or hashlib.sha256(raw.encode()).hexdigest() != PUBLIC_ENGLISH_PAIR_SHA256):
+    if finding.detector == "Eraser":
+        if (len(raw) != 20 or not raw.isascii() or not raw.isalpha() or not raw.islower()
+                or hashlib.sha256(raw.encode()).hexdigest() != PUBLIC_ENGLISH_PAIR_SHA256):
+            return False
+        query = "SELECT COUNT(*) FROM english_words WHERE word = display AND word || display = ?"
+    elif finding.detector == "TravisCI":
+        if (len(raw) != 22 or not raw.isascii() or not raw.isalpha() or not raw[:20].islower()
+                or hashlib.sha256(raw.encode()).hexdigest() != PUBLIC_ENGLISH_TRAVIS_RAW_SHA256):
+            return False
+        query = (
+            "SELECT COUNT(*) FROM english_words "
+            "WHERE word = display AND weight BETWEEN 256 AND 65535 "
+            "AND word || display || char(weight >> 8) || char(weight & 255) = ?"
+        )
+    else:
         return False
     path = pathlib.Path(finding.path)
     if path.is_symlink() or not public_english_location(finding, path):
@@ -320,13 +337,35 @@ def public_english_row_pair(finding: Finding) -> bool:
             return False
         # Read exactly the hashed DB; do not incorporate an ambient WAL/journal.
         with closing(sqlite3.connect(f"{path.resolve().as_uri()}?mode=ro&immutable=1", uri=True)) as db:
-            row = db.execute(
-                "SELECT COUNT(*) FROM english_words WHERE word = display AND word || display = ?",
-                (raw,),
-            ).fetchone()
+            row = db.execute(query, (raw,)).fetchone()
             return row == (1,)
     except (OSError, sqlite3.Error):
         return False
+
+
+def upstream_notice_digest_row(finding: Finding) -> bool:
+    """Allow only the pinned zhuyin dictionary SHA-256 row in upstream NOTICE."""
+    if (finding.scanner != "trufflehog" or finding.detector != "PhraseAccessToken"
+            or finding.location != "file" or finding.verified is not False):
+        return False
+    raw = finding.raw
+    if (not SHA256.fullmatch(raw)
+            or hashlib.sha256(raw.encode()).hexdigest() != UPSTREAM_NOTICE_OCC_DIGEST_SHA256):
+        return False
+    if finding.source == "history":
+        return finding.path == "data/msime-upstream-licensing-NOTICE.md"
+    path = pathlib.Path(finding.path)
+    if path.is_symlink() or path.name != "msime-upstream-licensing-NOTICE.md" or finding.line is None:
+        return False
+    expected_row = "| `sources/zhuyin/phr" + f"ase.occ` | `{raw}` |"
+    try:
+        with path.open(encoding="utf-8", errors="replace") as handle:
+            for index, line in enumerate(handle, start=1):
+                if index == finding.line:
+                    return line.rstrip("\r\n") == expected_row
+    except OSError:
+        return False
+    return False
 
 
 Predicate = tuple[str, Callable[[Finding], bool]]
@@ -335,6 +374,7 @@ ALLOWED: tuple[Predicate, ...] = (
     ("Swift 符号修饰", swift_symbol),
     ("Lob 撞测试函数名", lob_test_identifier),
     ("固定公开英文词库的词条列拼接", public_english_row_pair),
+    ("上游许可证声明的词库 SHA-256 摘要列", upstream_notice_digest_row),
 )
 
 

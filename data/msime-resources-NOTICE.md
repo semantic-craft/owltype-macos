@@ -1,23 +1,23 @@
 # Production dictionary resource provenance
 
 Owltype pins the public desktop release
-[metasequoiaime/msime-dictionary dict-v2.0.39](https://github.com/metasequoiaime/msime-dictionary/releases/tag/dict-v2.0.39).
-The verbatim release manifest is `msime-dictionary-manifest.json` (4,769 bytes,
-SHA-256 `d697cc197ac4c61fc6447a42eb8cb96d9913bec4ebdd79fad4c68d91f37bbb55`).
-Its builder/format-contract revision is `8bb181be2ed36ed9559a87434cc4c9048077ff29`
-and dictionary source revision is `75978c6a6470171cc805c74e87ef465d894a7be4`.
+[metasequoiaime/msime-dictionary dict-v2.1.2](https://github.com/metasequoiaime/msime-dictionary/releases/tag/dict-v2.1.2).
+The verbatim release manifest is `msime-dictionary-manifest.json` (5,394 bytes,
+SHA-256 `473f0eb4b6c6d7d2f6fba0935d026f5139ef45a666a3d7e467fd6298728eb6ec`).
+Its builder/format-contract revision is `24852caa38e76f316cac69fd3fdba0d428d4d249`
+and dictionary source revision is `c239ba1a584511d15d33ff9c1c520897993f2013`.
 The manifest records `includes_unlicensed_inputs: false` and the four excluded
 unlicensed inputs. That flag covers the builder inputs; it does not erase the
 separately documented symbol redistribution gap below.
 
 | Release member | Bytes | SHA-256 | Production handling |
 | --- | ---: | --- | --- |
-| msime-pinyin.db | 73916416 | e8d7a7bc8f990b6553d5d5199e652d29d86015dc8f48498689108fca408fc935 | Verbatim; no Owl Wubi overlay |
-| msime-wubi.db | 94982144 | 54ee94799d8e33d5356468bdae164d21f68ce8ca0de9e6464ed4b3783924b93c | Verbatim; official 86 and 98 base tables plus supplements |
-| msime-english.db | 4526080 | 1b5497d6764f15ebd2f86225c29b0fa1e45961638dfb0e13859214fbfc6f4bfd | Verbatim |
-| msime-bigram.bin | 12000016 | 3513db47cbe2f035af969b1c3ba8d414f760d70ab404ad49c477630799f94c6b | Verbatim |
-| msime-trigram.bin | 12000016 | 818e87be6f4d6ba5004a64533fae543c8738d03899d37495d0fb818eaaa5495c | Verbatim |
-| msime-others.db | 1314816 | 9f3cae5b407038e0e4536c40582a0bc0feb732657f0ae2d38196374cede52f94 | Complete file in build cache; audited emoji derivative in product |
+| msime-pinyin.db | 73891840 | 69a09c58978b402399c241a5553ca2beff1b8cb756e3ec635184178ccb1c140d | Verbatim; no Owl Wubi overlay |
+| msime-wubi.db | 142508032 | 2e1ff8eaaa4a6dee7fc0947c17c4bf58f5bf5fc5c8a2f87c2ed7ccbf9926b146 | Verbatim; official 86 and 98 base tables plus supplements |
+| msime-english.db | 4485120 | 4e9e96e7cc764d05b5b1b434c7065bc9a754b9f8b941cf99e4d9190321cb2210 | Verbatim |
+| msime-bigram.bin | 12000016 | 53c1561cead0314a12c37e5ad2656b064b6e87891ce5e180b602b68b5a57f0d5 | Verbatim |
+| msime-trigram.bin | 12000016 | 8b0a51720e3f836ff7576ea330e9b14e2912218f8edf52dfd80a703991e8b601 | Verbatim |
+| msime-others.db | 1323008 | 2a53f91302928c47a45eb2f91aac02d17f0c21c354f0c838eaf1584f702d4206 | Complete file in build cache; audited emoji derivative in product |
 
 `fetch-msime-resources.py` downloads every file named by the pinned manifest into
 the build cache and verifies every byte size and digest before publishing any
@@ -38,7 +38,7 @@ upstream notice below records each input. The original Apache text remains
 `wubi86-jidian.LICENSE`; GPL-3.0, Unlicense and WTFPL texts accompany the seed.
 
 The verbatim upstream notice from msime source revision
-`208c10e848bbed99373ca8b609fd2142b6b0b4e2` is included as
+`d72bf12105469f4faeb94213404d9abc84ff799f` is included as
 `msime-upstream-licensing-NOTICE.md`. It distinguishes GPL-3.0 rime-ice,
 MIT pinyin corrections/translations, SCOWL, and the Chinese Wikipedia context
 statistics. Owl retains the GPL/MIT/Unicode license texts and the release's exact

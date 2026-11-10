@@ -9,10 +9,11 @@ use crate::paths::RuntimePaths;
 use crate::types::{PersonalDictionaryEntry, PersonalDictionaryKind};
 use crate::user_dictionary::journal::{open_database, pinyin_table};
 use crate::user_dictionary::personal::{
-    check_receipt, column_i64, column_text, failed, open_edit_connection, page_bind, save_receipt,
-    valid_request_id, Receipt, DICTIONARY_NOT_OPENED, EDIT_NOT_BEGUN, ENTRY_CHANGED,
-    INVALID_REQUEST_ID, MAX_ENTRY_WEIGHT, MAX_PAGE_LIMIT, MAX_PAGE_OFFSET, NO_CHINESE_DICTIONARY,
-    RETRY_NOT_FINISHED, STORAGE_NOT_ATTACHED, STORAGE_UNAVAILABLE,
+    check_receipt, column_i64, column_text, failed, generation_has_main_dictionary, maintenance,
+    open_edit_connection, page_bind, save_receipt, valid_request_id, Receipt,
+    DICTIONARY_NOT_OPENED, EDIT_NOT_BEGUN, ENTRY_CHANGED, INVALID_REQUEST_ID, MAX_ENTRY_WEIGHT,
+    MAX_PAGE_LIMIT, MAX_PAGE_OFFSET, NO_CHINESE_DICTIONARY, RETRY_NOT_FINISHED,
+    STORAGE_NOT_ATTACHED, STORAGE_UNAVAILABLE,
 };
 use crate::user_dictionary::replay::attach;
 
@@ -48,7 +49,7 @@ pub struct DictionaryTablePage {
 
 /// 只读查询：ASCII 按编码前缀，含非 ASCII 字符时按词条字面包含匹配，空查询列出全部。拼音编码忽略分隔符、空格和大小写。个人行优先，再按精确匹配、权重、编码和词条排序。
 ///
-/// 无效编码或缺少目标词库时返回空页；查询不创建或写入词库和 journal。
+/// 无效编码或缺少目标词库时返回空页；查询不创建或写入词库和 journal。粤语没有可浏览的工作表（发布词在 `msime-cantonese.db`，由 `dictionary_lookup` 浏览；个人粤语词只在日志里，由 `personal_dictionary_entries_for_kind` 列出），总是空页。
 pub fn dictionary_table_entries(
     paths: &RuntimePaths,
     kind: PersonalDictionaryKind,
@@ -72,7 +73,7 @@ pub fn dictionary_table_entries(
         };
         code
     };
-    if code.is_empty() && !query.trim().is_empty() {
+    if (code.is_empty() && !query.trim().is_empty()) || kind == PersonalDictionaryKind::Cantonese {
         return Ok(DictionaryTablePage::default());
     }
     paths.validate().map_err(|_| failed(STORAGE_UNAVAILABLE))?;
@@ -129,7 +130,9 @@ pub fn dictionary_table_entries(
             // 五笔与英文编码按小写存储，前缀范围可以使用主索引。
             PersonalDictionaryKind::Wubi
             | PersonalDictionaryKind::Wubi98
-            | PersonalDictionaryKind::English => (
+            | PersonalDictionaryKind::WubiXsj
+            | PersonalDictionaryKind::English
+            | PersonalDictionaryKind::Cantonese => (
                 format!("{key_column}>=?1 AND {key_column}<?3"),
                 format!("{key_column}=?1"),
             ),
@@ -221,21 +224,8 @@ pub fn dictionary_table_entries(
     Ok(page)
 }
 
-/// Re-weight (`Some`) or delete (`None`) a row that is not user-inserted, journaled so replay repeats it; `previous.weight` must be the current weight. Request ids behave as for `edit_personal_dictionary`.
-///
-/// Only the new weight is range-checked: a shipped English weight can lie far above what a user entry may carry, and such a row must still be deletable.
-pub fn edit_bundled_dictionary_entry(
-    paths: &RuntimePaths,
-    previous: &PersonalDictionaryEntry,
-    weight: Option<i64>,
-    request_id: &str,
-) -> Result<()> {
-    edit_bundled_dictionary_entry_with(paths, true, previous, weight, request_id)
-}
-
-/// [`edit_bundled_dictionary_entry`]，`main_dictionary` 说明代次里有没有 `msime-pinyin.db`。没有时只有英文词库的行能改，其余种类以 `NO_CHINESE_DICTIONARY` 失败。
-pub fn edit_bundled_dictionary_entry_with(
-    paths: &RuntimePaths,
+/// 不碰磁盘就能判定的拒绝：请求号、新权重、行所在的表和长度，没有工作主词库时只能改英文行。
+fn check_bundled_edit(
     main_dictionary: bool,
     previous: &PersonalDictionaryEntry,
     weight: Option<i64>,
@@ -247,20 +237,50 @@ pub fn edit_bundled_dictionary_entry_with(
     if weight.is_some_and(|weight| !(1..=MAX_ENTRY_WEIGHT).contains(&weight)) {
         return Err(failed(WEIGHT_OUT_OF_RANGE));
     }
-    let Some(table) = bundled_table(previous.kind, &previous.key) else {
-        return Err(failed(INVALID_BUNDLED_ENTRY));
-    };
-    if previous.key.is_empty()
+    if bundled_table(previous.kind, &previous.key).is_none()
+        || previous.key.is_empty()
         || previous.value.is_empty()
         || previous.key.len() > MAX_BUNDLED_KEY_BYTES
         || previous.value.len() > MAX_BUNDLED_VALUE_BYTES
     {
         return Err(failed(INVALID_BUNDLED_ENTRY));
     }
-    let english = previous.kind == PersonalDictionaryKind::English;
-    if !main_dictionary && !english {
+    if !main_dictionary && previous.kind != PersonalDictionaryKind::English {
         return Err(failed(NO_CHINESE_DICTIONARY));
     }
+    Ok(())
+}
+
+/// Re-weight (`Some`) or delete (`None`) a row that is not user-inserted, journaled so replay repeats it; `previous.weight` must be the current weight. Request ids behave as for `edit_personal_dictionary`.
+///
+/// Only the new weight is range-checked: a shipped English weight can lie far above what a user entry may carry, and such a row must still be deletable.
+///
+/// 自己取独占的维护租约，规则同 [`crate::edit_personal_dictionary`]；代次里没有 `msime-pinyin.db` 时同样只能改英文词库的行。
+pub fn edit_bundled_dictionary_entry(
+    paths: &RuntimePaths,
+    previous: &PersonalDictionaryEntry,
+    weight: Option<i64>,
+    request_id: &str,
+) -> Result<()> {
+    let main_dictionary = generation_has_main_dictionary(paths);
+    check_bundled_edit(main_dictionary, previous, weight, request_id)?;
+    let _access = maintenance(paths)?;
+    edit_bundled_dictionary_entry_with(paths, main_dictionary, previous, weight, request_id)
+}
+
+/// [`edit_bundled_dictionary_entry`]，`main_dictionary` 说明代次里有没有 `msime-pinyin.db`。没有时只有英文词库的行能改，其余种类以 `NO_CHINESE_DICTIONARY` 失败。不取维护租约，调用方已经持有。
+pub fn edit_bundled_dictionary_entry_with(
+    paths: &RuntimePaths,
+    main_dictionary: bool,
+    previous: &PersonalDictionaryEntry,
+    weight: Option<i64>,
+    request_id: &str,
+) -> Result<()> {
+    check_bundled_edit(main_dictionary, previous, weight, request_id)?;
+    let Some(table) = bundled_table(previous.kind, &previous.key) else {
+        return Err(failed(INVALID_BUNDLED_ENTRY));
+    };
+    let english = previous.kind == PersonalDictionaryKind::English;
     let target = format!(
         "{}.\"{table}\"",
         if english { "replay_english" } else { "main" }
@@ -364,11 +384,13 @@ pub fn edit_bundled_dictionary_entry_with(
 fn bundled_table(kind: PersonalDictionaryKind, key: &str) -> Option<String> {
     match kind {
         PersonalDictionaryKind::Pinyin => pinyin_table(key),
-        PersonalDictionaryKind::Wubi | PersonalDictionaryKind::Wubi98 => {
-            kind.wubi_table().map(str::to_owned)
-        }
+        PersonalDictionaryKind::Wubi
+        | PersonalDictionaryKind::Wubi98
+        | PersonalDictionaryKind::WubiXsj => kind.wubi_table().map(str::to_owned),
         PersonalDictionaryKind::QuickPhrase => Some("quick_parases".to_owned()),
         PersonalDictionaryKind::English => Some("english_words".to_owned()),
+        // 粤语的发布词在只读的 `msime-cantonese.db`，不能改权重或删除。
+        PersonalDictionaryKind::Cantonese => None,
     }
 }
 
@@ -383,8 +405,10 @@ fn lookup_tables(kind: PersonalDictionaryKind, code: &str, word_search: bool) ->
         PersonalDictionaryKind::Pinyin => (format::MAXIMUM_NUMBERED_SYLLABLES + 1) * initials.len(),
         PersonalDictionaryKind::Wubi
         | PersonalDictionaryKind::Wubi98
+        | PersonalDictionaryKind::WubiXsj
         | PersonalDictionaryKind::QuickPhrase
         | PersonalDictionaryKind::English => 1,
+        PersonalDictionaryKind::Cantonese => 0,
     };
     let mut tables = Vec::with_capacity(capacity);
     match kind {
@@ -397,11 +421,12 @@ fn lookup_tables(kind: PersonalDictionaryKind, code: &str, word_search: bool) ->
                 }
             }
         }
-        PersonalDictionaryKind::Wubi | PersonalDictionaryKind::Wubi98 => {
-            tables.extend(kind.wubi_table().map(str::to_owned))
-        }
+        PersonalDictionaryKind::Wubi
+        | PersonalDictionaryKind::Wubi98
+        | PersonalDictionaryKind::WubiXsj => tables.extend(kind.wubi_table().map(str::to_owned)),
         PersonalDictionaryKind::QuickPhrase => tables.push("quick_parases".to_owned()),
         PersonalDictionaryKind::English => tables.push("english_words".to_owned()),
+        PersonalDictionaryKind::Cantonese => {}
     }
     tables
 }
@@ -805,6 +830,50 @@ mod tests {
                 .unwrap_err()
                 .to_string(),
             ENTRY_CHANGED
+        );
+    }
+
+    #[test]
+    fn engine_level_bundled_edits_take_the_maintenance_lease() {
+        use PersonalDictionaryKind::*;
+        let fixture = Fixture::new();
+        let paths = &fixture.paths;
+        let nihao = row(&fixture.lookup(Pinyin, "nihao"), "你好")
+            .unwrap()
+            .entry
+            .clone();
+        let session = crate::DictionaryAccess::try_session(&paths.user_data, &paths.dictionaries)
+            .unwrap()
+            .unwrap();
+
+        let error =
+            edit_bundled_dictionary_entry(paths, &nihao, Some(1), "busy-bundled").unwrap_err();
+        assert_eq!(error.code(), crate::ErrorCode::Busy);
+        assert_eq!(
+            error.to_string(),
+            crate::diagnostics::DICTIONARY_MAINTENANCE_BUSY
+        );
+        assert_eq!(
+            row(&fixture.lookup(Pinyin, "nihao"), "你好")
+                .unwrap()
+                .entry
+                .weight,
+            500_000
+        );
+        assert!(!paths.user(assets::USER_JOURNAL).exists());
+        // 不合法的改动在取租约之前就被拒绝，报的仍是校验错误，不是 Busy。
+        let error = edit_bundled_dictionary_entry(paths, &nihao, Some(0), "").unwrap_err();
+        assert_eq!(error.code(), crate::ErrorCode::Failed);
+        assert_eq!(error.to_string(), WEIGHT_OUT_OF_RANGE);
+
+        drop(session);
+        edit_bundled_dictionary_entry(paths, &nihao, Some(1), "busy-bundled").unwrap();
+        assert_eq!(
+            row(&fixture.lookup(Pinyin, "nihao"), "你好")
+                .unwrap()
+                .entry
+                .weight,
+            1
         );
     }
 }

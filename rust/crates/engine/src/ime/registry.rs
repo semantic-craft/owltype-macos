@@ -1,4 +1,4 @@
-//! The providers, one per scheme family (`R/providers/provider_registry.cpp`, `pinyin_candidate_provider.cpp`): pinyin (quanpin and shuangpin engines), wubi and Japanese. Korean syllables are the text, so a Korean query answers nothing until the user opens the Hanja list, and then the embedded Hanja table (`korean::hanja`) answers it. Cantonese is answered by `msime-cantonese.db`, which is opened the first time the scheme is activated and then kept for the session. Zhuyin's editor reads `msime-zhuyin.db` itself while it converts, so the registry opens that file the first time the scheme is activated, lends the connection to each Zhuyin scheme built and takes it back when that scheme is replaced; its list rows reach the session through the scheme, never through `query`. Stroke is answered by `msime-stroke.db` the way Cantonese is: opened the first time the scheme is activated, kept for the session, and read by `query`.
+//! The providers, one per scheme family (`R/providers/provider_registry.cpp`, `pinyin_candidate_provider.cpp`): pinyin (quanpin and shuangpin engines), wubi and Japanese. Korean syllables are the text, so a Korean query answers nothing until the user opens the Hanja list, and then the embedded Hanja table (`korean::hanja`) answers it. Cantonese is answered by `msime-cantonese.db`, which is opened the first time the scheme is activated and then kept for the session, together with the Cantonese rows of the user journal (the words the user added or typing created, and learned weights; `cantonese::UserWords`). Zhuyin's editor reads `msime-zhuyin.db` itself while it converts, so the registry opens that file the first time the scheme is activated, lends the connection to each Zhuyin scheme built and takes it back when that scheme is replaced; its list rows reach the session through the scheme, never through `query`. Stroke is answered by `msime-stroke.db` the way Cantonese is: opened the first time the scheme is activated, kept for the session, and read by `query`.
 //!
 //! The registry answers queries and lookups only. The reference also routed `create_word` / `update_weight_by_pinyin_and_word` / `delete_by_pinyin_and_word` through it; here the session writes pins, removals and frequency learning into user_dictionary itself, choosing the dictionary kind from the selected row's scheme (overlays.md §3.3), and phrases through its own canonical-pinyin `QuanpinEngine`, so a second writer path would only diverge from it.
 
@@ -6,9 +6,13 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 
+use super::cantonese_output::CantoneseOutputOrigins;
 use crate::assets;
-use crate::cantonese::scheme::CantoneseQueryBuffer;
-use crate::cantonese::{CantoneseCandidate, CantoneseDictionary, CantoneseScheme, Inventory};
+use crate::cantonese::scheme::{deduplicate_candidates, CantoneseQueryBuffer};
+use crate::cantonese::{
+    CantoneseCandidate, CantoneseDictionary, CantoneseLexicon, CantoneseScheme, Inventory,
+    UserWords,
+};
 use crate::diagnostics;
 use crate::error::{EngineError, Result};
 use crate::helpcode::SharedKeymap;
@@ -23,7 +27,8 @@ use crate::shuangpin::{ShuangpinEngine, ShuangpinProfile};
 use crate::stroke::scheme::StrokeQueryBuffer;
 use crate::stroke::{StrokeCandidate, StrokeScheme};
 use crate::types::{
-    CandidateSource, QueryRequest, SchemeSet, SchemeType, WordItem, WubiProfileKind,
+    CandidateSource, QueryRequest, SchemeSet, SchemeType, SharedString, TextConversion, WordItem,
+    WubiProfileKind,
 };
 use crate::wubi::provider::WubiProvider;
 
@@ -40,9 +45,14 @@ pub struct ProviderRegistry {
     /// Where `msime-cantonese.db` is; empty when the host has none.
     cantonese_path: PathBuf,
     cantonese: Option<CantoneseDictionary>,
+    /// 用户在个人词库里加的粤语词，每次粤语查询前按日志是否变过刷新。
+    cantonese_user: UserWords,
     cantonese_scheme: Option<CantoneseScheme>,
     cantonese_candidates: Vec<CantoneseCandidate>,
     cantonese_buffer: CantoneseQueryBuffer,
+    /// 粤拼候选文字的输出转换；`None` 输出词库原文。
+    cantonese_output: Option<TextConversion>,
+    cantonese_originals: CantoneseOutputOrigins,
     /// Where `msime-zhuyin.db` is; empty when the host has none.
     zhuyin_path: PathBuf,
     /// `msime-zhuyin.db` opened by `activate`; `None` before that and while the live Zhuyin scheme holds it.
@@ -104,9 +114,12 @@ impl ProviderRegistry {
             keymap: None,
             cantonese_path,
             cantonese: None,
+            cantonese_user: UserWords::new(paths.user(assets::USER_JOURNAL)),
             cantonese_scheme: None,
             cantonese_candidates: Vec::new(),
             cantonese_buffer: CantoneseQueryBuffer::default(),
+            cantonese_output: None,
+            cantonese_originals: CantoneseOutputOrigins::default(),
             zhuyin_path,
             zhuyin: None,
             stroke_path,
@@ -156,9 +169,36 @@ impl ProviderRegistry {
         self.zhuyin = Some(dictionary);
     }
 
+    pub fn set_cantonese_output_conversion(&mut self, conversion: Option<TextConversion>) {
+        self.cantonese_output = conversion;
+        self.cantonese_originals.clear();
+    }
+
+    pub(super) fn cantonese_dictionary_word(&self, key: &str, text: &SharedString) -> SharedString {
+        self.cantonese_originals.word(key, text)
+    }
+
     /// The syllable inventory of the open `msime-cantonese.db`; `None` until Cantonese has been activated.
     pub fn cantonese_inventory(&self) -> Option<Arc<Inventory>> {
         self.cantonese.as_ref().map(CantoneseDictionary::inventory)
+    }
+
+    /// 粤语词库（发布的 `msime-cantonese.db` 加上日志里的粤语行）在 `key` 下有没有 `text` 这一行。粤语学习造词前用它确认词库里还没有这个词。还没激活粤语或读失败时答 true：说不准的时候当作已经有了，什么也不写。
+    pub fn cantonese_has_entry(&mut self, key: &str, text: &str) -> bool {
+        let Some(dictionary) = &self.cantonese else {
+            return true;
+        };
+        self.cantonese_user.refresh();
+        CantoneseLexicon::new(dictionary.dictionary(), Some(&self.cantonese_user))
+            .contains(key, text)
+            .unwrap_or(true)
+    }
+
+    /// 最近一次粤语查询出的行里，`key` 下的 `text` 是不是组出来的整句（`CantoneseCandidate::composed`）。只扫已有的行，不查库、不分配，选首选上屏时也能问。
+    pub fn cantonese_row_is_composed(&self, key: &str, text: &str) -> bool {
+        self.cantonese_candidates
+            .iter()
+            .any(|row| row.composed && row.key == key && row.text == text)
     }
 
     /// 会话允许运行的方案。
@@ -241,6 +281,21 @@ impl ProviderRegistry {
             | SchemeType::Tibetan
             | SchemeType::Stroke => None,
         }
+    }
+
+    /// `scheme` 用的词库的粗俗词表（复制只是复制一个 `Arc`）：双拼取双拼词典的，其余取全拼词典的；会话还没有对应的 provider 时是内嵌表。
+    pub(crate) fn offensive_words(
+        &self,
+        scheme: crate::types::SchemeType,
+    ) -> crate::lattice::offensive::OffensiveWords {
+        let table = if scheme == crate::types::SchemeType::Shuangpin {
+            self.shuangpin
+                .as_ref()
+                .map(ShuangpinEngine::offensive_words)
+        } else {
+            self.quanpin.as_ref().map(QuanpinEngine::offensive_words)
+        };
+        table.cloned().unwrap_or_default()
     }
 
     /// 全拼词典里每个键最好那一行的权重，供滑行输入使用；会话没有全拼 provider 时为空。
@@ -363,7 +418,7 @@ impl ProviderRegistry {
         }
     }
 
-    /// The `msime-cantonese.db` rows for the request's letters, read again through the activated inventory, as `CantoneseScheme::candidates` lists them. Each row is keyed by the typed letters it covers (`pinyin`, apostrophes kept) and the dictionary key it was found under (`canonical_pinyin`), which is what selecting it takes out of the composition. A read that fails answers nothing, like the wubi table.
+    /// The `msime-cantonese.db` rows, with the user's own Cantonese words merged in, for the request's letters, read again through the activated inventory, as `CantoneseScheme::candidates` lists them. Each row is keyed by the typed letters it covers (`pinyin`, apostrophes kept) and the dictionary key it was found under (`canonical_pinyin`), which is what selecting it takes out of the composition. A read that fails answers nothing, like the wubi table.
     fn cantonese_candidates(&mut self, request: &QueryRequest) -> Vec<WordItem> {
         let mut destination = Vec::new();
         self.query_cantonese_into(request, &mut destination);
@@ -376,6 +431,7 @@ impl ProviderRegistry {
         request: &QueryRequest,
         destination: &mut Vec<WordItem>,
     ) {
+        self.cantonese_originals.clear();
         if !request.valid || request.scheme != SchemeType::Cantonese {
             destination.clear();
             return;
@@ -389,11 +445,14 @@ impl ProviderRegistry {
             return;
         };
         scheme.set_raw_input(&request.raw_input);
+        self.cantonese_user.refresh();
         fill_cantonese_candidates(
-            dictionary,
+            CantoneseLexicon::new(dictionary.dictionary(), Some(&self.cantonese_user)),
             scheme,
             &mut self.cantonese_buffer,
             &mut self.cantonese_candidates,
+            self.cantonese_output,
+            &mut self.cantonese_originals,
             destination,
         );
     }
@@ -404,15 +463,19 @@ impl ProviderRegistry {
         scheme: &CantoneseScheme,
         destination: &mut Vec<WordItem>,
     ) {
+        self.cantonese_originals.clear();
         let Some(dictionary) = &self.cantonese else {
             destination.clear();
             return;
         };
+        self.cantonese_user.refresh();
         fill_cantonese_candidates(
-            dictionary,
+            CantoneseLexicon::new(dictionary.dictionary(), Some(&self.cantonese_user)),
             scheme,
             &mut self.cantonese_buffer,
             &mut self.cantonese_candidates,
+            self.cantonese_output,
+            &mut self.cantonese_originals,
             destination,
         );
     }
@@ -522,6 +585,8 @@ impl ProviderRegistry {
             target.corrected_from.clear();
             target.sentence_association = false;
             target.sentence_words.clear();
+            target.touch_supported = false;
+            target.confident_correction = false;
         }
         if destination.len() > candidates.len() {
             destination.truncate(candidates.len());
@@ -543,18 +608,22 @@ impl ProviderRegistry {
 }
 
 fn fill_cantonese_candidates(
-    dictionary: &CantoneseDictionary,
+    lexicon: CantoneseLexicon<'_>,
     scheme: &CantoneseScheme,
     buffer: &mut CantoneseQueryBuffer,
     source: &mut Vec<CantoneseCandidate>,
+    conversion: Option<TextConversion>,
+    originals: &mut CantoneseOutputOrigins,
     destination: &mut Vec<WordItem>,
 ) {
-    if scheme
-        .candidates_into(dictionary.dictionary(), buffer, source)
-        .is_err()
-    {
+    if scheme.candidates_into(lexicon, buffer, source).is_err() {
         destination.clear();
         return;
+    }
+    if let Some(conversion) = conversion {
+        originals.convert(source, conversion);
+        // 發、髮都转成「发」后，同一读音段里只留排在前面的那条。
+        deduplicate_candidates(source);
     }
     let input = scheme.input();
     let common = source.len().min(destination.len());
@@ -573,6 +642,8 @@ fn fill_cantonese_candidates(
         target.corrected_from.clear();
         target.sentence_association = false;
         target.sentence_words.clear();
+        target.touch_supported = false;
+        target.confident_correction = false;
     }
     if destination.len() > source.len() {
         destination.truncate(source.len());

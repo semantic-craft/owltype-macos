@@ -17,7 +17,10 @@ use crate::error::{EngineError, Result};
 use crate::ime::online_batch::{
     replace_cached_online_candidate_batch, replace_online_candidate_batch,
 };
-use crate::lattice::decode::{decode_pinned, BigramMemo, PinnedSpan, SentenceNgramTables};
+use crate::lattice::decode::{
+    decode_pinned, BeamPrefixCache, BeamResume, BigramMemo, PinnedSpan, SentenceNgramTables,
+    SENTENCE_PATHS,
+};
 use crate::lattice::merge::{
     decode_lattice, decode_lattice_borrowed, merge_decoded, merge_decoded_borrowed,
     whole_sentence_insert_position, DecodedSentences,
@@ -28,7 +31,7 @@ use crate::lattice::neural::{
 use crate::lattice::personal::{PersonalNgram, PersonalTransition};
 use crate::lattice::{SentencePath, TypoEdgeSource};
 use crate::paths::RuntimePaths;
-use crate::pinyin::fuzzy::{fuzzy_segmentations, FUZZY_SEGMENTATION_LIMIT};
+use crate::pinyin::fuzzy::{fuzzy_segmentations, fuzzy_variant_count, FUZZY_SEGMENTATION_LIMIT};
 use crate::pinyin::graph::{
     build_syllable_graph, enumerate_complete_segmentations, SYLLABLE_GRAPH_PATH_LIMIT,
 };
@@ -39,6 +42,7 @@ use crate::pinyin::segment::{
 use crate::pinyin::syllables::{
     has_only_complete_pinyin_segments, normalize_umlaut_aliases, sparse_pinyin_fallback_segments,
 };
+use crate::shared_string::SharedString;
 use crate::text::{count_han_chars, last_characters};
 use crate::time::Instant;
 use crate::types::{
@@ -50,7 +54,8 @@ use crate::user_dictionary::ngram_store::PersonalNgramStore;
 use crate::user_dictionary::typo_profile::PersonalTypoProfile;
 
 use super::series::{
-    append_unique_words, fold_reading, mark_autocorrect_candidates, merge_alternative_rows,
+    append_unique_words, defer_pooled_sentences, fold_reading, has_corrected_cut,
+    lead_literal_abbreviation_phrases, mark_autocorrect_candidates, merge_alternative_rows,
     merge_alternative_segmentations, merge_series_by_coverage, resolve_series_query,
     series_cache_key, SeriesResolution, ALTERNATIVE_SEGMENTATION_CANDIDATE_LIMIT,
     AUTOCORRECT_CUT_KBEST, LONGER_PHRASE_EXTRA_SYLLABLES, LONGER_PHRASE_LIMIT,
@@ -110,9 +115,31 @@ struct CachedFuzzyCandidates {
 #[derive(Clone)]
 struct CachedFuzzyRows {
     rules: u32,
+    /// 展开路径用的上限，经 [`fuzzy_row_key_limit`] 归一：路径不受上限截断时记作 `FUZZY_SEGMENTATION_LIMIT`，所以同一段读音在不同的剩余预算下仍是同一项。
     limit: usize,
-    typed: String,
-    rows: Vec<DictRow>,
+    /// 这段读音，也是命中时每个候选的 `pinyin`：各候选与缓存共用这一份。
+    typed: SharedString,
+    /// 这一项查过的模糊路径条数。路径只由规则、上限和这段读音决定，所以命中时直接按它扣预算，不再把路径算一遍。
+    path_count: usize,
+    rows: Vec<FuzzyRow>,
+}
+
+/// 模糊前缀页的一行。文字字段是 `SharedString`，投影成候选时只加引用计数，候选与缓存页共用同一份字符串；任何一边原地改写时按写时复制先复制。
+#[derive(Clone, Debug, PartialEq)]
+struct FuzzyRow {
+    key: SharedString,
+    value: SharedString,
+    weight: i64,
+}
+
+impl From<DictRow> for FuzzyRow {
+    fn from(row: DictRow) -> Self {
+        Self {
+            key: row.key.into(),
+            value: row.value.into(),
+            weight: row.weight,
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -210,7 +237,7 @@ pub struct QuanpinDictionary {
     typo_span_cache: FifoCache<String, Vec<DictRow>>,
     /// 词网格每个跨度的 `query_lattice_span` 结果，空结果也存。哈希只做索引，命中后再核对上限和原样跨度，避免每次命中都拼接键字符串。
     lattice_span_cache: FifoCache<u64, CachedLatticeSpan>,
-    /// 每条切分的 `query_segments_keyed_flat` 结果，键是切分本身；单字母的 `query_initial` 结果也存在这里，键前加 `\u{1}`。
+    /// 每条切分的 `query_segments_keyed_flat` 结果，键是切分本身；单字母首屏与完整 `query_initial` 行分别以前缀 `\u{1}`、`\u{2}` 区分。
     segment_row_cache: FifoCache<String, Vec<DictRow>>,
     /// 每条切分的 `query_longer_phrases` 结果，键是切分本身。
     longer_row_cache: FifoCache<String, Vec<DictRow>>,
@@ -224,11 +251,23 @@ pub struct QuanpinDictionary {
     bigram_memo: RefCell<BigramMemo>,
     /// 整句解码结果，键见 `sentence_decode_key`。解码只取决于音节、词典行、n 元表、个人模型和整句选项：词典行变了随行缓存清空，个人模型按条目记的版本核对，整句选项和纠错资料变了在各自的 setter 里清空。
     sentence_decode_cache: FifoCache<String, CachedDecode>,
+    /// 最近几张整句图的非末列束状态，没命中 `sentence_decode_cache` 的解码从共用前缀的那张图接着解（`BeamPrefixCache`）。与 `sentence_decode_cache` 一起清空，个人模型版本另在每张存档里核对。
+    beam_prefixes: BeamPrefixCache,
     rerankers: Vec<NeuralReranker>,
+    /// 拼整句时给前缀打分的模型（`QueryRequest::sentence_scorer`），见 `lattice::decode::BeamModel`。换了就清掉整句缓存。
+    sentence_scorer: crate::ordering::SentenceScorerHandle,
+    /// 束搜索里模型分的备忘：文字 → 逐字平均对数概率，只对 `rescoring_context` 这一段上文和 `beam_model_owner` 这个模型成立，上文变了或换成另一个模型就清空。同一句话每次按键都重解一遍，前面几列的假设和上一键一样，备忘里都有，只有新的一列要跑模型。
+    beam_model_memo: RefCell<HashMap<String, f32>>,
+    /// 备忘里的分是哪个模型打的。拿掉打分器（换成 `None`）时备忘留着：跑不进逐键预算的设备上，模型只在停顿时挂上来重解（runtime 的 `settle_deferred_scorer`），一次停顿可能分几片才解完，每一片和下一次停顿都要接着用前面打过的分。只用来认出是不是同一个模型，所以是弱引用：「增强」关掉后模型照样放开，而弱引用还在时那块分配不会被新的模型占用，认不错。
+    beam_model_owner: Option<std::sync::Weak<dyn crate::ordering::SentenceScorer>>,
+    /// 这次查询的主读法的音节。整句打分器只进它的束搜索：同一串拼音的备选切分（`nian'gao` 之外的 `ni'an'ga'o`）每个都要整句解一遍，都让模型打分，一次按键要跑五六遍模型。
+    beam_model_segments: Vec<String>,
     /// octagram `.gram` 语法模型；路径由 `set_sentence_association` 给定、经
     /// `GramDb::shared` 进程内共享，缺失或非法时为 `None` 退回无搭配打分。
     collocation_db: Option<Arc<crate::lattice::octagram::GramDb>>,
     sentence_alternatives: bool,
+    /// 每条切分至少解出几条整句读法，0 为默认的 [`SENTENCE_PATHS`]；宿主挂了逐键打分器时由 runtime 经 `QueryRequest::sentence_pool` 给出。
+    sentence_pool: usize,
     sentence_association: SentenceAssociationOptions,
     /// 首页放得下几行，决定全长组的补全词是按权重并进来还是接在整组末尾；来自宿主的每页候选数（`QueryRequest::first_page_rows`）。存成 `FirstPageRows` 是为了让 0 在这里没有入口，全拼和九键的「0 当 1」只在 `FirstPageRows::new` 做一次。
     first_page_rows: FirstPageRows,
@@ -241,12 +280,18 @@ pub struct QuanpinDictionary {
 }
 
 impl QuanpinDictionary {
+    /// 这份词库的粗俗词表（词库带 `sentence_excluded` 时是那张表，否则是内嵌表），拼整句和候选排位读同一张。
+    pub(crate) fn offensive_words(&self) -> &crate::lattice::offensive::OffensiveWords {
+        self.sentence_tables.offensive_words()
+    }
+
     /// Opens the generation's `msime-pinyin.db`, loads the n-gram tables, the personal context store and the typo profile off the keystroke path, and warms the statement cache (QD:231-268).
     pub fn new(paths: &RuntimePaths) -> Self {
         let database = PinyinDatabase::open(&paths.dictionary(MAIN_DICTIONARY));
         database.warm_up();
         // 构造时预热并保留表；共享缓存淘汰不能让按键查询重新映射和检查整张表。
-        let sentence_tables = SentenceNgramTables::load(paths);
+        let mut sentence_tables = SentenceNgramTables::load(paths);
+        sentence_tables.set_offensive_words(database.offensive_words());
         let journal = paths.user(USER_JOURNAL);
         let personal = PersonalNgramStore::for_journal(&journal);
         drop(personal.model());
@@ -276,9 +321,15 @@ impl QuanpinDictionary {
             row_cache_batch: None,
             bigram_memo: RefCell::default(),
             sentence_decode_cache: FifoCache::new(SENTENCE_DECODE_CACHE_CAPACITY),
+            beam_prefixes: BeamPrefixCache::default(),
             rerankers: Vec::new(),
+            sentence_scorer: Default::default(),
+            beam_model_memo: RefCell::default(),
+            beam_model_owner: None,
+            beam_model_segments: Vec::new(),
             collocation_db: None,
             sentence_alternatives: false,
+            sentence_pool: 0,
             sentence_association: SentenceAssociationOptions::default(),
             first_page_rows: FirstPageRows::default(),
             rescoring_context: String::new(),
@@ -311,6 +362,14 @@ impl QuanpinDictionary {
             // 同词的字面前缀不能遮住覆盖更多输入的模糊整词。
             merge_series_by_coverage(&mut result, rows);
             yield_stand_in_sentence_to_fuzzy_rows(&mut result);
+            // 按字母数重排会把多一个字母的删字纠错（shng → shang）排回字面简拼整词前面，哪怕模糊音一行也没查到；纠错在作用时把 `query_exact` 定下的先后和保座再做一遍（#9903）。
+            if has_corrected_cut(
+                raw,
+                &self.pinyin_segmentation,
+                &self.alternative_segmentations,
+            ) {
+                lead_literal_abbreviation_phrases(&mut result, raw, self.abbreviation_kept_seat());
+            }
         }
         // Marking runs after every change, including the fuzzy merge, so every row the caller sees carries its mark.
         mark_autocorrect_candidates(
@@ -440,13 +499,73 @@ impl QuanpinDictionary {
             return false;
         }
         let expanded = matched_items(self.database.query_initial(code, UNLIMITED_ROWS), code);
+        self.merge_initial_candidates(
+            raw,
+            segmentation,
+            autocorrect_types,
+            code,
+            candidates,
+            expanded,
+        )
+    }
+
+    /// 辅助码使用完整基础候选，不依赖屏幕上恰有 24 行；筛选后的结果不写回普通拼音缓存。
+    pub(super) fn complete_initial_candidates(
+        &mut self,
+        raw: &str,
+        segmentation: &str,
+        autocorrect_types: u32,
+        candidates: &mut Vec<WordItem>,
+    ) {
+        debug_assert_eq!(raw.len(), 1);
+        self.validate_row_caches();
+        let key_bytes = [2, raw.as_bytes()[0]];
+        let key = std::str::from_utf8(&key_bytes).expect("单字母拼音必须是 ASCII");
+        let expanded = if let Some(rows) = self.segment_row_cache.get_ref_by(key) {
+            let present = candidates
+                .iter()
+                .filter(|item| item.source == CandidateSource::Database && item.pinyin == raw)
+                .count();
+            if rows.len() <= present {
+                return;
+            }
+            matched_items(rows.iter().cloned(), raw)
+        } else {
+            let rows = self.database.query_initial(raw, UNLIMITED_ROWS);
+            let expanded = matched_items(rows.iter().cloned(), raw);
+            self.segment_row_cache.insert(key.to_owned(), rows);
+            expanded
+        };
+        self.merge_initial_candidates(
+            raw,
+            segmentation,
+            autocorrect_types,
+            raw,
+            candidates,
+            expanded,
+        );
+    }
+
+    /// 手动展开与辅助码补查共用词典行替换及基础缓存回写，保留其他来源候选的原有站位。
+    fn merge_initial_candidates(
+        &mut self,
+        raw: &str,
+        segmentation: &str,
+        autocorrect_types: u32,
+        code: &str,
+        candidates: &mut Vec<WordItem>,
+        expanded: Vec<WordItem>,
+    ) -> bool {
+        let is_limited_initial =
+            |item: &WordItem| item.source == CandidateSource::Database && item.pinyin == code;
+        let limited_count = candidates
+            .iter()
+            .filter(|item| is_limited_initial(item))
+            .count();
         if expanded.len() <= limited_count {
             return false;
         }
-        let first_limited = candidates
-            .iter()
-            .position(is_limited_initial)
-            .expect("limited_count checked above");
+        let first_limited = candidates.iter().position(is_limited_initial).unwrap_or(0);
         candidates.reserve_exact(expanded.len() - limited_count);
         let mut removed = 0;
         candidates.retain(|item| {
@@ -487,12 +606,16 @@ impl QuanpinDictionary {
             }
         }
         self.validate_row_caches();
-        let segments: Vec<&str> = if segmentation.is_empty() {
+        let segments: Vec<CountedSyllable<'_>> = if segmentation.is_empty() {
             Vec::new()
         } else {
             let count = segmentation.bytes().filter(|&byte| byte == b'\'').count() + 1;
             let mut segments = Vec::with_capacity(count);
-            segments.extend(segmentation.split('\''));
+            let mut combinations = 1usize;
+            segments.extend(segmentation.split('\'').map(|text| {
+                combinations = combinations.saturating_mul(fuzzy_variant_count(text, options));
+                CountedSyllable { text, combinations }
+            }));
             segments
         };
         let mut result = Vec::new();
@@ -505,21 +628,38 @@ impl QuanpinDictionary {
             if count < segments.len() {
                 typed = typed.rsplit_once('\'').map_or("", |(prefix, _)| prefix);
             }
-            let prefix = &segments[..count];
-            let limit = FUZZY_SEGMENTATION_LIMIT.min(budget);
-            // 路径照样算出来（纯计算，不查库），预算照旧按路径数扣；只有查库这一步走缓存。
-            let paths = fuzzy_segmentations(prefix, options, limit);
-            if paths.is_empty() {
+            let combinations = segments[count - 1].combinations;
+            // 每个音节都只有原读法：展开不出路径，原来也是展开后发现为空就跳过，行缓存里不会有这一项。
+            if combinations <= 1 {
                 continue;
             }
+            let prefix = &segments[..count];
+            let limit = FUZZY_SEGMENTATION_LIMIT.min(budget);
+            let key_limit = fuzzy_row_key_limit(combinations, limit);
+            // 行缓存的键（规则、归一后的上限、这段读音）已经定下了路径，命中时按记下的路径条数扣预算，不再展开路径；九键开着模糊音时每键要走二三十条切分，展开路径是模糊音多出来的开销里的一大块（#10457）。
+            let uncached = match append_cached_fuzzy_rows(
+                &mut self.fuzzy_row_cache,
+                options.rules,
+                key_limit,
+                typed,
+                &mut result,
+            ) {
+                Ok(path_count) => {
+                    budget -= path_count;
+                    continue;
+                }
+                Err(uncached) => uncached,
+            };
+            let paths = fuzzy_segmentations(prefix, options, limit);
+            debug_assert_eq!(paths.len(), combinations.min(limit) - 1);
             budget -= paths.len();
-            append_cached_fuzzy_rows(
+            append_queried_fuzzy_rows(
                 &self.database,
                 &mut self.fuzzy_row_cache,
                 &paths,
                 options.rules,
-                limit,
-                typed,
+                key_limit,
+                uncached,
                 &mut result,
             );
         }
@@ -593,15 +733,6 @@ impl QuanpinDictionary {
             .collect()
     }
 
-    /// `keys`（以 `'` 连接的完整音节）各自权重最高的 `per_key` 行的权重之和；没有行的键不出现。九宫格用它给每个音节估频度：只看最常用那一个字时，词库发版改动一个字的权重就能让两个音节的先后翻转。
-    pub fn top_weight_sums(&self, keys: &[String], per_key: usize) -> HashMap<String, i64> {
-        self.database
-            .query_exact_keys_per_key(keys, per_key)
-            .into_iter()
-            .map(|(key, rows)| (key, rows.iter().map(|row| row.weight.max(0)).sum()))
-            .collect()
-    }
-
     /// 整句改字的候选：读音恰为 `span`（完整音节）的词条，按权重从高到低，至多 `limit` 条。
     pub fn conversion_rows(&mut self, span: &[String], limit: usize) -> Vec<DictRow> {
         self.validate_row_caches();
@@ -651,6 +782,18 @@ impl QuanpinDictionary {
         self.cache.clear();
         self.series_cache.clear();
         self.sentence_decode_cache.clear();
+        self.beam_prefixes.clear();
+    }
+
+    /// 整句读法条数下限（[`crate::Session::set_sentence_pool`]）。改了就清掉按旧条数解出、拼好的整句和整条答案，同 `set_sentence_alternatives`；按切分查出的词库行与它无关，留着。
+    pub fn set_sentence_pool(&mut self, paths: usize) {
+        if self.sentence_pool == paths {
+            return;
+        }
+        self.sentence_pool = paths;
+        self.series_cache.clear();
+        self.sentence_decode_cache.clear();
+        self.beam_prefixes.clear();
     }
 
     /// 首页行数只决定补全词是按权重并进来还是接在整组末尾；改了就清掉按旧门槛组装的整条答案（照 `set_sentence_alternatives`）。`cache` 存的是按切分查出来的词库行，补全词是查完它才并进来的，所以这里动不了它，清掉只会白白丢掉 128 行、再查一次 SQLite。
@@ -660,6 +803,11 @@ impl QuanpinDictionary {
         }
         self.first_page_rows = rows;
         self.series_cache.clear();
+    }
+
+    /// 全辅音输入里原来打头的纠错候选最多退到的座位：首页最后一个，最小为 1（`lead_literal_abbreviation_phrases`）。
+    fn abbreviation_kept_seat(&self) -> usize {
+        self.first_page_rows.get().saturating_sub(1).max(1)
     }
 
     /// Loads the keyboard sentence model from the resource bundle when its switch is on. The desktop model is not the engine's: only the runtime's settled reranker runs it. A change resets the caches (neural-association.patch:2667-2682), as shuangpin does, so a cached online row does not come back after the options are switched away and back.
@@ -695,6 +843,29 @@ impl QuanpinDictionary {
         let trimmed = last_characters(context, CONTEXT_CHARACTERS);
         if self.rescoring_context != trimmed {
             self.rescoring_context = trimmed.to_string();
+            self.beam_model_memo.borrow_mut().clear();
+        }
+    }
+
+    /// 拼整句时给前缀打分的模型，见 [`crate::ordering::SentenceScorer`]。换了（按指针比较）就清掉按旧模型解出的整句；模型分备忘只在换成另一个模型时清掉，拿掉模型时留着，见 `beam_model_owner`。
+    pub fn set_sentence_scorer(&mut self, scorer: &crate::ordering::SentenceScorerHandle) {
+        if self.sentence_scorer == *scorer {
+            return;
+        }
+        self.sentence_scorer = scorer.clone();
+        self.series_cache.clear();
+        self.sentence_decode_cache.clear();
+        self.beam_prefixes.clear();
+        if let Some(model) = &scorer.0 {
+            let model = Arc::downgrade(model);
+            if !self
+                .beam_model_owner
+                .as_ref()
+                .is_some_and(|owner| owner.ptr_eq(&model))
+            {
+                self.beam_model_owner = Some(model);
+                self.beam_model_memo.borrow_mut().clear();
+            }
         }
     }
 
@@ -703,7 +874,7 @@ impl QuanpinDictionary {
         series_slot_key(
             cache_key,
             &self.sentence_association,
-            !self.rerankers.is_empty(),
+            !self.rerankers.is_empty() || self.sentence_scorer.0.is_some(),
             &self.rescoring_context,
         )
     }
@@ -722,6 +893,7 @@ impl QuanpinDictionary {
     fn clear_row_caches(&mut self) {
         // 整句是从这些行解出来的。
         self.sentence_decode_cache.clear();
+        self.beam_prefixes.clear();
         self.lattice_span_cache.clear();
         self.segment_row_cache.clear();
         self.longer_row_cache.clear();
@@ -785,13 +957,14 @@ impl QuanpinDictionary {
                 self.series_cache.clear();
                 // 纠错整句按纠错资料规划。
                 self.sentence_decode_cache.clear();
+                self.beam_prefixes.clear();
                 self.personal_scored_keys.clear();
             }
         }
         let mut segments = None;
         let segmentation_cache = &mut self.segmentation_cache;
         let association = self.sentence_association.clone();
-        let has_rerankers = !self.rerankers.is_empty();
+        let has_rerankers = !self.rerankers.is_empty() || self.sentence_scorer.0.is_some();
         let context = &self.rescoring_context;
         let pinyin_segmentation = &mut self.pinyin_segmentation;
         let (resolution_hash, (resolution, marking_alternatives, slot)) =
@@ -856,6 +1029,15 @@ impl QuanpinDictionary {
         self.validate_row_caches();
         let alternatives = alternative_segmentations(raw, &segments, &resolution, types);
         let primary_segmentation = resolution.segmentation.as_str();
+        // 不挂整句打分器时不记，冷查询的分配次数与以前相同。
+        if self.sentence_scorer.0.is_some() {
+            self.beam_model_segments
+                .clone_from(if resolution.corrected_input {
+                    &resolution.corrected
+                } else {
+                    &segments
+                });
+        }
         let mut result;
         if resolution.corrected_input {
             // The corrected reading is the primary key, so selection and weight updates land on the right rows; the literal reading stays behind it as a fallback tail.
@@ -882,6 +1064,8 @@ impl QuanpinDictionary {
                 let rows = self.query_series(raw, &join_segments(costlier), costlier);
                 append_unique_words(&mut result, rows);
             }
+            // 全辅音输入是简拼：字面简拼读满全部按键的多字词条排到纠错读法前面，打头的纠错候选最多退到首页最后一个座位，首位永远不让给它（#9903）。
+            lead_literal_abbreviation_phrases(&mut result, raw, self.abbreviation_kept_seat());
         } else {
             result = self.query_series(raw, primary_segmentation, &segments);
             if !alternatives.is_empty() {
@@ -978,6 +1162,9 @@ impl QuanpinDictionary {
         }
         if !supplemental.is_empty() {
             merge_series_by_coverage(&mut result, supplemental);
+            if self.sentence_pool > SENTENCE_PATHS {
+                defer_pooled_sentences(&mut result, raw, SENTENCE_PATHS);
+            }
         }
         result
     }
@@ -1196,11 +1383,29 @@ impl QuanpinDictionary {
         if !self.rerankers.is_empty() {
             options.nbest = MAX_RERANK_PATHS;
         }
+        options.nbest = options.nbest.max(self.sentence_pool);
         options.include_lattice_best = association.word_lattice;
         options.include_collocation_best = include_collocation_best;
         options.show_next_on_duplicate = association.show_next_on_duplicate;
         options.personal = Some(&*model);
         options.bigram_memo = Some(&self.bigram_memo);
+        options.opens_sentence = crate::lattice::decode::opens_sentence(&self.rescoring_context);
+        // 挂着整句打分器时，束搜索里每一列都让模型打分，见 `lattice::decode::BeamModel`。
+        let sentence_scorer = self
+            .sentence_scorer
+            .0
+            .clone()
+            .filter(|_| segments == self.beam_model_segments.as_slice());
+        let model_context = self.rescoring_context.clone();
+        options.beam_model =
+            sentence_scorer
+                .as_deref()
+                .map(|scorer| crate::lattice::decode::BeamModel {
+                    scorer,
+                    context: &model_context,
+                    weight: crate::lattice::decode::BEAM_MODEL_WEIGHT,
+                    memo: &self.beam_model_memo,
+                });
         // 搭配项逐边叠加字级搭配分，与二元/三元在同一 Viterbi 里竞争；
         // query() 是自然对数域，乘 LN_TO_LOG10 换到主分的域。
         let scorer;
@@ -1235,7 +1440,13 @@ impl QuanpinDictionary {
         };
         // 模型已按需重载，此刻的版本就是这次解码用的版本。
         let personal_version = personal.version();
-        let decode_key = sentence_decode_key(segments, types, typo_eligible);
+        let decode_key = sentence_decode_key(
+            segments,
+            types,
+            typo_eligible,
+            options.opens_sentence,
+            options.beam_model.map(|model| model.context),
+        );
         let cached = self
             .sentence_decode_cache
             .get_ref(&decode_key)
@@ -1265,13 +1476,35 @@ impl QuanpinDictionary {
                     cached_lattice_span_ref(lattice_spans, span, span_limit)
                         .expect("warmed lattice span cache entry")
                 };
-                decode_lattice_borrowed(segments, &mut lookup, &options, typo_source)
+                let mut resume = BeamResume {
+                    syllables: segments,
+                    cache: &mut self.beam_prefixes,
+                    personal_version,
+                };
+                decode_lattice_borrowed(
+                    segments,
+                    &mut lookup,
+                    &options,
+                    typo_source,
+                    Some(&mut resume),
+                )
             } else {
                 let lattice_spans = &mut self.lattice_span_cache;
                 let mut lookup = |span: &[String]| {
                     cached_lattice_span(database, lattice_spans, span, span_limit)
                 };
-                decode_lattice(segments, &mut lookup, &options, typo_source)
+                let mut resume = BeamResume {
+                    syllables: segments,
+                    cache: &mut self.beam_prefixes,
+                    personal_version,
+                };
+                decode_lattice(
+                    segments,
+                    &mut lookup,
+                    &options,
+                    typo_source,
+                    Some(&mut resume),
+                )
             };
             if let Some(decoded) = &decoded {
                 self.sentence_decode_cache.insert(
@@ -1693,8 +1926,14 @@ fn warm_lattice_span_cache(
     }
 }
 
-/// `sentence_decode_cache` 的键：音节串、这次查询的纠错类型和是否规划纠错整句。纠错整句只在后两者允许时才解，同一串音节在两种情况下的结果不同。
-fn sentence_decode_key(segments: &[String], types: u32, typo_eligible: bool) -> String {
+/// `sentence_decode_cache` 的键：音节串、这次查询的纠错类型、是否规划纠错整句、是不是一句话的开头，以及挂着整句打分器时的上文。纠错整句只在纠错类型和规划允许时才解，句首的语气词要扣分（`LatticeOptions::opens_sentence`），同一串音节在这些情况下的结果不同。
+fn sentence_decode_key(
+    segments: &[String],
+    types: u32,
+    typo_eligible: bool,
+    opens_sentence: bool,
+    model_context: Option<&str>,
+) -> String {
     let mut key = String::with_capacity(
         segments
             .iter()
@@ -1711,6 +1950,12 @@ fn sentence_decode_key(segments: &[String], types: u32, typo_eligible: bool) -> 
     key.push('\u{1f}');
     key.push_str(&types.to_string());
     key.push(if typo_eligible { 't' } else { '-' });
+    key.push(if opens_sentence { 's' } else { '-' });
+    // 挂着整句打分器时，解出来的整句随上文而变。
+    if let Some(context) = model_context {
+        key.push('\u{1f}');
+        key.push_str(context);
+    }
     key
 }
 
@@ -1828,8 +2073,27 @@ fn fuzzy_cache_key_matches(cached: &CachedFuzzyCandidates, rules: u32, segmentat
     cached.rules == rules && cached.segmentation == segmentation
 }
 
-/// 热页直接投影，冷页保留原缓存副本与 SQLite 页容量策略。
+/// 行缓存命中时把热页直接投影进结果，返回那一项记下的路径条数；没命中时什么也不做，把读音原样交回，给 [`append_queried_fuzzy_rows`] 去查。
 fn append_cached_fuzzy_rows<'a>(
+    cache: &mut FifoCache<u64, CachedFuzzyRows>,
+    rules: u32,
+    limit: usize,
+    typed: impl Into<Cow<'a, str>>,
+    result: &mut Vec<WordItem>,
+) -> std::result::Result<usize, Cow<'a, str>> {
+    let typed = typed.into();
+    let hash = fuzzy_row_cache_hash(rules, limit, &typed);
+    match cache.get_ref(&hash) {
+        Some(cached) if fuzzy_row_cache_key_matches(cached, rules, limit, &typed) => {
+            append_fuzzy_items(&cached.rows, &cached.typed, result);
+            Ok(cached.path_count)
+        }
+        _ => Err(typed),
+    }
+}
+
+/// 行缓存没命中：按展开好的路径查库，整页连同这段读音存进行缓存，再像命中时一样投影进结果，候选与缓存页共用文字字段。
+fn append_queried_fuzzy_rows<'a>(
     database: &PinyinDatabase,
     cache: &mut FifoCache<u64, CachedFuzzyRows>,
     paths: &[Vec<String>],
@@ -1838,55 +2102,58 @@ fn append_cached_fuzzy_rows<'a>(
     typed: impl Into<Cow<'a, str>>,
     result: &mut Vec<WordItem>,
 ) {
-    let typed = typed.into();
+    // 按长度复制一份：缓存页一直留着它，调用方交来的缓冲区可能带着多余的容量。
+    let typed = SharedString::from(typed.into().as_ref());
     let hash = fuzzy_row_cache_hash(rules, limit, &typed);
-    if let Some(cached) = cache.get_ref(&hash) {
-        if fuzzy_row_cache_key_matches(cached, rules, limit, &typed) {
-            append_fuzzy_items(cached.rows.iter().cloned(), typed, result);
-            return;
-        }
-    }
-    let rows = database.query_exact_segmentations_keyed_flat(paths, FUZZY_ROW_LIMIT);
+    let page = database.query_exact_segmentations_keyed_flat(paths, FUZZY_ROW_LIMIT);
+    // 按行数申请：原地收集会沿用 SQLite 页按上限预留的整块缓冲区，缓存页就一直占着它。
+    let mut rows = Vec::with_capacity(page.len());
+    rows.extend(page.into_iter().map(FuzzyRow::from));
+    append_fuzzy_items(&rows, &typed, result);
     cache.insert(
         hash,
         CachedFuzzyRows {
             rules,
             limit,
-            typed: typed.as_ref().to_owned(),
-            rows: rows.clone(),
+            typed,
+            path_count: paths.len(),
+            rows,
         },
     );
-    append_fuzzy_items(rows.into_iter(), typed, result);
 }
 
-/// 取得首行才拥有匹配码，已有拥有值直接接管；其余行复制同一读法。
-fn append_fuzzy_items(
-    mut rows: impl ExactSizeIterator<Item = DictRow>,
-    typed: Cow<'_, str>,
-    result: &mut Vec<WordItem>,
-) {
+/// 把一页模糊行投影成候选：读音、完整拼音和词面都只加引用计数。
+fn append_fuzzy_items(rows: &[FuzzyRow], typed: &SharedString, result: &mut Vec<WordItem>) {
     result.reserve(rows.len());
-    if let Some(row) = rows.next() {
-        let mut item = WordItem::new(
-            typed.into_owned(),
-            row.value,
-            row.weight,
-            CandidateSource::Database,
-            row.key,
-        );
-        item.fuzzy = true;
-        result.push(item);
+    result.extend(rows.iter().map(|row| WordItem {
+        pinyin: typed.clone(),
+        canonical_pinyin: row.key.clone(),
+        word: row.value.clone(),
+        weight: row.weight,
+        source: CandidateSource::Database,
+        fuzzy: true,
+        ..WordItem::default()
+    }));
+}
+
+/// 模糊合并切开的一个音节，连同到它为止的前缀的读法组合数（各音节读法个数饱和相乘），即这一前缀不受上限截断时能展开的路径条数加一。
+struct CountedSyllable<'a> {
+    text: &'a str,
+    combinations: usize,
+}
+
+impl AsRef<str> for CountedSyllable<'_> {
+    fn as_ref(&self) -> &str {
+        self.text
     }
-    for row in rows {
-        let mut item = WordItem::new(
-            result.last().expect("首个模糊候选已插入").pinyin.clone(),
-            row.value,
-            row.weight,
-            CandidateSource::Database,
-            row.key,
-        );
-        item.fuzzy = true;
-        result.push(item);
+}
+
+/// 行缓存键里的上限。同一组音节展开出的路径只取决于 `limit` 与读法组合数 `combinations` 中较小的那个（见 [`fuzzy_segmentations`]），所以不受上限截断（`combinations <= limit`）时一律记作 `FUZZY_SEGMENTATION_LIMIT`：九键一键的二三十条切分各自剩下的预算不同，同一段读音前缀原来会因为上限不同而反复查库（#10457）。受截断时保留实际上限。键里的数总是「用它展开会得到同样的路径」，所以命中项与重新查库完全相同。
+fn fuzzy_row_key_limit(combinations: usize, limit: usize) -> usize {
+    if combinations <= limit {
+        FUZZY_SEGMENTATION_LIMIT
+    } else {
+        limit
     }
 }
 
@@ -2160,3 +2427,7 @@ mod evicted_page_tests;
 
 #[cfg(test)]
 mod online_cache_update_tests;
+
+#[cfg(test)]
+#[path = "dictionary/online_beam_context_tests.rs"]
+mod online_beam_context_tests;

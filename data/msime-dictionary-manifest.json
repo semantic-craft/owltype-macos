@@ -9,12 +9,12 @@
   "source": {
     "repository": "metasequoiaime/msime",
     "path": "resources/dictionary-sources",
-    "commit": "8bb181be2ed36ed9559a87434cc4c9048077ff29",
+    "commit": "24852caa38e76f316cac69fd3fdba0d428d4d249",
     "dirty": false
   },
   "sqlite_journal_mode": "delete",
-  "format_contract_commit": "8bb181be2ed36ed9559a87434cc4c9048077ff29",
-  "custom_dictionary_commit": "75978c6a6470171cc805c74e87ef465d894a7be4",
+  "format_contract_commit": "24852caa38e76f316cac69fd3fdba0d428d4d249",
+  "custom_dictionary_commit": "c239ba1a584511d15d33ff9c1c520897993f2013",
   "custom_dictionary_repository": "metasequoiaime/msime-dictionary",
   "custom_dictionary_path": "custom",
   "references": {
@@ -56,7 +56,7 @@
     },
     "msime-dictionary": {
       "repository": "https://github.com/metasequoiaime/msime-dictionary.git",
-      "commit": "75978c6a6470171cc805c74e87ef465d894a7be4"
+      "commit": "c239ba1a584511d15d33ff9c1c520897993f2013"
     },
     "rime-cantonese": {
       "repository": "https://github.com/rime/rime-cantonese.git",
@@ -73,6 +73,22 @@
     "rime-stroke": {
       "repository": "https://github.com/rime/rime-stroke.git",
       "commit": "1e8fff9b9494ddec23b0cbc526bcfd8171a6fd48"
+    },
+    "rime-wanxiang": {
+      "repository": "https://github.com/amzxyz/rime-wanxiang.git",
+      "commit": "7ab73ee0c7f80190004233e70f954833df64c80e"
+    },
+    "rime-wubi": {
+      "repository": "https://github.com/rime/rime-wubi.git",
+      "commit": "152a0d3f3efe40cae216d1e3b338242446848d07"
+    },
+    "rime-wubi86-jidian": {
+      "repository": "https://github.com/KyleBing/rime-wubi86-jidian.git",
+      "commit": "28f19e3affdabb37d11d38f457c7a08a4694b226"
+    },
+    "wubi06-rime": {
+      "repository": "https://github.com/byujiang/wubi06_rime.git",
+      "commit": "fc1cedbb21cde3ca160ce291888fa70697720ab3"
     }
   },
   "mozc_revision": "9fbd649bea4c5e99cd8ad5e487213b26a953a376",
@@ -97,31 +113,31 @@
   },
   "files": {
     "msime-pinyin.db": {
-      "sha256": "e8d7a7bc8f990b6553d5d5199e652d29d86015dc8f48498689108fca408fc935",
-      "size": 73916416
+      "sha256": "69a09c58978b402399c241a5553ca2beff1b8cb756e3ec635184178ccb1c140d",
+      "size": 73891840
     },
     "msime-wubi.db": {
-      "sha256": "54ee94799d8e33d5356468bdae164d21f68ce8ca0de9e6464ed4b3783924b93c",
-      "size": 94982144
+      "sha256": "2e1ff8eaaa4a6dee7fc0947c17c4bf58f5bf5fc5c8a2f87c2ed7ccbf9926b146",
+      "size": 142508032
     },
     "msime-english.db": {
-      "sha256": "1b5497d6764f15ebd2f86225c29b0fa1e45961638dfb0e13859214fbfc6f4bfd",
-      "size": 4526080
+      "sha256": "4e9e96e7cc764d05b5b1b434c7065bc9a754b9f8b941cf99e4d9190321cb2210",
+      "size": 4485120
     },
     "msime-others.db": {
-      "sha256": "9f3cae5b407038e0e4536c40582a0bc0feb732657f0ae2d38196374cede52f94",
-      "size": 1314816
+      "sha256": "2a53f91302928c47a45eb2f91aac02d17f0c21c354f0c838eaf1584f702d4206",
+      "size": 1323008
     },
     "msime-japanese.dat": {
       "sha256": "83e093c5697ee81e3ccde63856e9131446e373d452854b4012ad34eb6efbe469",
       "size": 66547565
     },
     "msime-bigram.bin": {
-      "sha256": "3513db47cbe2f035af969b1c3ba8d414f760d70ab404ad49c477630799f94c6b",
+      "sha256": "53c1561cead0314a12c37e5ad2656b064b6e87891ce5e180b602b68b5a57f0d5",
       "size": 12000016
     },
     "msime-trigram.bin": {
-      "sha256": "818e87be6f4d6ba5004a64533fae543c8738d03899d37495d0fb818eaaa5495c",
+      "sha256": "8b0a51720e3f836ff7576ea330e9b14e2912218f8edf52dfd80a703991e8b601",
       "size": 12000016
     },
     "msime-mozc_dictionary_oss_README.txt": {

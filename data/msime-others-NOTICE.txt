@@ -5,19 +5,19 @@ Runtime file:
 
 Owltype derives this database at seed time from the pinned release artifact:
 
-  https://github.com/metasequoiaime/msime-dictionary/releases/download/dict-v2.0.39/msime-others.db
-  Size: 1314816 bytes
-  SHA-256: 9f3cae5b407038e0e4536c40582a0bc0feb732657f0ae2d38196374cede52f94
+  https://github.com/metasequoiaime/msime-dictionary/releases/download/dict-v2.1.2/msime-others.db
+  Size: 1323008 bytes
+  SHA-256: 2a53f91302928c47a45eb2f91aac02d17f0c21c354f0c838eaf1584f702d4206
 
 Release manifest:
-  https://github.com/metasequoiaime/msime-dictionary/releases/download/dict-v2.0.39/msime-dictionary-manifest.json
-  Size: 4769 bytes
-  SHA-256: d697cc197ac4c61fc6447a42eb8cb96d9913bec4ebdd79fad4c68d91f37bbb55
+  https://github.com/metasequoiaime/msime-dictionary/releases/download/dict-v2.1.2/msime-dictionary-manifest.json
+  Size: 5394 bytes
+  SHA-256: 473f0eb4b6c6d7d2f6fba0935d026f5139ef45a666a3d7e467fd6298728eb6ec
   source.repository: metasequoiaime/msime
   source.path: resources/dictionary-sources
-  source.commit: 8bb181be2ed36ed9559a87434cc4c9048077ff29
+  source.commit: 24852caa38e76f316cac69fd3fdba0d428d4d249
   source.dirty: false
-  custom_dictionary_commit: 75978c6a6470171cc805c74e87ef465d894a7be4
+  custom_dictionary_commit: c239ba1a584511d15d33ff9c1c520897993f2013
   references.rime-ice.commit: 9e66b0729083b37d217312294f6d516c8d7234be
 
 The release artifact is a multi-source database whose overall licensing is not
@@ -33,17 +33,17 @@ All other tables in the release artifact, including symbol_catalog, are excluded
 
 The pinned builder code reads the emoji inputs in the Emoji stage here:
 
-  https://github.com/metasequoiaime/msime/blob/8bb181be2ed36ed9559a87434cc4c9048077ff29/crates/dict-builder/src/main.rs
-  https://github.com/metasequoiaime/msime/blob/8bb181be2ed36ed9559a87434cc4c9048077ff29/crates/dict-builder/src/others.rs
-  https://github.com/metasequoiaime/msime/blob/8bb181be2ed36ed9559a87434cc4c9048077ff29/crates/dict-builder/src/pinyin.rs
+  https://github.com/metasequoiaime/msime/blob/24852caa38e76f316cac69fd3fdba0d428d4d249/crates/dict-builder/src/main.rs
+  https://github.com/metasequoiaime/msime/blob/24852caa38e76f316cac69fd3fdba0d428d4d249/crates/dict-builder/src/others.rs
+  https://github.com/metasequoiaime/msime/blob/24852caa38e76f316cac69fd3fdba0d428d4d249/crates/dict-builder/src/pinyin.rs
 
 Sources for the retained tables at the builder commit:
 
   Chinese emoji keywords
     rime-ice, others/emoji-map.txt, source header version 2026-01-26
     msime input: resources/dictionary-sources/emoji/emoji.txt
-    Size: 90178 bytes
-    SHA-256: a6a0af0c00e6e359eb2f1be247d15a5735c2240bc248181b6946e0377e991002
+    Size: 90492 bytes
+    SHA-256: b8482782cd5da050cea3061f5ca533706c10f4e27ee4147638e0b8bbb6eafe4b
     https://github.com/iDvel/rime-ice
     License: GPL-3.0-only. The seed carries rime-ice.LICENSE and
     rime-ice-Credits.md.
@@ -52,16 +52,16 @@ Sources for the retained tables at the builder commit:
     Unicode Emoji 17.0 emoji-test.txt (fully-qualified rows and components),
     Unicode CLDR English annotations, and Unicode Emoji 1.0 names
     msime input: resources/dictionary-sources/emoji/emoji_en.txt
-    Size: 183514 bytes
-    SHA-256: c1b0a92e5cfc6d23a972e4afac1770b1df5e8bc848ef397d2f785161e04cac48
+    Size: 183862 bytes
+    SHA-256: b7e44dc7ab5bd1cd7d53fcf4d36eceac51ec27baea8f629613bb2c052f1b1da8
     https://unicode.org/Public/emoji/17.0/
     License: Unicode-3.0. The seed carries licenses/Unicode-3.0.txt.
 
   Emoji catalog order
     Unicode emoji-test.txt, regenerated into the msime input below
     msime input: resources/dictionary-sources/emoji/emoji_catalog.txt
-    Size: 47198 bytes
-    SHA-256: 71b4027b02b457a2cea8b988cda907763e6ee8e241a8c9c353829a464f291d60
+    Size: 47546 bytes
+    SHA-256: 709c130e294b6217a967bfb7fd184e59b4b3a8a56ae33aceaf16809c1ebca644
     License: Unicode-3.0. The seed carries licenses/Unicode-3.0.txt.
 
   Keyword pinyin
@@ -70,17 +70,17 @@ Sources for the retained tables at the builder commit:
     0.55.0 lazy_pinyin (tag v0.55.0, commit
     df101577145af2eb1abe5656e592e34e3bb56d23).
     msime input: resources/dictionary-sources/pinyin-overrides.txt
-    Size: 1582 bytes
-    SHA-256: e2770db162955de16cf82f82368c469e5a0060dcb4ff9911424998bb4d9a0a8d
+    Size: 3066 bytes
+    SHA-256: 1b1456136afbb0b1970864084bc497645c30d3bb0916dd5d0e7475738aebd421
     https://github.com/mozillazg/python-pinyin/tree/v0.55.0
     License: MIT. The seed carries the verbatim python-pinyin.LICENSE.
 
 Validation:
   emoji: 1935 rows, canonical row SHA-256
-  b3939c2005a8d46b18a5421eeee35698ba7b1ae01b3c24e6f470a524710905a7
+  7288ec95029ab8927fa1dd1aa9f3dfd56ceff07a1797ca4a43966aeafc6d1273
 
-  emoji_pinyin: 21541 rows, canonical row SHA-256
-  e761e06bb14331d27d48786fe6be4e998f289344e139e1252ce53f9090a4c306
+  emoji_pinyin: 21534 rows, canonical row SHA-256
+  2b49bfe0fadd13456725d9d67509abc6a2dbfa23131284ab0b6e2246a1167dd2
 
 This notice records provenance and licensing for the retained data. It does
 not grant rights beyond the terms supplied by each upstream source.
@@ -91,7 +91,7 @@ Retained kaomoji data:
   The pinned upstream builder deduplicates keyword/text pairs, resolves pinyin
   and initials, and preserves catalog order from resources/dictionary-sources/
   kaomoji/kaomoji.txt. Runtime rows are copied unchanged from the pinned release.
-  kaomoji: 1675 rows; canonical row SHA-256
-  31ecdb996b3d5dcd30d350d779651685fbc0d9d83578d846ac16c241b89b506f
-  kaomoji_catalog: 1400 rows; canonical row SHA-256
-  149d3a2bea71d38cc5b4d853d5b889abac3c5deb1a098c518ffa42c63d36d15f
+  kaomoji: 1673 rows; canonical row SHA-256
+  b9cbb90fce8e526b52931f0a6841e9667d591ca72e54d31c6b6f37a17359cfea
+  kaomoji_catalog: 1398 rows; canonical row SHA-256
+  9d868e969ed3543d5afa54014864dc805f08daf2d085d01ff2c81d9ef4004c2c

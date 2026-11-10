@@ -8,7 +8,7 @@ use crate::pinyin::autocorrect::{
 };
 use crate::pinyin::segment::join_segments;
 use crate::pinyin::syllables::{has_only_complete_pinyin_segments, is_intact, is_prefix};
-use crate::types::{autocorrect_type, WordItem};
+use crate::types::{autocorrect_type, CandidateSource, WordItem};
 
 /// How many ranked correction cuts feed the query pipeline: the primary cut becomes the query key and the rest ride along as alternative segmentations. Dropped-initial keys such as `uan` have 10-15 equally weighted deletion targets (cuan/duan/guan/...), and k = 3 cut the list by table order before reaching the right reading (quan'li for uanli); k = 9 lifted R@1/R@3 on the deletion and mixed eval sets with no p95 change (QD:90-97).
 pub const AUTOCORRECT_CUT_KBEST: usize = 9;
@@ -173,6 +173,13 @@ fn folded_reading_equal(left: &str, right: &str) -> bool {
             .map(|character| character.to_ascii_lowercase()))
 }
 
+/// 这次查询的主切分或任一备选切分的字母和原文不同，也就是有纠错读法在作用。
+pub fn has_corrected_cut(raw: &str, primary_segmentation: &str, corrected_cuts: &[String]) -> bool {
+    std::iter::once(primary_segmentation)
+        .chain(corrected_cuts.iter().map(String::as_str))
+        .any(|cut| !cut.is_empty() && !folded_reading_equal(cut, raw))
+}
+
 /// QD:1006-1054: rows read from a corrected cut get `corrected_from = fold(raw)`.
 pub fn mark_autocorrect_candidates(
     candidates: &mut [WordItem],
@@ -181,11 +188,11 @@ pub fn mark_autocorrect_candidates(
     corrected_cuts: &[String],
 ) {
     // A row comes from a corrected reading exactly when its letters equal some correction cut's letters while those differ from the typed letters. Comparing letters alone would also sweep up prefix rows the user spelled correctly (keneng -> ke, single-letter jianpin expansions); both rules together keep those unmarked.
-    let cuts =
-        || std::iter::once(primary_segmentation).chain(corrected_cuts.iter().map(String::as_str));
-    if cuts().all(|cut| cut.is_empty() || folded_reading_equal(cut, raw)) {
+    if !has_corrected_cut(raw, primary_segmentation, corrected_cuts) {
         return;
     }
+    let cuts =
+        || std::iter::once(primary_segmentation).chain(corrected_cuts.iter().map(String::as_str));
     let mut raw_letters = None;
     for item in candidates
         .iter_mut()
@@ -200,6 +207,42 @@ pub fn mark_autocorrect_candidates(
             let folded = raw_letters.get_or_insert_with(|| fold_reading(raw));
             item.corrected_from = folded.as_str().into();
         }
+    }
+}
+
+/// 全辅音输入（`qjn`、`zhr`、`shng`）本身就是一串简拼，纠错只是另一种猜测（漏了或按偏了韵母）。字面简拼里读满全部按键的多字词条说明这串简拼确实对得上词，于是把它们挪到最前面；纠错读法和只读了一部分按键的字面行依次跟在后面，各自的相对顺序不变，纠错行照旧由 `mark_autocorrect_candidates` 打标。字面简拼一条整词都没有时列表原样不动，纠错读法继续打头。带元音的输入不走这条规则：`sahng` 的字面读法 sa'h'n'g 能读出「撒谎那个」，但那是音节加简拼的混合形状，误触的可能比简拼大得多（#9903）。
+///
+/// 两字母、三字母的简拼表很密，`zhr` 读满全部按键的 zh'r 词有上百条，全排在前面会把纠错读法挤出前几页，等于关掉了全辅音输入的纠错。所以原来打头的那条纠错候选最多退到 `kept_seat`（调用方给首页最后一个座位）：首位和前面的座位仍归字面简拼词，纠错读法在首页还看得见。
+pub fn lead_literal_abbreviation_phrases(rows: &mut [WordItem], raw: &str, kept_seat: usize) {
+    let consonants_only = !raw.is_empty()
+        && raw.bytes().all(|byte| {
+            byte.is_ascii_alphabetic()
+                && !matches!(
+                    byte.to_ascii_lowercase(),
+                    b'a' | b'e' | b'i' | b'o' | b'u' | b'v'
+                )
+        });
+    if !consonants_only {
+        return;
+    }
+    // 匹配码折叠后等于原文字母，就是照原样读满了全部按键的字面行；纠错行的匹配码是改过的读音，整句行不算词条。
+    let is_literal_phrase = |item: &WordItem| {
+        !item.sentence_association
+            && item.word.chars().nth(1).is_some()
+            && folded_reading_equal(&item.pinyin, raw)
+    };
+    let phrases = rows.iter().filter(|item| is_literal_phrase(item)).count();
+    if phrases == 0 {
+        return;
+    }
+    // 字面行的匹配码是原文的前缀；不是前缀的打头行来自纠错读法。
+    let correction_leads = rows.first().is_some_and(|item| {
+        !is_literal_phrase(item) && !fold_reading(raw).starts_with(&fold_reading(&item.pinyin))
+    });
+    // 稳定排序只把字面整词提到前面，其余行保持原来的先后，原来打头的纠错行因此紧跟在字面整词后面。
+    rows.sort_by_key(|item| !is_literal_phrase(item));
+    if correction_leads && phrases > kept_seat {
+        rows[kept_seat..=phrases].rotate_right(1);
     }
 }
 
@@ -275,6 +318,64 @@ pub(super) fn merge_series_by_coverage(result: &mut Vec<WordItem>, supplemental:
         std::cmp::Reverse(item.pinyin.bytes().filter(|&byte| byte != b'\'').count())
     });
     retain_unique_sorted_rows(result);
+}
+
+/// 挂了逐键打分器时每条切分多解几条整句读法（`QuanpinDictionary::set_sentence_pool`），而打分器只比较前九条回答整串的行（`ordering::COMPARED_LIMIT`）。主切分多出来的读法照原样排在备选切分的整句前面，就会把备选切分的整句挤出比较：「fangan」的主切分是 fan'gan，多解三条「反感…」以后，备选切分 fang'an 的「两个方案都挺好的」排到第十位，模型再也看不到它，首选从「方案」变成「反感」。
+///
+/// 所以主切分（第一条整句所在的切分）的整句只留前 `kept` 条在原位，其余挪到所有备选切分的整句之后；整句只来自一条切分时什么都不动。`kept` 是不挂打分器时的条数，备选切分进入比较的那几条因此和以前相同，多解的读法只占用原来空着的比较位。只动来源为词网格、读满整串、不是纠错读出的行，其余行的座位不变。
+pub(super) fn defer_pooled_sentences(rows: &mut Vec<WordItem>, raw: &str, kept: usize) {
+    let letters = |text: &str| text.bytes().filter(|&byte| byte != b'\'').count();
+    let full = letters(raw);
+    let slots: Vec<usize> = rows
+        .iter()
+        .enumerate()
+        .filter(|(_, row)| {
+            row.source == CandidateSource::Generated
+                && row.sentence_association
+                && row.corrected_from.is_empty()
+                && letters(&row.pinyin) == full
+        })
+        .map(|(index, _)| index)
+        .collect();
+    let Some(&first) = slots.first() else {
+        return;
+    };
+    let primary = rows[first].canonical_pinyin.clone();
+    if slots
+        .iter()
+        .all(|&index| rows[index].canonical_pinyin == primary)
+    {
+        return;
+    }
+    // 新的第 k 个整句座位放原来第 `order[k]` 个整句。
+    let mut order = Vec::with_capacity(slots.len());
+    let mut deferred = Vec::new();
+    let mut primary_seen = 0;
+    for (position, &index) in slots.iter().enumerate() {
+        if rows[index].canonical_pinyin == primary {
+            primary_seen += 1;
+            if primary_seen > kept {
+                deferred.push(position);
+                continue;
+            }
+        }
+        order.push(position);
+    }
+    if deferred.is_empty() {
+        return;
+    }
+    order.extend(deferred);
+    // 先按座位从后往前取出全部整句，再按新顺序从前往后放回原来的座位。
+    let mut taken: Vec<Option<WordItem>> = slots
+        .iter()
+        .rev()
+        .map(|&index| Some(rows.remove(index)))
+        .collect();
+    taken.reverse();
+    for (&index, &from) in slots.iter().zip(&order) {
+        let row = taken[from].take().expect("each sentence is placed once");
+        rows.insert(index, row);
+    }
 }
 
 /// 对已排序的行按词面去重，保留首条及原有向量容量。
@@ -371,6 +472,66 @@ mod tests {
         items.iter().map(|item| item.word.as_str()).collect()
     }
 
+    /// 词网格整句行：`typed` 是打的拼音，`canonical` 是这条切分的读音。
+    fn sentence(typed: &str, canonical: &str, word: &str) -> WordItem {
+        let mut item = WordItem::new(typed, word, 0, CandidateSource::Generated, canonical);
+        item.sentence_association = true;
+        item
+    }
+
+    /// 主切分 fan'gan 解了 9 条、备选切分 fang'an 解了 3 条，中间夹着词典行和前缀行。
+    fn pooled_rows() -> Vec<WordItem> {
+        let mut rows = vec![row("fan'gan", "反感", 900)];
+        rows.extend((1..=9).map(|n| sentence("fan'gan", "fan'gan", &format!("主{n}"))));
+        rows.extend((1..=3).map(|n| sentence("fang'an", "fang'an", &format!("备{n}"))));
+        rows.push(row("fan", "反", 800));
+        rows
+    }
+
+    #[test]
+    fn pooled_primary_readings_go_behind_the_other_segmentation() {
+        let mut rows = pooled_rows();
+        defer_pooled_sentences(&mut rows, "fangan", 6);
+        assert_eq!(
+            words(&rows),
+            [
+                "反感", "主1", "主2", "主3", "主4", "主5", "主6", "备1", "备2", "备3", "主7",
+                "主8", "主9", "反"
+            ]
+        );
+    }
+
+    #[test]
+    fn one_segmentation_or_no_extra_readings_stay_put() {
+        let mut single: Vec<WordItem> = (1..=9)
+            .map(|n| sentence("fan'gan", "fan'gan", &format!("主{n}")))
+            .collect();
+        let before = words(&single).join(",");
+        defer_pooled_sentences(&mut single, "fangan", 6);
+        assert_eq!(words(&single).join(","), before);
+
+        let mut rows = pooled_rows();
+        let before = words(&rows).join(",");
+        defer_pooled_sentences(&mut rows, "fangan", 9);
+        assert_eq!(words(&rows).join(","), before);
+    }
+
+    #[test]
+    fn corrected_and_partial_readings_keep_their_seats() {
+        let mut rows = pooled_rows();
+        // 纠错读出的整句和只读了前缀的整句不参与挪动。
+        rows[8].corrected_from = "fnagan".into();
+        rows.insert(2, sentence("fan", "fan", "帆"));
+        defer_pooled_sentences(&mut rows, "fangan", 6);
+        assert_eq!(
+            words(&rows),
+            [
+                "反感", "主1", "帆", "主2", "主3", "主4", "主5", "主6", "备1", "主8", "备2", "备3",
+                "主7", "主9", "反"
+            ]
+        );
+    }
+
     #[test]
     fn series_cache_key_carries_mask_and_delimiter_mode() {
         assert_eq!(series_cache_key("nihao", "ni'hao", 0), "T0:A:ni'hao");
@@ -450,6 +611,59 @@ mod tests {
                 "{left}/{right}"
             );
         }
+    }
+
+    #[test]
+    fn literal_abbreviation_phrases_move_ahead_in_their_own_order() {
+        let mut rows = vec![
+            row("zhe", "这", 900),
+            row("zh", "主", 800),
+            row("zh'r", "转让", 500),
+            row("zhe", "着", 400),
+            row("z'h'r", "这伙人", 40),
+            row("zh'r", "正如", 300),
+        ];
+        let mut sentence = row("zh'r", "主人公", 1);
+        sentence.sentence_association = true;
+        rows.push(sentence);
+        lead_literal_abbreviation_phrases(&mut rows, "zhr", 5);
+        assert_eq!(
+            words(&rows),
+            ["转让", "这伙人", "正如", "这", "主", "着", "主人公"]
+        );
+
+        // 带元音的输入和没有字面整词的输入都原样不动。
+        let original = vec![row("shang", "上", 100), row("sa'h'n'g", "撒谎那个", 1000)];
+        let mut vowel = original.clone();
+        lead_literal_abbreviation_phrases(&mut vowel, "sahng", 5);
+        assert_eq!(vowel, original);
+        let mut no_phrase = vec![row("shang", "上", 100), row("sh", "是", 90)];
+        lead_literal_abbreviation_phrases(&mut no_phrase, "shng", 5);
+        assert_eq!(words(&no_phrase), ["上", "是"]);
+    }
+
+    #[test]
+    fn the_leading_correction_keeps_the_last_first_page_seat() {
+        let mut rows = vec![row("zhe", "这", 900), row("zhe", "着", 800)];
+        for word in ["转让", "主人", "众人", "正如", "整容", "招人", "阵容"] {
+            rows.push(row("zh'r", word, 100));
+        }
+        rows.push(row("zh", "主", 50));
+        lead_literal_abbreviation_phrases(&mut rows, "zhr", 5);
+        assert_eq!(
+            words(&rows),
+            [
+                "转让", "主人", "众人", "正如", "整容", "这", "招人", "阵容", "着", "主"
+            ]
+        );
+
+        // 打头的是字面前缀行（纠错读法什么也没查到）时，没有要保座的纠错候选。
+        let mut literal_head = vec![row("zh", "主", 800)];
+        for word in ["转让", "主人", "众人"] {
+            literal_head.push(row("zh'r", word, 100));
+        }
+        lead_literal_abbreviation_phrases(&mut literal_head, "zhr", 1);
+        assert_eq!(words(&literal_head), ["转让", "主人", "众人", "主"]);
     }
 
     #[test]

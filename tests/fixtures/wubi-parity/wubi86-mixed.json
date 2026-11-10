@@ -191,9 +191,9 @@
       "op": "character",
       "value": "a",
       "expect": {
-        "preedit": "王a",
+        "preedit": "a",
         "input": "a",
-        "commit": null
+        "commit": "王"
       }
     },
     {

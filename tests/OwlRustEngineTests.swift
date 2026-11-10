@@ -618,7 +618,7 @@ final class OwlRustEngineTests: XCTestCase {
     let generation = try environment.activeGeneration()
     XCTAssertEqual(
       OwlRustCompatibleResources.wubiDictionaryDigest,
-      "sha256:54ee94799d8e33d5356468bdae164d21f68ce8ca0de9e6464ed4b3783924b93c"
+      "sha256:2e1ff8eaaa4a6dee7fc0947c17c4bf58f5bf5fc5c8a2f87c2ed7ccbf9926b146"
     )
     XCTAssertEqual(generation.contentID, OwlRustCompatibleResources.contentID)
     let engine = OwlRustEngine(sharedSupportURL: seed, userDataURL: user)
@@ -1655,19 +1655,19 @@ final class OwlRustEngineTests: XCTestCase {
     defaults.set(true, forKey: keys[0])
     typeText("i", into: session)
     let initial = try XCTUnwrap(session.composition())
-    let zibo = try XCTUnwrap(initial.candidates.firstIndex { $0.text == "淄博" })
-    // Literal native oracle: code=ivfg, typed=i => suffix vfg. Short-code 不 falls back to gii.
-    XCTAssertEqual(initial.candidates[zibo].comment, "vfg")
+    let chaoliu = try XCTUnwrap(initial.candidates.firstIndex { $0.text == "潮流" })
+    // Literal native oracle: code=ifiy, typed=i => suffix fiy. Short-code 不 falls back to gii.
+    XCTAssertEqual(initial.candidates[chaoliu].comment, "fiy")
     XCTAssertEqual(initial.candidates.first?.comment, "gii")
-    let peek = session.peekCandidates(from: zibo, count: 1)
-    XCTAssertEqual(peek.first?.text, "淄博")
-    XCTAssertEqual(peek.first?.comment, "vfg")
+    let peek = session.peekCandidates(from: chaoliu, count: 1)
+    XCTAssertEqual(peek.first?.text, "潮流")
+    XCTAssertEqual(peek.first?.comment, "fiy")
     defaults.set(false, forKey: keys[0])
     session.clearComposition()
     typeText("i", into: session)
-    XCTAssertNil(session.composition()?.candidates[zibo].comment)
-    XCTAssertTrue(session.selectCandidate(zibo))
-    XCTAssertEqual(session.takeCommit(), "淄博")
+    XCTAssertNil(session.composition()?.candidates[chaoliu].comment)
+    XCTAssertTrue(session.selectCandidate(chaoliu))
+    XCTAssertEqual(session.takeCommit(), "潮流")
 
     // Hint-off native rendering retains the reverse-lookup annotation.
     typeText("znihao", into: session)
@@ -1707,9 +1707,9 @@ final class OwlRustEngineTests: XCTestCase {
     defer { session.destroy() }
     typeText("i", into: session)
     let page = try XCTUnwrap(session.composition())
-    // Pinned 0.55 native defaults and official dict-v2.0.39, default 4-row page.
+    // Pinned 0.59.1 native defaults and official dict-v2.1.2, default 4-row page.
     XCTAssertEqual(page.pageSize, 4)
-    XCTAssertEqual(page.candidates.map(\.text), ["不", "水", "淄博", "湛江"])
+    XCTAssertEqual(page.candidates.map(\.text), ["不", "水", "潮流", "潜流"])
   }
 
   func testWubiLearningDefaultsToNativeAndPreservesExplicitOptOut() throws {
@@ -1774,18 +1774,18 @@ final class OwlRustEngineTests: XCTestCase {
     typeText("gggg", into: session)
     XCTAssertNil(session.takeCommit())
     defaults.set(false, forKey: keys[1])
-    // Real pinned Host API refuses this invalid Pinyin continuation instead of topping 王.
-    XCTAssertFalse(session.process(keycode: asciiKeycode("x"), modifiers: 0))
+    // Pinned 0.59.1 Host API extends mixed composition instead of topping 王 when top-commit is disabled.
+    XCTAssertTrue(session.process(keycode: asciiKeycode("x"), modifiers: 0))
     XCTAssertNil(session.takeCommit())
-    XCTAssertEqual(session.input(), "gggg")
+    XCTAssertEqual(session.input(), "ggggx")
     session.clearComposition()
     defaults.set(true, forKey: keys[1])
     typeText("gggg", into: session)
     let mixedFirst = try XCTUnwrap(session.composition()?.candidates.first?.text)
     typeText("x", into: session)
-    XCTAssertNil(session.takeCommit())
+    XCTAssertEqual(session.takeCommit(), mixedFirst)
     XCTAssertEqual(session.input(), "x")
-    XCTAssertEqual(session.composition()?.preedit, mixedFirst + "x")
+    XCTAssertEqual(session.composition()?.preedit, "x")
     session.clearComposition()
 
     // Upstream still tops in pure Wubi: the fifth letter cannot fit the four-code buffer.
@@ -1794,9 +1794,9 @@ final class OwlRustEngineTests: XCTestCase {
     typeText("gggg", into: session)
     let pureFirst = try XCTUnwrap(session.composition()?.candidates.first?.text)
     typeText("x", into: session)
-    XCTAssertNil(session.takeCommit())
+    XCTAssertEqual(session.takeCommit(), pureFirst)
     XCTAssertEqual(session.input(), "x")
-    XCTAssertEqual(session.composition()?.preedit, pureFirst + "x")
+    XCTAssertEqual(session.composition()?.preedit, "x")
     session.clearComposition()
     typeText("bbbx", into: session)
     XCTAssertFalse(session.process(keycode: asciiKeycode("x"), modifiers: 0))
@@ -2035,17 +2035,17 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertEqual(session.input(), "n")
     session.clearComposition()
 
-    // An ambiguous four-code stays open. Native phrase_preedit holds its first
-    // candidate before the next code; it is not committed to the client yet.
+    // An ambiguous four-code stays open. The fifth key immediately commits its first
+    // candidate instead of holding it in phrase_preedit.
     typeText("aaaa", into: session)
     XCTAssertNil(session.takeCommit())
     let ambiguous = try XCTUnwrap(session.composition())
     XCTAssertGreaterThan(ambiguous.candidates.count, 1)
     let firstAmbiguous = try XCTUnwrap(ambiguous.candidates.first?.text)
     typeText("x", into: session)
-    XCTAssertNil(session.takeCommit())
+    XCTAssertEqual(session.takeCommit(), firstAmbiguous)
     XCTAssertEqual(session.input(), "x")
-    XCTAssertEqual(session.composition()?.preedit, firstAmbiguous + "x")
+    XCTAssertEqual(session.composition()?.preedit, "x")
     session.clearComposition()
 
     // Backspace restores a shorter code and keeps its candidate list live.
@@ -2151,8 +2151,8 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertEqual(session.input(), "wo")
     session.clearComposition()
     XCTAssertEqual(session.input(), "")
-    typeText("sebv", into: session)
-    XCTAssertEqual(session.takeCommit(), "极限")
+    typeText("ivjf", into: session)
+    XCTAssertEqual(session.takeCommit(), "当时")
 
     typeText("nihaowo", into: session)
     let cancelIndex = try pageToVisibleCandidate("你好", in: session)
@@ -2160,8 +2160,8 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertEqual(session.input(), "wo")
     XCTAssertTrue(session.process(keycode: UInt32(XK_Escape), modifiers: 0))
     XCTAssertEqual(session.input(), "")
-    typeText("sebv", into: session)
-    XCTAssertEqual(session.takeCommit(), "极限")
+    typeText("ivjf", into: session)
+    XCTAssertEqual(session.takeCommit(), "当时")
 
     typeText("nihaowo", into: session)
     let switchIndex = try pageToVisibleCandidate("你好", in: session)
@@ -2531,13 +2531,11 @@ final class OwlRustEngineTests: XCTestCase {
 
     // Pinned full resources replace the former Owl-only mixed lexicon. Keep the
     // actual upstream top row rather than requiring words absent from its table.
-    for (input, expected) in [("xguang", "星光"), ("txu", "剃须")] {
+    for (input, expected) in [("xguang", "星光"), ("txu", "剃须"), ("upan", "普安")] {
       typeText(input, into: session)
       XCTAssertEqual(session.composition()?.candidates.first?.text, expected)
       session.clearComposition()
     }
-    typeText("upan", into: session)
-    XCTAssertEqual(session.composition()?.candidates.count, 0)
   }
 
   func testOwlEnhancementsRequireExplicitKWithoutChangingOrdinaryCandidates() throws {

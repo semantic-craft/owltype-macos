@@ -410,9 +410,9 @@ fn pure_wubi_fifth_key_tops_an_ambiguous_four_code() {
 
     let topped = call_action(session, r#"{"op":"insert","ch":"x"}"#);
     assert!(topped.ok, "{:?}", topped.error);
-    assert_eq!(topped.committed_text, None);
+    assert_eq!(topped.committed_text.as_deref(), Some("工"));
     assert_eq!(topped.raw_input, "x");
-    assert_eq!(topped.preedit, "工x");
+    assert_eq!(topped.preedit, "x");
     owl_msime_session_destroy(session);
 }
 

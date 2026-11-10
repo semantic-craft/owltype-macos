@@ -1,7 +1,7 @@
 {
   "repository": "https://github.com/metasequoiaime/msime",
-  "tag": "macos-v0.55.0",
-  "revision": "208c10e848bbed99373ca8b609fd2142b6b0b4e2",
+  "tag": "macos-v0.59.1",
+  "revision": "d72bf12105469f4faeb94213404d9abc84ff799f",
   "fullCrates": [
     "engine",
     "input-runtime",
@@ -33,10 +33,10 @@
     "quick_phrase_candidates": false
   },
   "resources": {
-    "release": "dict-v2.0.39",
+    "release": "dict-v2.1.2",
     "manifest": "../data/msime-dictionary-manifest.json",
-    "manifestSha256": "d697cc197ac4c61fc6447a42eb8cb96d9913bec4ebdd79fad4c68d91f37bbb55",
-    "manifestSize": 4769,
+    "manifestSha256": "473f0eb4b6c6d7d2f6fba0935d026f5139ef45a666a3d7e467fd6298728eb6ec",
+    "manifestSize": 5394,
     "sourceNotice": "../data/msime-resources-NOTICE.md"
   },
   "license": "GPL-3.0-only; dependency, model and data licenses remain separate."
