@@ -59,7 +59,7 @@ class RustDeliveryTests(unittest.TestCase):
         app = self.root / name
         (app / "Contents/MacOS").mkdir(parents=True)
         with (app / "Contents/Info.plist").open("wb") as handle:
-            plistlib.dump({"CFBundleIdentifier": "fixture"}, handle)
+            plistlib.dump({"CFBundleIdentifier": "fixture", "CFBundleExecutable": "Owltype"}, handle)
         self.write_resources(app)
         self.write_helper(app)
         return app
@@ -188,6 +188,24 @@ class RustDeliveryTests(unittest.TestCase):
             CHECKER.validate_app(app)
         (app / CHECKER.MCP_HELPER).chmod(0o644)
         with self.assertRaisesRegex(CHECKER.DeliveryError, "not executable"):
+            CHECKER.validate_app(app)
+
+    def test_rejects_a_misplaced_main_executable(self) -> None:
+        app = self.make_app()
+        self.compile_fixture(app, VALID_SOURCE)
+        executable = app / "Contents/MacOS/Owltype"
+        executable.rename(executable.with_suffix(".misplaced"))
+        with self.assertRaisesRegex(CHECKER.DeliveryError, "App executable"):
+            CHECKER.validate_app(app)
+        self.compile_fixture(app, "int main(void) { return 0; }")
+        with self.assertRaisesRegex(CHECKER.DeliveryError, "Rust FFI symbols"):
+            CHECKER.validate_app(app)
+
+    def test_rejects_an_incorrect_manifest_executable(self) -> None:
+        app = self.make_app()
+        self.compile_fixture(app, VALID_SOURCE)
+        (app / "Contents/Info.plist").write_bytes(plistlib.dumps({"CFBundleExecutable": "missing"}))
+        with self.assertRaisesRegex(CHECKER.DeliveryError, "CFBundleExecutable"):
             CHECKER.validate_app(app)
 
     def test_rejects_missing_rust_symbols(self) -> None:

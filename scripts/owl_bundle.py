@@ -98,7 +98,7 @@ def artifact_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def validate_app_executable(app: Path) -> None:
+def validate_app_executable(app: Path) -> Path:
     try:
         app_mode = app.lstat().st_mode
     except OSError as error:
@@ -114,6 +114,7 @@ def validate_app_executable(app: Path) -> None:
         raise ValueError("release App executable is not a regular file")
     if stat.S_IMODE(executable_mode) & 0o111 == 0:
         raise ValueError("release App executable is not executable")
+    return executable
 
 
 def unreadable_by_others(root: Path) -> list[str]:
