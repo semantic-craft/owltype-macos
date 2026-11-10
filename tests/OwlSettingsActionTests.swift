@@ -57,6 +57,31 @@ final class OwlSettingsActionTests: XCTestCase {
     super.tearDown()
   }
 
+  @MainActor
+  func testLoadingTemplatesLeavesAnInProgressDraftUntouched() async {
+    let model = OwlTemplateEditorModel()
+    let started = expectation(description: "Library read started off the main thread")
+    let releaseRead = DispatchSemaphore(value: 0)
+    let saved = OwlTemplateEntry(title: "Saved", body: "Old body")
+    let load = Task {
+      await model.loadLibraryForEditing { _ in
+        XCTAssertFalse(Thread.isMainThread)
+        started.fulfill()
+        guard releaseRead.wait(timeout: .now() + 3) == .success else {
+          XCTFail("Main thread could not edit while the library read was pending")
+          return OwlTemplateLibrary()
+        }
+        return OwlTemplateLibrary(entries: [saved])
+      }
+    }
+    await fulfillment(of: [started], timeout: 2)
+    model.draft.title = "Still typing"
+    releaseRead.signal()
+    await load.value
+    XCTAssertEqual(model.library.entries, [saved])
+    XCTAssertEqual(model.draft.title, "Still typing")
+  }
+
   func testClickablePreferenceActionsUpdateStateAndPreferenceHomes() {
     let state = OwlSettingsState()
     var selectedSchemas: [String] = []

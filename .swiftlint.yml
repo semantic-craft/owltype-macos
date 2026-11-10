@@ -58,3 +58,11 @@ large_tuple:
   warning: 3
   error: 5
 reporter: "github-actions-logging" # reporter type (xcode, json, csv, checkstyle, codeclimate, junit, html, emoji, sonarqube, markdown, github-actions-logging, summary)
+
+custom_rules:
+  owl_plain_button_hit_area:
+    included: 'sources/(Settings|UI|Voice|Agent)/.*\.swift'
+    regex: '\.buttonStyle\s*\(\s*(\.plain\b|PlainButtonStyle\s*\()'
+    excluded_match_kinds: [comment, doccomment, string]
+    message: 'Use .buttonStyle(.owlPlain) and size the label to the intended hit area.'
+    severity: error

@@ -297,7 +297,7 @@ struct OwlAIPolishCardsView: View {
             .font(.system(size: 10.5))
             .foregroundColor(palette.ink3)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.owlPlain)
         .help("复制候选文本")
 
         // macOS Keycap Badge
@@ -336,7 +336,7 @@ struct OwlAIPolishCardsView: View {
         .foregroundColor(palette.onAccent)
         .cornerRadius(5)
       }
-      .buttonStyle(.plain)
+      .buttonStyle(.owlPlain)
     }
     .padding(10)
     .background(RoundedRectangle(cornerRadius: 8).fill(palette.card2.opacity(0.85)))
@@ -351,7 +351,7 @@ struct OwlAIPolishCardsView: View {
       Button("重试") {
         viewModel.load()
       }
-      .buttonStyle(.plain)
+      .buttonStyle(.owlPlain)
     }
     .frame(maxWidth: .infinity, minHeight: 100)
   }
@@ -364,7 +364,7 @@ struct OwlAIPolishCardsView: View {
       Button("重新生成") {
         viewModel.load()
       }
-      .buttonStyle(.plain)
+      .buttonStyle(.owlPlain)
     }
     .frame(maxWidth: .infinity, minHeight: 100)
   }

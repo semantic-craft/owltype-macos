@@ -21,11 +21,12 @@ import SwiftUI
 final class OwlSettingsWindow: NSWindowController {
   /// Strong reference to the observable state so it lives as long as the window.
   private var state: OwlSettingsState?
+  private static var installedMainMenu = false
 
   init() {
     let window = NSWindow(
       contentRect: NSRect(x: 0, y: 0, width: 900, height: 660),
-      styleMask: [.titled, .closable, .resizable],
+      styleMask: [.titled, .closable, .miniaturizable, .resizable],
       backing: .buffered,
       defer: false
     )
@@ -43,8 +44,7 @@ final class OwlSettingsWindow: NSWindowController {
   }
 
   /// Wire the view to the supplied state + callbacks and bring the window front.
-  /// Reuses the existing window/content view on subsequent calls; only the
-  /// hosted root view is rebuilt so it binds to the latest state snapshot.
+  /// Keep the hosted editor while the window is open, including when minimized.
   func show(
     state: OwlSettingsState,
     onSelectSchema: @escaping (String) -> Void,
@@ -57,6 +57,7 @@ final class OwlSettingsWindow: NSWindowController {
     onShowOnboarding: @escaping () -> Void,
     onPanelPreferencesChanged: @escaping () -> Void
   ) {
+    if restoreIfOpen() { return }
     self.state = state
 
     let rootView = OwlSettingsView(
@@ -104,17 +105,27 @@ final class OwlSettingsWindow: NSWindowController {
     window?.makeKeyAndOrderFront(nil)
   }
 
+  @discardableResult
+  func restoreIfOpen(selectedPage: OwlSettingsPage? = nil) -> Bool {
+    guard let window, window.isVisible || window.isMiniaturized, let state else { return false }
+    if let selectedPage { state.selectedPage = selectedPage }
+    NSApp.activate(ignoringOtherApps: true)
+    if window.isMiniaturized { window.deminiaturize(nil) }
+    window.makeKeyAndOrderFront(nil)
+    return true
+  }
+
   /// Build a minimal standard main menu (App + Edit) once and assign it to
   /// `NSApp.mainMenu`. The Edit items use the standard first-responder selectors
   /// with `target = nil`, so ⌘C/⌘V/⌘X/⌘A/⌘Z dispatch down the responder chain to
   /// the focused text field / field editor. No-op once a main menu is installed.
   static func installMainMenuIfNeeded() {
-    guard NSApp.mainMenu == nil else { return }
+    guard !installedMainMenu else { return }
+    installedMainMenu = true
 
     let mainMenu = NSMenu()
 
-    // App menu: 关闭窗口 (⌘W) + 退出猫头鹰 (⌘Q). The Edit menu is the must-have; this
-    // is a tiny courtesy so the window has the standard close/quit shortcuts too.
+    // Keep Settings available after closing the last window.
     let appMenuItem = NSMenuItem()
     let appMenu = NSMenu()
     appMenu.addItem(
@@ -122,6 +133,12 @@ final class OwlSettingsWindow: NSWindowController {
       action: #selector(NSWindow.performClose(_:)),
       keyEquivalent: "w"
     )
+    let settings = appMenu.addItem(
+      withTitle: OwlInputMenuTitles.settings,
+      action: #selector(OwlApplicationDelegate.openSettingsFromApplicationMenu(_:)),
+      keyEquivalent: ","
+    )
+    settings.target = NSApp.delegate
     appMenu.addItem(.separator())
     let quitItem = appMenu.addItem(
       withTitle: NSLocalizedString("退出猫头鹰", comment: "Quit Owltype menu item"),

@@ -208,7 +208,7 @@ struct OwlSegmentedControl<Value: Hashable>: View {
             .padding(.vertical, 5)
             .contentShape(Rectangle())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.owlPlain)
         .background {
           if isOn {
             RoundedRectangle(cornerRadius: 6, style: .continuous)
@@ -326,7 +326,7 @@ struct SettingsCheckRow: View {
       .frame(maxWidth: .infinity, alignment: .leading)
       .contentShape(Rectangle())
     }
-    .buttonStyle(.plain)
+    .buttonStyle(.owlPlain)
     .disabled(!isEnabled)
     .opacity(isEnabled ? 1 : 0.55)
     .accessibilityElement(children: .combine)
@@ -364,26 +364,24 @@ struct SettingsRadioRow<Trailing: View>: View {
   }
 
   var body: some View {
-    HStack(spacing: 11) {
+    HStack(spacing: 0) {
       Button(action: onSelect) {
         HStack(spacing: 11) {
           SettingsRadioDot(isOn: isSelected, palette: palette)
           Text(title)
             .font(.system(size: 14))
             .foregroundStyle(palette.ink)
+          Spacer(minLength: 8)
+          KeyChipStrip(keys: keys, palette: palette)
         }
-        .contentShape(Rectangle())
+        .padding(.vertical, 8)
       }
-      .buttonStyle(.plain)
-      // Label only the radio button: combining the whole row folds a trailing Picker into it,
-      // and the row then reads as one row-wide pop-up that opens the menu instead of selecting.
+      .buttonStyle(.owlPlain)
+      // Combining the row makes the trailing Picker replace the radio in the AX tree.
       .accessibilityLabel(title)
       .accessibilityAddTraits(isSelected ? .isSelected : [])
-      Spacer(minLength: 8)
-      KeyChipStrip(keys: keys, palette: palette)
       trailing()
     }
-    .padding(.vertical, 8)
     .frame(maxWidth: .infinity, alignment: .leading)
   }
 }
@@ -450,11 +448,26 @@ struct SettingsToggleRow: View {
       .frame(maxWidth: .infinity, alignment: .leading)
       .contentShape(Rectangle())
     }
-    .buttonStyle(.plain)
+    .buttonStyle(.owlPlain)
     .disabled(!isEnabled)
     .opacity(isEnabled ? 1 : 0.55)
     .accessibilityElement(children: .combine)
     .accessibilityAddTraits(isOn ? [.isButton, .isSelected] : .isButton)
     .accessibilityLabel(title)
   }
+}
+
+/// The hit target includes the padding and empty space reserved by the label.
+struct OwlPlainButtonStyle: ButtonStyle {
+  @Environment(\.isEnabled) private var isEnabled
+
+  func makeBody(configuration: Configuration) -> some View {
+    configuration.label
+      .contentShape(.interaction, Rectangle())
+      .opacity(!isEnabled ? 0.5 : configuration.isPressed ? 0.7 : 1)
+  }
+}
+
+extension ButtonStyle where Self == OwlPlainButtonStyle {
+  static var owlPlain: Self { Self() }
 }

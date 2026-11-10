@@ -136,6 +136,29 @@ class VerificationTests(unittest.TestCase):
         self.assertEqual(result.returncode, 1)
         self.assertEqual(receipt['steps'][0]['unverified_tests'], ['FixtureTests/testTwo'])
 
+    def test_swift_dispatches_settings_ui_to_its_own_scheme_and_checks_its_receipt(self):
+        (self.root / 'tests').mkdir()
+        (self.root / 'tests/OwlSettingsUITests.swift').write_text(
+            'class OwlSettingsUITests { func testNavigation() {} }')
+        (self.root / 'Makefile').write_text('# fixture\n')
+        adapters = Path(self.temp.name) / 'bin'
+        adapters.mkdir()
+        make = adapters / 'make'
+        make.write_text('#!/bin/sh\ntest "$1" = deps\n')
+        make.chmod(0o755)
+        xcodebuild = adapters / 'xcodebuild'
+        xcodebuild.write_text(
+            '#!/bin/sh\n'
+            'case "$*" in *"-scheme OwltypeUITests"*"-only-testing:OwltypeUITests/OwlSettingsUITests/testNavigation") '
+            """echo "Test Case '-[OwltypeUITests.OwlSettingsUITests testNavigation]' passed (0.01 seconds)." ;; """
+            '*) exit 9 ;; esac\n')
+        xcodebuild.chmod(0o755)
+        result, receipt, _ = self.run_check(
+            'swift', '--test', 'OwlSettingsUITests/testNavigation',
+            env={'PATH': str(adapters) + os.pathsep + os.environ['PATH']})
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual([step['status'] for step in receipt['steps']], ['passed', 'passed'])
+
     def test_gate_initializes_submodules_before_any_check_reads_the_tree(self):
         shutil.copy(Path(__file__).with_name('gate.sh'), self.root / 'scripts/gate.sh')
         for mode in ([], ['--quick']):

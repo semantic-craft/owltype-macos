@@ -221,7 +221,7 @@ struct OwlOnboardingView: View {
           .foregroundStyle(owlEnabled ? palette.ink : palette.ink3)
         Spacer(minLength: 8)
         Button("重新检查") { owlEnabled = isOwltypeEnabled() }
-          .buttonStyle(.plain)
+          .buttonStyle(.owlPlain)
           .font(.system(size: 12, weight: .medium))
           .foregroundStyle(palette.accent)
       }
@@ -266,7 +266,7 @@ struct OwlOnboardingView: View {
           .font(.system(size: 12.5, weight: .medium))
           .foregroundStyle(palette.ink3)
       }
-      .buttonStyle(.plain)
+      .buttonStyle(.owlPlain)
     }
   }
 
@@ -351,7 +351,7 @@ struct OwlOnboardingView: View {
         practiceGeneration += 1
         practiceComplete = false
         practiceHint = nil
-      }.buttonStyle(.plain).foregroundStyle(palette.accent)
+      }.buttonStyle(.owlPlain).foregroundStyle(palette.accent)
     }
     .onAppear { refreshPracticeSource() }
     .onReceive(Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()) { _ in refreshPracticeSource() }
@@ -368,21 +368,21 @@ struct OwlOnboardingView: View {
       primaryButton
       if step > 0 {
         Button("上一步") { step -= 1 }
-          .buttonStyle(.plain)
+          .buttonStyle(.owlPlain)
           .font(.system(size: 13))
           .foregroundStyle(palette.ink3)
       }
       Spacer(minLength: 0)
       if step < stepCount - 1 {
         Button("跳过", action: onFinish)
-          .buttonStyle(.plain)
+          .buttonStyle(.owlPlain)
           .font(.system(size: 13))
           .foregroundStyle(palette.ink3)
       } else if primaryInfo.disabled {
         // 软阻塞的出口：词库还在准备或启用时不扣留用户 —— 下载在 App 级继续，
         // 引导关掉也不中断。
         Button("稍后再试", action: onFinish)
-          .buttonStyle(.plain)
+          .buttonStyle(.owlPlain)
           .font(.system(size: 13))
           .foregroundStyle(palette.ink3)
       }
@@ -405,7 +405,7 @@ struct OwlOnboardingView: View {
         .background { RoundedRectangle(cornerRadius: 11, style: .continuous).fill(palette.accent) }
         .shadow(color: palette.accent.opacity(0.32), radius: 8, y: 4)
     }
-    .buttonStyle(.plain)
+    .buttonStyle(.owlPlain)
     .disabled(info.disabled)
     .opacity(info.disabled ? 0.55 : 1)
     .accessibilityLabel(info.label)

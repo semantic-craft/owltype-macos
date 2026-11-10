@@ -233,7 +233,7 @@ struct OwlVerificationReceiptView: View {
           .frame(width: 22, height: 22)
           .contentShape(Rectangle())
       }
-      .buttonStyle(.plain)
+      .buttonStyle(.owlPlain)
       .accessibilityLabel("关闭核验回执")
     }
   }
@@ -258,7 +258,7 @@ struct OwlVerificationReceiptView: View {
         .opacity(active ? 0.9 : 0.45)
         .contentShape(Rectangle())
     }
-    .buttonStyle(.plain)
+    .buttonStyle(.owlPlain)
     .accessibilityLabel(active ? "复制核验回执" : "核验未完成")
   }
 
@@ -318,7 +318,7 @@ struct OwlVerificationReceiptView: View {
         .font(.system(size: 12))
         .foregroundStyle(palette.ink2)
       Button("取消") { model.cancelAll() }
-        .buttonStyle(.plain)
+        .buttonStyle(.owlPlain)
         .font(.system(size: 12, weight: .semibold))
         .foregroundStyle(palette.accent)
     }
@@ -347,7 +347,7 @@ struct OwlVerificationReceiptView: View {
         Spacer(minLength: 0)
         if model.hasOutcome && !model.isBusy {
           Button("复制核验摘要") { model.copyReceipt() }
-            .buttonStyle(.plain)
+            .buttonStyle(.owlPlain)
             .font(.system(size: 12, weight: .semibold))
             .foregroundStyle(palette.accent)
         }
@@ -377,7 +377,7 @@ struct OwlVerificationReceiptView: View {
       }
       .contentShape(Rectangle())
     }
-    .buttonStyle(.plain)
+    .buttonStyle(.owlPlain)
   }
 
   // MARK: 键盘提示 + toast
@@ -517,7 +517,7 @@ private struct OwlAnchorRowView: View {
         }
         .contentShape(Rectangle())
     }
-    .buttonStyle(.plain)
+    .buttonStyle(.owlPlain)
     .accessibilityLabel(verified ? "已核" : "待核，点击联网核验")
   }
 
@@ -529,7 +529,7 @@ private struct OwlAnchorRowView: View {
         .frame(width: 24, height: 24)
         .contentShape(Rectangle())
     }
-    .buttonStyle(.plain)
+    .buttonStyle(.owlPlain)
     .help(help)
   }
 
@@ -540,7 +540,7 @@ private struct OwlAnchorRowView: View {
         .font(.system(size: 12))
         .foregroundStyle(palette.ink2)
       Button("取消") { model.cancel(anchor) }
-        .buttonStyle(.plain)
+        .buttonStyle(.owlPlain)
         .font(.system(size: 12, weight: .semibold))
         .foregroundStyle(palette.accent)
     }
@@ -574,7 +574,7 @@ private struct OwlAnchorRowView: View {
               .lineLimit(1)
               .underline()
           }
-          .buttonStyle(.plain)
+          .buttonStyle(.owlPlain)
         } else {
           Text(source.url)
             .font(.system(size: 12))
@@ -670,7 +670,7 @@ private struct OwlAnchorRowView: View {
           .foregroundStyle(palette.accent)
           .contentShape(Rectangle())
       }
-      .buttonStyle(.plain)
+      .buttonStyle(.owlPlain)
       if isOpen { content() }
     }
   }
@@ -693,7 +693,7 @@ private struct OwlAnchorRowView: View {
         }
         .contentShape(Rectangle())
     }
-    .buttonStyle(.plain)
+    .buttonStyle(.owlPlain)
     .frame(minHeight: 24)  // 命中区 ≥24
   }
 
@@ -717,7 +717,7 @@ private struct OwlAnchorRowView: View {
             }
             .contentShape(Capsule())
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.owlPlain)
       }
     }
     .padding(.top, 4)

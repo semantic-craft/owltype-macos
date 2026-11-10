@@ -41,7 +41,9 @@ only [the installer](../../installer/project.yml) uses XcodeGen.
 
 For the tests named in the table, run
 `python3 scripts/verify.py swift --test ClassName` (repeat `--test` for related
-classes, or use `ClassName/methodName`). Rust unit tests run from the
+classes, or use `ClassName/methodName`). The runner selects the separate
+`OwltypeUITests` scheme and preview bundle ID for `OwlSettingsUITests`.
+Rust unit tests run from the
 [Rust workspace](../../rust/Cargo.toml) with `cargo test -p <crate>`. Use
 `navigation` for reference edits, `workflow` for verification-runner changes and
 `distribution` for publishing orchestration. See

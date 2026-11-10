@@ -1495,7 +1495,7 @@
 					"-lowl_msime_ffi",
 				);
 				MARKETING_VERSION = 2.4.3;
-				PRODUCT_BUNDLE_IDENTIFIER = im.owltype.inputmethod.Owltype;
+				PRODUCT_BUNDLE_IDENTIFIER = "im.owltype.inputmethod.Owltype$(OWL_SETTINGS_PREVIEW_SUFFIX)";
 				PRODUCT_NAME = Owltype;
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = YES;

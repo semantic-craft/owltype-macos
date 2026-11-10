@@ -108,7 +108,6 @@ struct OwlSettingsView: View {
       Section {
         ForEach(OwlSettingsPage.visibleCases) { page in
           sidebarRow(page)
-            .onTapGesture { state.selectedPage = page }
         }
       } header: {
         sidebarHeader
@@ -159,32 +158,35 @@ struct OwlSettingsView: View {
   @ViewBuilder
   private func sidebarRow(_ page: OwlSettingsPage) -> some View {
     let selected = page == state.selectedPage
-    HStack(spacing: 10) {
-      Image(systemName: page.symbol)
-        .font(.system(size: 13, weight: .medium))
-        .frame(width: 24, height: 24)
-        .foregroundStyle(selected ? palette.onAccent : palette.ink2)
-        .background {
-          RoundedRectangle(cornerRadius: 6, style: .continuous)
-            .fill(selected ? palette.onAccent.opacity(0.2) : palette.card2)
+    Button { state.selectedPage = page } label: {
+      HStack(spacing: 10) {
+        Image(systemName: page.symbol)
+          .font(.system(size: 13, weight: .medium))
+          .frame(width: 24, height: 24)
+          .foregroundStyle(selected ? palette.onAccent : palette.ink2)
+          .background {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+              .fill(selected ? palette.onAccent.opacity(0.2) : palette.card2)
+          }
+          .accessibilityHidden(true)
+        Text(page.title)
+          .font(.system(size: 14, weight: selected ? .semibold : .regular))
+          .foregroundStyle(selected ? palette.onAccent : palette.ink)
+        Spacer(minLength: 0)
+      }
+      .padding(.horizontal, 10)
+      .padding(.vertical, 7)
+      .background {
+        if selected {
+          RoundedRectangle(cornerRadius: 8, style: .continuous)
+            .fill(palette.accent)
         }
-        .accessibilityHidden(true)
-      Text(page.title)
-        .font(.system(size: 14, weight: selected ? .semibold : .regular))
-        .foregroundStyle(selected ? palette.onAccent : palette.ink)
-      Spacer(minLength: 0)
-    }
-    .padding(.horizontal, 10)
-    .padding(.vertical, 7)
-    .background {
-      if selected {
-        RoundedRectangle(cornerRadius: 8, style: .continuous)
-          .fill(palette.accent)
       }
     }
-    .listRowInsets(EdgeInsets(top: 2, leading: 6, bottom: 2, trailing: 6))
+    .buttonStyle(.owlPlain)
+    .listRowInsets(EdgeInsets())
     .listRowBackground(Color.clear)
-    .contentShape(Rectangle())
+    .accessibilityAddTraits(selected ? .isSelected : [])
     .accessibilityIdentifier("settings.sidebar.\(page.rawValue)")
   }
 
@@ -201,7 +203,6 @@ struct OwlSettingsView: View {
           theme: theme,
           reduceTransparency: reduceTransparency,
           onSelectSchema: onSelectSchema,
-          onRedeploy: onRedeploy,
           onApplyKeyboardConfigFast: onApplyKeyboardConfigFast,
           onApplyFuzzyConfigFast: onApplyFuzzyConfigFast
         )
@@ -212,7 +213,6 @@ struct OwlSettingsView: View {
           theme: theme,
           reduceTransparency: reduceTransparency,
           onSelectSchema: onSelectSchema,
-          onRedeploy: onRedeploy,
           onApplyKeyboardConfigFast: onApplyKeyboardConfigFast,
           onApplyFuzzyConfigFast: onApplyFuzzyConfigFast,
           variant: .shortcuts
@@ -394,7 +394,7 @@ struct OwlSettingsView: View {
           .fill(palette.accent)
       }
     }
-    .buttonStyle(.plain)
+    .buttonStyle(.owlPlain)
     .accessibilityLabel(title)
   }
 

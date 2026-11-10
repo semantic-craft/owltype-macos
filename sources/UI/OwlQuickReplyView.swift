@@ -237,7 +237,7 @@ struct OwlQuickReplyView: View {
           )
           .foregroundColor(isSelected ? palette.accent : palette.ink)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.owlPlain)
         .disabled(viewModel.isLoading)
         .help(template.subtitle)
       }
@@ -305,7 +305,7 @@ struct OwlQuickReplyView: View {
           .foregroundColor(palette.onAccent)
           .cornerRadius(5)
       }
-      .buttonStyle(.plain)
+      .buttonStyle(.owlPlain)
     }
     .padding(8)
     .background(RoundedRectangle(cornerRadius: 7).fill(palette.card2.opacity(0.85)))
@@ -320,7 +320,7 @@ struct OwlQuickReplyView: View {
       Button("重试") {
         viewModel.load()
       }
-      .buttonStyle(.plain)
+      .buttonStyle(.owlPlain)
     }
     .frame(maxWidth: .infinity, minHeight: 90)
   }
@@ -333,7 +333,7 @@ struct OwlQuickReplyView: View {
       Button("重新生成") {
         viewModel.load()
       }
-      .buttonStyle(.plain)
+      .buttonStyle(.owlPlain)
     }
     .frame(maxWidth: .infinity, minHeight: 90)
   }

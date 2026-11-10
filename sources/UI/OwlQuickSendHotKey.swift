@@ -447,7 +447,7 @@ struct OwlHotKeyRecorderRow: View {
               .font(.system(size: 13))
               .foregroundStyle(palette.ink3)
           }
-          .buttonStyle(.plain)
+          .buttonStyle(.owlPlain)
           .accessibilityLabel("清除\(slot.displayName)快捷键")
         }
         Button(action: toggleRecording) {
@@ -461,7 +461,7 @@ struct OwlHotKeyRecorderRow: View {
                 .fill(isRecording ? palette.accentDeep : palette.accent)
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.owlPlain)
         .accessibilityLabel(isRecording
                             ? "正在录制\(slot.displayName)快捷键，Esc 取消"
                             : "录制\(slot.displayName)快捷键")

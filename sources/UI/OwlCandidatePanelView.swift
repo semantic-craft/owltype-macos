@@ -534,7 +534,7 @@ struct OwlCandidatePanelView: View {
         .frame(width: geometry.hitSize, height: geometry.hitSize)
         .contentShape(.interaction, Rectangle())
     }
-    .buttonStyle(.plain)
+    .buttonStyle(.owlPlain)
     .accessibilityLabel(Text(label))
   }
 

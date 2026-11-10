@@ -12,7 +12,6 @@ struct OwlKeyboardPage: View {
   let theme: OwlCandidateTheme
   let reduceTransparency: Bool
   let onSelectSchema: (String) -> Void
-  let onRedeploy: () -> Bool
   /// Track-2 config-only fast apply (deploy_config_file + live reselect + replay; no full
   /// `deploy()`). Used by every Rime-backed toggle on this page EXCEPT 模糊拼音.
   let onApplyKeyboardConfigFast: () throws -> OwlKeyboardSettingsApplication.Outcome
@@ -622,7 +621,7 @@ struct OwlKeyboardPage: View {
                 .fill(palette.accent)
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.owlPlain)
         .disabled(isAutoApplyingConfig)
         .opacity(isAutoApplyingConfig ? 0.55 : 1)
         .accessibilityLabel("设置模糊拼音")

@@ -183,7 +183,7 @@ struct OwlFuzzySheet: View {
               .fill(palette.accent)
           }
       }
-      .buttonStyle(.plain)
+      .buttonStyle(.owlPlain)
       .accessibilityLabel("完成")
     }
   }

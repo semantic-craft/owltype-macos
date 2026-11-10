@@ -37,7 +37,6 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   /// it before risky IMK/AX host reads.
   var clientCapabilityPolicy = OwlClientCapabilityPolicy()
   var clientWorkarounds = OwlClientWorkaroundSettings()
-  var suppressOnboarding = false
   /// SwiftUI candidate panel, created lazily on first composition (always on now — SwiftUI
   /// is the sole renderer).
   var owlPanel: OwlSwiftUICandidatePanel?
@@ -123,6 +122,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   }
 
   func applicationWillFinishLaunching(_ notification: Notification) {
+    guard !OwlApp.isShowingSettingsForUITests else { return }
     addObservers()
     selectionMenuCoordinator = OwlSelectionMenuCoordinator()
     selectionMenuCoordinator?.start()
@@ -132,7 +132,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     }
     // v0.3.3: first-run onboarding. Guarded + non-blocking (just orders the window
     // front); kept LAST so it never interferes with Rime / panel / status setup.
-    if !suppressOnboarding && !OwlOnboarding.isDone {
+    if !OwlOnboarding.isDone {
       showOnboarding()
     }
     // Only a completed self-check failure can request recovery guidance; startup/version
@@ -148,6 +148,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   }
 
   func applicationDidBecomeActive(_ notification: Notification) {
+    guard !OwlApp.isShowingSettingsForUITests else { return }
     // 授权后补装（2026-07-26）：启动时 AX 未授权则 tap 缺席，事后授权不会自动送达任何事件，
     // 录制热键在 Chromium/Electron 宿主失灵直到注销。用户去系统设置授权后切回猫头鹰窗口的
     // 瞬间（设置页徽章翻绿的同一事件）补一次；已装时首行 guard 直接返回，零开销。
@@ -279,11 +280,16 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
 
   /// Build (or reuse) the settings window, populate its state, and show it.
   /// Mirrors the `ensureOwltypePanel()` lazy-create pattern.
-  func showSettings(selectedPage: OwlSettingsPage = .keyboard) {
+  func showSettings(selectedPage: OwlSettingsPage? = nil) {
+    if owlSettingsWindow?.restoreIfOpen(selectedPage: selectedPage) == true { return }
+    if OwlApp.isShowingSettingsForUITests {
+      showSettingsForUITest()
+      return
+    }
     let trace = OwlLatencyTrace.begin("window.open.settings")
     defer { OwlLatencyTrace.end("window.open.settings", trace) }
     let state = OwlSettingsState()
-    state.selectedPage = selectedPage
+    state.selectedPage = selectedPage ?? .keyboard
     state.schemas = loadSchemaList()
     state.currentSchemaId = currentSchemaId()
     state.currentInputSourceDisplayName = OwlInstaller.currentInputSourceDisplayName()
@@ -371,7 +377,11 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     OwlLatencyTrace.event("window.settings.firstVisible")
   }
 
-  func showSettingsForUITest() {
+  @objc func openSettingsFromApplicationMenu(_ sender: Any?) {
+    showSettings()
+  }
+
+  private func showSettingsForUITest() {
     let state = OwlSettingsState()
     state.schemas = [SchemaItem(id: "rime_ice", name: "雾凇拼音")]
     state.currentSchemaId = "rime_ice"

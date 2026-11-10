@@ -218,7 +218,7 @@ struct OwlTemplatePickerView: View {
                   }
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(8)
                   .background(model.isSelected(index) ? Color.accentColor.opacity(0.16) : .clear)
-              }.buttonStyle(.plain)
+              }.buttonStyle(.owlPlain)
             }
           }
         }.frame(width: 240)

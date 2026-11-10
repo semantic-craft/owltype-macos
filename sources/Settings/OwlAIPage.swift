@@ -12,7 +12,7 @@ import SwiftUI
 // MARK: - AI 配置
 
 /// Visible product surface for the existing default-off Smart/Cloud lanes.
-/// This page only writes preferences and Keychain; it never sends a network request.
+/// Network requests run only when the user asks to test a connection or fetch models.
 ///
 /// The 云端 AI（全局）on/off (`OwlCloudPreferences.isEnabled`) lives on 划词工具箱页
 /// (`OwlSkillsPage.cloudCard`) instead — 划词工具箱页 is the thing that actually depends on it.
@@ -29,6 +29,11 @@ struct OwlAIPage: View {
   // registry across re-renders, so a probe's result reaches the save that follows it.
   @State private var registry = OwlProviderRegistry()
   @State private var providers: [OwlProviderProfile] = []
+  @State private var didLoadProviders = false
+  @State private var defaultProviderID: String?
+  @State private var providerKeyStates: [String: OwlProviderRegistry.KeyState] = [:]
+  @State private var keyStatusRevision = UUID()
+  @State private var loadedKeyStatusRevision: UUID?
   @State private var providerID = OwlLLMProviderCatalog.customID
   @State private var providerName = ""
   @State private var providerEndpoint = "https://api.openai.com/v1/chat/completions"
@@ -65,41 +70,58 @@ struct OwlAIPage: View {
       }
       .padding(20)
     }
-    .onAppear {
-      providers = OwlDefaults.isRunningUnitTests ? [] : registry.profiles
-      qwenWorkspaceInput = OwlQwenWorkspaceSettings.apiHost()
-      voiceASRProviderID = OwlVoiceSettings.asrProviderID
-      voiceEndpointInput = OwlVoiceSettings.asrEndpoint
-      voiceModelInput = OwlVoiceSettings.asrModel
-      refreshVoiceASRKeyState()
+    .task {
+      let initial = await Task.detached(priority: .userInitiated) {
+        let profiles = OwlDefaults.isRunningUnitTests ? [] : OwlProviderProfileStore.shared.profiles()
+        return (profiles, OwlQwenWorkspaceSettings.apiHost())
+      }.value
+      guard !Task.isCancelled else { return }
+      (providers, qwenWorkspaceInput) = initial
       if qwenWorkspaceInput.isEmpty,
-         let profile = providers.first(where: {
-           OwlLLMProviderCatalog.inferredProviderID(for: $0) == "qwen"
-         }),
+         let profile = providers.first(where: { OwlLLMProviderCatalog.inferredProviderID(for: $0) == "qwen" }),
          let host = OwlQwenWorkspace.apiHost(from: profile.endpoint) {
         qwenWorkspaceInput = host
       }
+      didLoadProviders = true
+      refreshVoiceASRKeyState()
     }
+    .onChange(of: providers) { _, _ in refreshVoiceASRKeyState() }
+    .task(id: keyStatusRevision) { await loadKeyStatus() }
   }
 
   private func refreshVoiceASRKeyState() {
-    guard !OwlDefaults.isRunningUnitTests, activeVoiceASRPreset.requiresAPIKey else {
-      voiceASRHasDedicatedKey = false
-      voiceASRHasSharedKey = false
-      asrKeyConfigured = false
-      return
-    }
-    let dedicated = (try? OwlVoiceSettings.readDedicatedASRAPIKey(
-      forProviderID: voiceASRProviderID, secrets: registry.secrets))?
-      .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-    let shared = OwlVoiceSettings.readConfiguredProfileKey(
-      forProviderID: voiceASRProviderID, store: registry.store, secrets: registry.secrets) ?? ""
-    voiceASRHasDedicatedKey = !dedicated.isEmpty
-    voiceASRHasSharedKey = !shared.isEmpty
+    keyStatusRevision = UUID()
+  }
+
+  private func loadKeyStatus() async {
+    guard didLoadProviders else { return }
+    let revision = keyStatusRevision
+    let profiles = providers
+    let providerID = voiceASRProviderID
+    let requiresKey = activeVoiceASRPreset.requiresAPIKey
+    let snapshot = await Task.detached(priority: .utility) {
+      let reader = OwlProviderRegistry()
+      let defaultID = reader.defaultProfile?.id
+      guard !OwlTestStorage.isEnabled else {
+        return (defaultID, [String: OwlProviderRegistry.KeyState](), false, false)
+      }
+      let states = Dictionary(uniqueKeysWithValues: profiles.map { ($0.id, reader.keyState(for: $0)) })
+      guard requiresKey else { return (defaultID, states, false, false) }
+      let dedicated = (try? OwlVoiceSettings.readDedicatedASRAPIKey(
+        forProviderID: providerID, secrets: reader.secrets))?
+        .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+      let shared = OwlVoiceSettings.readConfiguredProfileKey(
+        forProviderID: providerID, store: reader.store, secrets: reader.secrets) ?? ""
+      return (defaultID, states, !dedicated.isEmpty, !shared.isEmpty)
+    }.value
+    guard !Task.isCancelled, revision == keyStatusRevision else { return }
+    (defaultProviderID, providerKeyStates, voiceASRHasDedicatedKey, voiceASRHasSharedKey) = snapshot
     asrKeyConfigured = voiceASRHasDedicatedKey || voiceASRHasSharedKey
+    loadedKeyStatusRevision = revision
   }
 
   private var voiceASRKeyStatusText: String {
+    guard loadedKeyStatusRevision == keyStatusRevision else { return "正在读取密钥状态…" }
     if voiceASRHasDedicatedKey {
       return "已单独设置"
     }
@@ -221,6 +243,7 @@ struct OwlAIPage: View {
           }
         }
         smallButton("保存") { saveVoiceASRSettings() }
+          .disabled(activeVoiceASRPreset.requiresAPIKey && loadedKeyStatusRevision != keyStatusRevision)
         if voiceASRHasDedicatedKey {
           smallButton("清除") { clearVoiceASRAPIKey() }
         }
@@ -240,6 +263,9 @@ struct OwlAIPage: View {
 
   private func selectVoiceASRPreset(_ preset: OwlVoiceASRPreset) {
     voiceASRProviderID = preset.id
+    voiceASRHasDedicatedKey = false
+    voiceASRHasSharedKey = false
+    asrKeyConfigured = false
     voiceEndpointInput = preset.endpoint
     voiceModelInput = preset.defaultModel
     voiceFetchedModels = []
@@ -368,7 +394,7 @@ struct OwlAIPage: View {
         SettingsCardDivider(palette: palette)
         SettingsToggleRow(
           title: "联网搜索",
-          subtitle: "开启后，「任意提问」与「来源核验」统一交由已配好密钥的 \(Self.searchName) 联网检索并作答；关闭时任意提问用模型自有知识回答。",
+          subtitle: "供「任意提问」和「来源核验」使用，需配置 \(Self.searchName) 密钥。\(Self.searchModel) 作答并附来源；无可用档案时，任意提问退回普通问答。",
           isOn: state.askWebSearchEnabled,
           palette: palette,
           onToggle: {
@@ -377,16 +403,7 @@ struct OwlAIPage: View {
             }
           }
         )
-        SettingsCardDivider(palette: palette)
-        Text("""
-          联网检索统一走 \(Self.searchName) 搜索接口取回网页，再由 \(Self.searchModel) 依据结果作答或对照核验，需在上方添加 \(Self.searchName) 供应商。\
-          回答末尾列出引用的网页；没有可用的 \(Self.searchName) 档案时，任意提问自动退回普通问答。
-          """)
-          .font(.system(size: 12))
-          .foregroundStyle(palette.ink3)
-          .fixedSize(horizontal: false, vertical: true)
-          .frame(maxWidth: .infinity, alignment: .leading)
-          .padding(.top, 8)
+
       }
     }
   }
@@ -400,6 +417,7 @@ struct OwlAIPage: View {
         providerList
         providerForm
       }
+      .disabled(!didLoadProviders)
     }
   }
 
@@ -432,7 +450,7 @@ struct OwlAIPage: View {
   /// carries `isDefault` in the file is not shown as the active provider.
   @ViewBuilder
   private func providerRow(_ profile: OwlProviderProfile) -> some View {
-    let isActive = registry.defaultProfile?.id == profile.id
+    let isActive = defaultProviderID == profile.id
     HStack(spacing: 10) {
       Button(action: { if !isActive { setDefaultProvider(profile) } }) {
         HStack(spacing: 10) {
@@ -443,7 +461,7 @@ struct OwlAIPage: View {
             Text(profile.displayName)
               .font(.system(size: 13.5, weight: .medium))
               .foregroundStyle(palette.ink)
-            Text("\(profile.model.isEmpty ? "默认模型" : profile.model) · \(OwlLLMProviderCatalog.capabilitySummary(for: profile)) · \(registry.keyState(for: profile).statusText)")
+            Text("\(profile.model.isEmpty ? "默认模型" : profile.model) · \(OwlLLMProviderCatalog.capabilitySummary(for: profile)) · \(providerKeyStates[profile.id]?.statusText ?? "密钥状态待确认")")
               .font(.system(size: 11.5, design: .monospaced))
               .foregroundStyle(palette.ink3)
           }
@@ -451,7 +469,7 @@ struct OwlAIPage: View {
         }
         .contentShape(Rectangle())
       }
-      .buttonStyle(.plain)
+      .buttonStyle(.owlPlain)
       .accessibilityLabel(isActive ? "\(profile.displayName)（当前默认）" : "设为默认：\(profile.displayName)")
       .accessibilityAddTraits(isActive ? .isSelected : [])
 
@@ -733,6 +751,7 @@ struct OwlAIPage: View {
           // 新增或换 Key 时 profile 还没存这把 Key，由 registry 在保存同一组端点 + Key 时补标。
           registry.probeSucceeded(endpoint: endpoint, key: key, editing: probedProfile)
           providers = registry.profiles
+          refreshVoiceASRKeyState()
         }
       } catch {
         await MainActor.run { providerStatus = "拉取失败，请检查端点与 Key" }
@@ -769,6 +788,7 @@ struct OwlAIPage: View {
         // 与 `fetchModels` 同一条。
         registry.probeSucceeded(endpoint: endpoint, key: key, editing: probedProfile)
         providers = registry.profiles
+        refreshVoiceASRKeyState()
       }
     }
   }
@@ -904,7 +924,7 @@ struct OwlAIPage: View {
         .padding(.vertical, 7)
         .background { RoundedRectangle(cornerRadius: 8, style: .continuous).fill(palette.accent) }
     }
-    .buttonStyle(.plain)
+    .buttonStyle(.owlPlain)
     .accessibilityLabel(title)
   }
 }

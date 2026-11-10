@@ -60,7 +60,7 @@ struct OwlApp {
       env["XCInjectBundleInto"] != nil
   }
 
-  fileprivate static var isShowingSettingsForUITests: Bool {
+  static var isShowingSettingsForUITests: Bool {
     CommandLine.arguments.contains("--ui-test-show-settings")
   }
 
@@ -272,7 +272,6 @@ struct OwlApp {
       // background only application
       let app = NSApplication.shared
       let delegate = OwlApplicationDelegate()
-      delegate.suppressOnboarding = uiTestSettings
       app.delegate = delegate
       app.setActivationPolicy(uiTestSettings ? .regular : .accessory)
 
@@ -307,7 +306,7 @@ struct OwlApp {
       }
 
       if uiTestSettings {
-        DispatchQueue.main.async { delegate.showSettingsForUITest() }
+        DispatchQueue.main.async { delegate.showSettings() }
       }
 
       // finally run everything

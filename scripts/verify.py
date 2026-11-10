@@ -61,6 +61,13 @@ def snapshot(root=ROOT, pinned=None):
     return state
 
 
+UI_TEST_SUITES = frozenset({'OwlSettingsUITests'})
+
+
+def is_ui_test(selection):
+    return selection.partition('/')[0] in UI_TEST_SUITES
+
+
 def plan(scope, tests):
     python = sys.executable
     if scope == 'navigation':
@@ -77,8 +84,22 @@ def plan(scope, tests):
                 [python, 'scripts/check-navigation.selftest.py'],
                 [python, 'scripts/check-navigation.py']]
     if scope == 'swift':
-        return [['make', 'test', 'DERIVED_DATA_PATH=build/focused-tests',
-                 'TEST_ONLY=' + ' '.join(tests)]]
+        unit = [test for test in tests if not is_ui_test(test)]
+        ui = [test for test in tests if is_ui_test(test)]
+        commands = []
+        if unit:
+            commands.append(['make', 'test', 'DERIVED_DATA_PATH=build/focused-tests',
+                             'TEST_ONLY=' + ' '.join(unit)])
+        if ui:
+            if not unit:
+                commands.append(['make', 'deps'])
+            commands.append(['xcodebuild', 'test', '-project', 'Owltype.xcodeproj',
+                             '-scheme', 'OwltypeUITests', '-destination', 'platform=macOS',
+                             '-derivedDataPath', 'build/settings-ui-audit', '-parallel-testing-enabled', 'NO',
+                             'OWL_SETTINGS_PREVIEW_SUFFIX=.settingspreview',
+                             'CODE_SIGN_IDENTITY=-',
+                             *[f'-only-testing:OwltypeUITests/{test}' for test in ui]])
+        return commands
     return [['bash', 'scripts/gate.sh'] + (['--quick'] if scope == 'quick' else [])]
 
 
@@ -182,6 +203,8 @@ def main():
     if args.scope in ('full', 'quick'):
         names = subprocess.check_output(commands[0] + ['--list-stages'], cwd=ROOT, text=True).splitlines()
         receipt['gate_stages'] = [{'name': name, 'status': 'not-run'} for name in names]
+    if args.scope == 'swift' and not any(map(is_ui_test, args.test)):
+        receipt['not_covered'].append('interactive Settings UI (OwltypeUITests scheme)')
     gate_index = -1
     gate_started = 0
 
@@ -221,9 +244,12 @@ def main():
                     raise ValueError('gate exited without executing all planned stages')
                 if code == 0 and args.scope == 'swift':
                     text = (folder / step['log']).read_text(errors='replace')
-                    executed = re.findall(r"Test Case '-\[OwltypeTests\.(\w+) (\w+)\]' passed", text)
-                    missing = [selection for selection in args.test if not any(
-                        selection == suite or selection == f'{suite}/{method}' for suite, method in executed)]
+                    ui_step = step['command'][0] == 'xcodebuild'
+                    target = 'OwltypeUITests' if ui_step else 'OwltypeTests'
+                    executed = re.findall(r"Test Case '-\[" + target + r"\.(\w+) (\w+)\]' passed", text)
+                    missing = [selection for selection in args.test if is_ui_test(selection) == ui_step
+                               and not any(selection == suite or selection == f'{suite}/{method}'
+                                           for suite, method in executed)]
                     if missing:
                         step['unverified_tests'] = missing
                         print('No passing XCTest cases for: ' + ', '.join(missing), file=sys.stderr)

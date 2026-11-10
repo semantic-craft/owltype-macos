@@ -179,24 +179,39 @@ struct OwlDiagnosticsPage: View {
   let theme: OwlCandidateTheme
   let reduceTransparency: Bool
 
-  @State private var report: OwlTISReport = OwlTISDiagnostics.buildReport()
+  @State private var report: OwlTISReport?
+  @State private var refreshID = UUID()
   @State private var makeDefaultStatus: String = OwlDiagnosticsPage.makeDefaultStatusText(nil)
 
   var body: some View {
     ScrollView {
       VStack(spacing: 20) {
-        summaryCard
-        layersCard
-        identityCard
-        actionsCard
+        if let report {
+          summaryCard(report)
+          layersCard(report)
+          identityCard(report)
+          actionsCard(report)
+        } else {
+          ProgressView("正在读取诊断…")
+        }
       }
       .padding(20)
+    }
+    .task(id: refreshID) {
+      // Carbon's TIS APIs assert the main queue. Pass only value snapshots to the worker.
+      let sources = OwlInstaller().owlSourceStates()
+      let currentID = OwlInstaller.currentInputSourceID()
+      let snapshot = await Task.detached(priority: .utility) {
+        OwlTISDiagnostics.buildReport(sources: sources, currentID: currentID)
+      }.value
+      guard !Task.isCancelled else { return }
+      report = snapshot
     }
   }
 
   // MARK: Summary
 
-  private var summaryCard: some View {
+  private func summaryCard(_ report: OwlTISReport) -> some View {
     SettingsCard(title: "诊断概要", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
       VStack(alignment: .leading, spacing: 8) {
         line(label: "结论", value: report.summary.code ?? "全部可判定 TIS 层健康")
@@ -214,7 +229,7 @@ struct OwlDiagnosticsPage: View {
 
   // MARK: Six layers
 
-  private var layersCard: some View {
+  private func layersCard(_ report: OwlTISReport) -> some View {
     SettingsCard(title: "六层激活诊断", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
       VStack(alignment: .leading, spacing: 0) {
         ForEach(Array(report.layers.enumerated()), id: \.offset) { index, layer in
@@ -254,7 +269,7 @@ struct OwlDiagnosticsPage: View {
 
   // MARK: Identity / data root
 
-  private var identityCard: some View {
+  private func identityCard(_ report: OwlTISReport) -> some View {
     SettingsCard(title: "安装与数据", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
       VStack(alignment: .leading, spacing: 0) {
         line(label: "已安装", value: report.identity.installed ? "是" : "否")
@@ -282,8 +297,9 @@ struct OwlDiagnosticsPage: View {
       HStack(spacing: 10) {
         Button("设为系统默认输入法") {
           makeDefaultStatus = Self.makeDefaultStatusText(OwlInstaller().makeDefault())
-          report = OwlTISDiagnostics.buildReport()
+          refreshID = UUID()
         }
+        .disabled(OwlTestStorage.isEnabled)
         Spacer(minLength: 8)
       }
       Text(makeDefaultStatus)
@@ -312,11 +328,11 @@ struct OwlDiagnosticsPage: View {
 
   // MARK: Actions
 
-  private var actionsCard: some View {
+  private func actionsCard(_ report: OwlTISReport) -> some View {
     SettingsCard(title: "支持", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
       HStack(spacing: 10) {
-        Button("刷新") { report = OwlTISDiagnostics.buildReport() }
-        Button("导出诊断包") { exportSupportBundle() }
+        Button("刷新") { refreshID = UUID() }
+        Button("导出诊断包") { exportSupportBundle(report) }
         Spacer()
       }
     }
@@ -370,7 +386,7 @@ struct OwlDiagnosticsPage: View {
 
   // MARK: Support bundle export
 
-  private func exportSupportBundle() {
+  private func exportSupportBundle(_ report: OwlTISReport) {
     let panel = NSSavePanel()
     panel.nameFieldStringValue = "owl-diagnostics.txt"
     panel.title = "导出猫头鹰诊断支持包"
