@@ -109,7 +109,8 @@ struct OwlClipboardPage: View {
   let reduceTransparency: Bool
 
   @State private var enabled = OwlClipboardStore.isEnabled()
-  @State private var entries = OwlClipboardStore.load()
+  @State private var entries: [OwlClipboardEntry] = []
+  @State private var historyEdited = false
   @State private var status = ""
 
   var body: some View {
@@ -121,9 +122,10 @@ struct OwlClipboardPage: View {
       }
       .padding(20)
     }
-    .onAppear {
-      enabled = OwlClipboardStore.isEnabled()
-      entries = OwlClipboardStore.load()
+    .task {
+      let history = await Task.detached(priority: .utility) { OwlClipboardStore.load() }.value
+      guard !Task.isCancelled, !historyEdited else { return }
+      entries = history
     }
   }
 
@@ -220,7 +222,10 @@ struct OwlClipboardPage: View {
       ) {
         try OwlClipboardStore.capture($0)
       }
-      if let next = result.entries { entries = next }
+      if let next = result.entries {
+        historyEdited = true
+        entries = next
+      }
       status = result.status
     } catch {
       status = (error as? LocalizedError)?.errorDescription ?? String(describing: error)
@@ -232,6 +237,7 @@ struct OwlClipboardPage: View {
       let result = try OwlSettingsActions.clearClipboard {
         try OwlClipboardStore.clear()
       }
+      historyEdited = true
       entries = result.entries
       status = result.status
     } catch {

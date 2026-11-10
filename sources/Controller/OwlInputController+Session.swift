@@ -160,7 +160,7 @@ extension OwlInputController {
     startSettledRerankIfDue(session: engineSession, input: input)
   }
 
-  private func startSettledRerankIfDue(session: EngineSession, input: String) {
+  private func startSettledRerankIfDue(session: OwlRustSession, input: String) {
     guard !applyingSettledRerank,
           session.isValid,
           session.settledRerankReady,

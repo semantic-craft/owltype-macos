@@ -32,9 +32,6 @@ import SwiftUI
 enum OwlHotKeySlot: CaseIterable, Sendable {
   case quickSendPanel
   case selectionMenu
-  /// 提示词助手直达（07-21 机主提案）：同一块面板、初始分段=提示词——五笔用户的专属入口
-  /// （提示词表不挂五笔 schema，打字触发只在拼音下存在）。
-  case promptAssistant
   /// Local to a live pinyin candidate menu; never intercepted by the global event tap.
   case pinCandidate
 
@@ -47,7 +44,6 @@ enum OwlHotKeySlot: CaseIterable, Sendable {
     switch self {
     case .quickSendPanel: return "OwlQuickSendPanelHotKey"
     case .selectionMenu: return "OwlSelectionMenuHotKey"
-    case .promptAssistant: return "OwlPromptAssistantHotKey"
     case .pinCandidate: return "OwlPinCandidateHotKey"
     }
   }
@@ -59,7 +55,6 @@ enum OwlHotKeySlot: CaseIterable, Sendable {
     case .quickSendPanel: return "快捷片段"
     // 2026-07-26 工具箱重设计：case 名与 defaultsKey 不动（存量组合照常解码），只换用户可见名。
     case .selectionMenu: return "划词工具箱"
-    case .promptAssistant: return "快捷片段 · 提示词筛选"
     case .pinCandidate: return "置顶当前候选"
     }
   }
@@ -69,7 +64,7 @@ enum OwlHotKeySlot: CaseIterable, Sendable {
   /// an upgrade migrates them to 未设置 rather than showing a combo the user could never re-record.
   var legacyPresets: [String: (keyCode: UInt32, modifiers: UInt32)] {
     switch self {
-    case .quickSendPanel, .promptAssistant, .pinCandidate:
+    case .quickSendPanel, .pinCandidate:
       return [:]
     case .selectionMenu:
       return [
@@ -276,7 +271,7 @@ final class OwlHotKeyEventTap: NSObject {
     // Fast pre-filter: every configured combo requires a non-shift modifier — plain typing and
     // shift-typing exit here before any defaults read.
     guard !suppressed, !flags.isDisjoint(with: [.control, .option, .command]) else { return nil }
-    // Fixed precedence (allCases order): 快捷短语面板 → 划词菜单 → 提示词助手. The recorder rejects
+    // Fixed precedence (allCases order): 快捷短语面板 → 划词菜单. The recorder rejects
     // duplicates, so at most one slot matches; the order only keeps a stale duplicate deterministic.
     let matched = OwlHotKeySlot.allCases.filter { $0 != .pinCandidate }.first { slot in
       combo(slot).map { OwlHotKeyMatcher.matches($0, keyCode: keyCode, flags: flags) } ?? false
@@ -299,7 +294,6 @@ final class OwlHotKeyEventTap: NSObject {
   private var observesInputSource = false
   var onQuickSend: (() -> Void)?
   var onSelectionSummon: (() -> Void)?
-  var onPromptAssistant: (() -> Void)?
 
   /// Install the tap when possible. Safe to call repeatedly; no-op when installed or AX untrusted.
   func startIfPossible() {
@@ -397,7 +391,6 @@ final class OwlHotKeyEventTap: NSObject {
       switch matched {
       case .quickSendPanel: self?.onQuickSend?()
       case .selectionMenu: self?.onSelectionSummon?()
-      case .promptAssistant: self?.onPromptAssistant?()
       case .pinCandidate: break // excluded above; handled only by IMK with live candidates
       }
     }
@@ -454,7 +447,7 @@ struct OwlHotKeyRecorderRow: View {
               .font(.system(size: 13))
               .foregroundStyle(palette.ink3)
           }
-          .buttonStyle(.plain)
+          .buttonStyle(.owlPlain)
           .accessibilityLabel("清除\(slot.displayName)快捷键")
         }
         Button(action: toggleRecording) {
@@ -468,7 +461,7 @@ struct OwlHotKeyRecorderRow: View {
                 .fill(isRecording ? palette.accentDeep : palette.accent)
             }
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.owlPlain)
         .accessibilityLabel(isRecording
                             ? "正在录制\(slot.displayName)快捷键，Esc 取消"
                             : "录制\(slot.displayName)快捷键")

@@ -43,7 +43,19 @@ cat >"$mocks/launchctl" <<'EOF'
 shift 5
 exec "$@"
 EOF
-printf '#!/bin/sh\nexit 0\n' >"$mocks/codesign"
+cat >"$mocks/codesign" <<'EOF'
+#!/bin/bash
+for arg in "$@"; do
+  if [[ "$arg" == -R* ]]; then
+    out="$(/usr/bin/codesign --verify "$arg" /bin/ls 2>&1 || true)"
+    if grep -q 'invalid or corrupted code requirement' <<<"$out"; then
+      printf '%s\n' "$out" >&2
+      exit 1
+    fi
+  fi
+done
+exit 0
+EOF
 # pgrep: an older installer's --commit-install is running only when MOCK_OLD_COMMIT=1.
 printf '#!/bin/sh\n[ "$MOCK_OLD_COMMIT" = 1 ]\n' >"$mocks/pgrep"
 printf '#!/bin/sh\necho 9999\n' >"$mocks/PlistBuddy"

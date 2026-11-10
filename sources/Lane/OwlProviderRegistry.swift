@@ -304,7 +304,6 @@ final class OwlProviderHost {
   let defaults: UserDefaults
   let session: OwlAppSession?
   var keys: [String: String] = [:]
-  var legacyReader: (() throws -> String?)?
   private var errors: [String: Error] = [:]
   private var responseBuffer: UnsafeMutablePointer<CChar>?
   private var wroteProfiles = false
@@ -325,14 +324,14 @@ final class OwlProviderHost {
     }
     let bytes = try JSONSerialization.data(withJSONObject: ["operation": "provider_" + operation, "args": args])
     let pointer = bytes.withUnsafeBytes { buffer in
-      owl_app_storage_call(OwlAppCore.abiVersion, buffer.bindMemory(to: UInt8.self).baseAddress, buffer.count,
+      owl_msime_host_effect_call(OwlAppCore.abiVersion, buffer.bindMemory(to: UInt8.self).baseAddress, buffer.count,
         Unmanaged.passUnretained(self).toOpaque()) { context, request in
           guard let context, let request else { return nil }
           return Unmanaged<OwlProviderHost>.fromOpaque(context).takeUnretainedValue().respond(request)
         }
     }
     guard let pointer else { throw OwlAppCore.Failure(code: "missing_response") }
-    defer { owl_app_string_free(pointer) }
+    defer { owl_msime_string_free(pointer) }
     let response = try JSONDecoder().decode(Response<T>.self, from: Data(bytes: pointer, count: strlen(pointer)))
     guard response.ok, let value = response.value else {
       let code = response.error ?? "invalid_response"
@@ -363,7 +362,7 @@ final class OwlProviderHost {
     switch operation {
     case "provider_read", "provider_write": return try fileEffect(operation, args)
     case "date_parse", "date_format", "url_facts", "uuid", "now": return try factEffect(operation, args)
-    case "legacy_read", "secret_read", "secret_write", "secret_delete", "key_digest": return try keyEffect(operation, args)
+    case "secret_read", "secret_write", "secret_delete", "key_digest": return try keyEffect(operation, args)
     default: return try preferenceEffect(operation, args)
     }
   }
@@ -405,11 +404,6 @@ final class OwlProviderHost {
   private func keyEffect(_ operation: String, _ args: [String: Any]) throws -> Any {
     let name = args["name"] as? String ?? ""
     switch operation {
-    case "legacy_read":
-      let raw = try legacyReader?()
-      let key: String = OwlProviderCore.call("trim", ["text": raw ?? ""])
-      guard !key.isEmpty else { return NSNull() }
-      keys["legacy"] = key; return "legacy"
     case "secret_read":
       guard let value = try secrets?.secret(named: name), !value.isEmpty else { return NSNull() }
       let reference = "read_\(keys.count)"; keys[reference] = value; return reference

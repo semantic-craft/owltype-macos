@@ -31,13 +31,103 @@ enum OwlRustSchemaMap {
   static func configuration(_ id: String) -> OwlAppCore.SchemaConfiguration {
     configurations[id] ?? OwlAppCore.required(["operation": "keyboard_schema", "schema": id])
   }
+  static func displayName(for id: String) -> String {
+    configurations[id]?.name ?? id
+  }
 }
+
+// MARK: - Rerank, Traits & Controller Service Ports
+
+enum OwlSettledRerankTiming {
+  static let debounce: TimeInterval = 0.15
+  static let pollInterval: TimeInterval = 1.0 / 60.0
+  static let modelLoadPollInterval: TimeInterval = 0.05
+}
+
+struct OwlSettledRerankTicket: Equatable, Sendable {
+  let sessionID: UInt64
+  let generation: UInt64
+  let rawInput: String
+  let configurationEpoch: UInt64
+
+  func isCurrent(
+    sessionID: UInt64,
+    generation: UInt64,
+    rawInput: String,
+    configurationEpoch: UInt64
+  ) -> Bool {
+    self.sessionID == sessionID
+      && self.generation == generation
+      && self.rawInput == rawInput
+      && self.configurationEpoch == configurationEpoch
+  }
+}
+
+struct OwlSettledRerankStartResult: Equatable, Sendable {
+  let token: UInt64?
+  let current: Bool
+  let moved: Bool
+  let error: String?
+
+  static let noWork = OwlSettledRerankStartResult(
+    token: nil,
+    current: true,
+    moved: false,
+    error: nil
+  )
+}
+
+struct OwlSettledRerankPollResult: Equatable, Sendable {
+  let pending: Bool
+  let current: Bool
+  let moved: Bool
+  let error: String?
+
+  static let doneWithoutChange = OwlSettledRerankPollResult(
+    pending: false,
+    current: false,
+    moved: false,
+    error: nil
+  )
+}
+
+struct OwlEngineTraits {
+  let sharedDataDir: URL
+  let userDataDir: URL
+  let logDir: URL
+  let appName: String
+}
+
+typealias EngineNotificationHandler = (UInt64, String, String?) -> Void
+
+@MainActor
+protocol SnapshotReading: AnyObject {
+  var current: OwlCompositionSnapshot? { get }
+}
+
+extension OwlSnapshotRegistry: SnapshotReading {}
+
+@MainActor
+protocol SnapshotEmitting: AnyObject {
+  func noteCommit()
+  func noteSchemaChange()
+  func emitComposing(sessionID: UInt64, schemaID: String, rawInput: String, preedit: String, cursor: Int, pageNo: Int, candidates: [EngineCandidateSnapshot])
+  func emitCleared()
+}
+
+@MainActor
+protocol SelectionPolishing: AnyObject {
+  func polishSelection(_ selection: String) async throws -> [String]
+}
+
+extension OwlSnapshotEmitter: SnapshotEmitting {}
+extension OwlSelectionPolishService: SelectionPolishing {}
 
 // MARK: - OwlRustSession
 
-final class OwlRustSession: EngineSession {
+class OwlRustSession {
   private static let localModeEntryLetters = Set("UTKEMJYRVCS")
-  let sessionID: UInt64
+  var sessionID: UInt64
   private var handle: OpaquePointer?
   private weak var ownerEngine: OwlRustEngine?
   private var activeSchemaId: String
@@ -93,9 +183,6 @@ final class OwlRustSession: EngineSession {
 
   private func convertToTraditionalIfNeeded(_ text: String, forCandidateDisplay: Bool = false) -> String {
     guard isTraditionalEnabled, !text.isEmpty else { return text }
-    if text.hasPrefix(OwlPromptStore.candidateMarker) {
-      return text
-    }
     if text.hasPrefix(OwlTemplateStore.candidatePrefix) {
       guard forCandidateDisplay else { return text }
       if let closeBracket = text.firstIndex(of: "]") {
@@ -112,9 +199,9 @@ final class OwlRustSession: EngineSession {
 
   init(
     sessionID: UInt64,
-    handle: OpaquePointer?,
-    ownerEngine: OwlRustEngine,
-    initialSchemaId: String,
+    handle: OpaquePointer? = nil,
+    ownerEngine: OwlRustEngine? = nil,
+    initialSchemaId: String = "rime_ice",
     resourceRoot: URL? = nil
   ) {
     self.sessionID = sessionID
@@ -926,7 +1013,7 @@ final class OwlRustSession: EngineSession {
 
 // MARK: - OwlRustEngine
 
-final class OwlRustEngine: InputEngine {
+class OwlRustEngine {
   private var sharedSupportURL: URL?
   private var userDataURL: URL?
   private let activeGenerationProvider: (@Sendable () -> OwlRustResourceGeneration?)?
@@ -946,7 +1033,7 @@ final class OwlRustEngine: InputEngine {
     self.activeGenerationProvider = activeGenerationProvider
   }
 
-  static func makeConfiguredEngine() -> InputEngine {
+  static func makeConfiguredEngine() -> OwlRustEngine {
     return OwlRustEngine()
   }
 
@@ -1016,7 +1103,7 @@ final class OwlRustEngine: InputEngine {
     "msime-rust-0.1"
   }
 
-  func createSession() -> EngineSession {
+  func createSession() -> OwlRustSession {
     let id = nextSessionID
     nextSessionID &+= 1
     let userRoot = userDataURL ?? OwlApp.userDir
@@ -1071,20 +1158,6 @@ final class OwlRustEngine: InputEngine {
       if let generation = activeGenerationProvider() {
         return generation
       }
-    } else {
-      let environment = OwlRustResourceEnvironment.production(
-        userRoot: userDataURL ?? OwlApp.userDir
-      )
-      do {
-        if let generation = try environment.activeGeneration() {
-          return generation
-        }
-      } catch {
-        NSLog(
-          "OwlRustEngine: active resource generation is unusable: %@",
-          error.localizedDescription
-        )
-      }
     }
 
     if let cachedBundledGeneration {
@@ -1094,6 +1167,11 @@ final class OwlRustEngine: InputEngine {
       NSLog("OwlRustEngine: shared support directory is unavailable")
       return nil
     }
+    let environment = OwlRustResourceEnvironment.production(
+      userRoot: userDataURL ?? OwlApp.userDir,
+      sharedSupportURL: sharedRoot
+    )
+    try? environment.store.prepareMutableDirectories()
     let resourcesURL = sharedRoot.appendingPathComponent("msime", isDirectory: true)
     do {
       let digest = try Self.contentDigest(of: resourcesURL)
@@ -1145,7 +1223,7 @@ final class OwlRustEngine: InputEngine {
     return hasher.finalize().map { String(format: "%02x", $0) }.joined()
   }
 
-  func session(for id: UInt64) -> EngineSession {
+  func session(for id: UInt64) -> OwlRustSession {
     if let existing = sessions[id] {
       return existing
     }
@@ -1180,27 +1258,23 @@ final class OwlRustEngine: InputEngine {
 
   fileprivate func loadPackedHostPhrases() -> String {
     let userRoot = userDataURL ?? OwlApp.userDir
-    let fileNames: [String]
+    var lines: [String] = []
     switch OwlTemplateStore.mode(dataDir: userRoot) {
     case .unified:
-      fileNames = [OwlTemplateStore.dictFileName, "custom_phrase.txt"]
-    case .legacy:
-      fileNames = [
-        OwlPromptStore.dictFileName,
-        OwlQuickSendStore.dictFileName,
-        "custom_phrase.txt"
-      ]
+      if let library = try? OwlTemplateStore.load(dataDir: userRoot) {
+        let projection = OwlTemplateStore.renderCandidateProjection(library)
+        if !projection.isEmpty {
+          lines.append(projection)
+        }
+      }
     case .empty:
-      fileNames = ["custom_phrase.txt"]
+      break
     case .unavailable:
       return ""
     }
-    var lines: [String] = []
-    for name in fileNames {
-      let userFile = userRoot.appendingPathComponent(name)
-      if let content = try? String(contentsOf: userFile, encoding: .utf8), !content.isEmpty {
-        lines.append(content)
-      }
+    let userFile = userRoot.appendingPathComponent("custom_phrase.txt")
+    if let content = try? String(contentsOf: userFile, encoding: .utf8), !content.isEmpty {
+      lines.append(content)
     }
     return lines.joined(separator: "\n")
   }

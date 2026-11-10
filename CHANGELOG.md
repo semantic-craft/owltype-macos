@@ -1,3 +1,14 @@
+<a name="2.5.0"></a>
+## 2.5.0 (2026-11-10)
+
+### 引擎与词库架构升级 | Engine, Dictionary, and Staticlib Consolidation
+- 水杉引擎与词库升级至 `macos-v0.59.1` + `dict-v2.1.2`：同步上游水杉 `msime` 引擎至 `macos-v0.59.1`、官方 SQLite 词库至 `dict-v2.1.2`，更新拼音、五笔 86/98、英文、Emoji 与颜文字词库清单、构建溯源及开源许可声明。
+- 单一 `libowl_msime_ffi.a` 静态库与随包 SQLite 直连架构：将全部 Rust 业务与引擎接口收敛为单一 `lib/libowl_msime_ffi.a` 通用静态库（并将 `owl-msime-ffi` 拆分为职责清晰的子模块），直接读取随包 `Contents/SharedSupport/msime` SQLite 词库与重排模型，彻底移除历史遗留的 Rime YAML/Lua/dict 种子与打包管线；发布门禁新增对主程序 `Contents/MacOS/Owltype` 可执行文件内 Rust FFI 符号的直接校验。
+
+### 设置交互与浮动面板加固 | Settings Interaction and Non-Activating Panels
+- 整行点击热区与后台无感加载：新增 `.owlPlain` 按钮样式与 SwiftLint `owl_plain_button_hit_area` 规则，修复设置侧栏、单选行、模板列表及 Agent 授权开关右侧空白区域点击无响应的问题（同时保留尾部下拉控件的独立无障碍焦点）；模板库、供应商密钥状态（含重复预设 ID 的密钥状态识别）与诊断报告改为后台线程读取（Carbon TIS 查询保留在主线程），切换页面不再阻塞主线程或重置正在编辑的草稿；支持从状态栏菜单直接恢复已最小化的设置窗口。
+- 宿主优先的非激活浮动面板策略：候选窗、状态栏、语音胶囊（支持鼠标穿透）与 Agent 投递预览统一继承 `OwlFloatingPanel` 非激活窗口策略，确保弹出或点击面板时绝不抢占宿主输入框的焦点与主窗口状态。
+
 <a name="2.4.3"></a>
 ## 2.4.3 (2026-11-08)
 

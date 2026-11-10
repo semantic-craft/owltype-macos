@@ -5,9 +5,7 @@ import XCTest
 final class OwlSettingsUITests: XCTestCase {
   private var previousInputSource: TISInputSource?
 
-  // The installed Owltype input method shares this app's bundle id. While it is the active input
-  // source, its panels count as the target app's interrupting dialogs and it composes typed text,
-  // so the run uses an ASCII keyboard layout and restores the user's source afterwards.
+  // Type fixture text in an ASCII layout and restore the user's source afterwards.
   override func setUpWithError() throws {
     previousInputSource = TISCopyCurrentKeyboardInputSource()?.takeRetainedValue()
     if let ascii = TISCopyCurrentASCIICapableKeyboardLayoutInputSource()?.takeRetainedValue() {
@@ -32,10 +30,10 @@ final class OwlSettingsUITests: XCTestCase {
     XCTAssertGreaterThan(row.frame.width, 400, "The whole settings row must be clickable")
     XCTAssertTrue(row.isSelected)
     app.activate()
-    row.click()
+    row.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).click()
     XCTAssertFalse(row.isSelected)
     app.activate()
-    row.click()
+    row.coordinate(withNormalizedOffset: CGVector(dx: 0.92, dy: 0.5)).click()
     XCTAssertTrue(row.isSelected)
     let screenshot = XCTAttachment(screenshot: app.windows.firstMatch.screenshot())
     screenshot.name = "App mode memory — shared settings toggle"
@@ -43,20 +41,9 @@ final class OwlSettingsUITests: XCTestCase {
     add(screenshot)
   }
 
-  func testLegacyUserMigrationEntryIsClickableWithIsolatedUserDir() throws {
-    let app = try launchSettings()
-    defer { app.terminate() }
-    openPage("about", in: app)
-
-    let entry = app.buttons["迁移旧版输入记录…"]
-    XCTAssertTrue(entry.waitForExistence(timeout: 3),
-                  "Legacy migration must remain reachable from settings maintenance")
-    guard entry.exists else { return }
-    entry.click()
-  }
-
   func testSettingsControlsCanBeClickedWithIsolatedUserDir() throws {
     let app = try launchSettings()
+    defer { app.terminate() }
 
     tapMany([
       "双拼输入",
@@ -113,9 +100,9 @@ final class OwlSettingsUITests: XCTestCase {
     XCTAssertTrue(app.buttons["uitest prompt"].exists)
 
     openPage("clipboard", in: app)
-    NSPasteboard.general.clearContents()
-    NSPasteboard.general.setString("uitest clipboard", forType: .string)
-    tapMany(["启用剪贴板面板", "捕获当前剪贴板", "清空记录"], in: app)
+    XCTAssertTrue(app.staticTexts["uitest clipboard"].waitForExistence(timeout: 3))
+    tapMany(["启用剪贴板面板", "清空记录"], in: app)
+    XCTAssertTrue(app.staticTexts["uitest clipboard"].waitForNonExistence(timeout: 3))
 
     openPage("project", in: app)
     // 云端 AI 先开：它是全部技能行的总闸，关着时下面几行是 disabled，点不动。
@@ -133,7 +120,7 @@ final class OwlSettingsUITests: XCTestCase {
 
     openPage("about", in: app)
     // 重置用户词典… 在 UI-test 模式下接的是空闭包（确认弹窗归 delegate），点它只验按钮可命中。
-    tapMany(["应用配置改动", "迁移旧版输入记录…", "重置用户词典…", "打开猫头鹰配置目录…", "查看诊断日志…", "欢迎与引导…"], in: app)
+    tapMany(["应用配置改动", "重置用户词典…", "打开猫头鹰配置目录…", "查看诊断日志…", "欢迎与引导…"], in: app)
   }
 
   func testSnippetCategoryFilterKeepsBothKindsAccessible() throws {
@@ -154,6 +141,81 @@ final class OwlSettingsUITests: XCTestCase {
     add(screenshot)
   }
 
+  func testSidebarBlankSpaceAndAgentExposureRow() throws {
+    let app = try launchSettings(seedFilterEntries: true)
+    defer { app.terminate() }
+    for page in ["shortcuts", "appearance", "quickSend", "clipboard", "project", "ai",
+                 "agent", "skin", "diagnostics", "about", "keyboard"] {
+      openPage(page, in: app)
+    }
+
+    openPage("quickSend", in: app)
+    let entry = app.buttons["e2e snippet"]
+    XCTAssertTrue(entry.waitForExistence(timeout: 3))
+    entry.coordinate(withNormalizedOffset: CGVector(dx: 0.94, dy: 0.5)).click()
+    let title = app.textFields["template-title"]
+    XCTAssertEqual(title.value as? String, "e2e snippet")
+
+    openPage("agent", in: app)
+    let exposure = app.buttons.matching(NSPredicate(format: "identifier BEGINSWITH %@", "agent-template-"))
+    let snippet = exposure.matching(NSPredicate(format: "label == %@", "e2e snippet")).firstMatch
+    XCTAssertTrue(snippet.waitForExistence(timeout: 3))
+    XCTAssertFalse(snippet.isSelected)
+    let snippetID = snippet.identifier
+    snippet.coordinate(withNormalizedOffset: CGVector(dx: 0.94, dy: 0.5)).click()
+    XCTAssertTrue(snippet.isSelected)
+    openPage("quickSend", in: app)
+    openPage("agent", in: app)
+    let reloaded = app.buttons[snippetID]
+    guard reloaded.waitForExistence(timeout: 4) else {
+      attachHierarchy(of: app, named: "Agent template missing after reload")
+      XCTFail("Missing saved template")
+      return
+    }
+    XCTAssertTrue(reloaded.isSelected, "Exposure survives leaving and reloading the page")
+  }
+
+  func testReopenSettingsRestoresMinimizedEditorAndCanOpenAfterClose() throws {
+    let app = try launchSettings()
+    defer { app.terminate() }
+    openPage("quickSend", in: app)
+    let title = app.textFields["template-title"]
+    XCTAssertTrue(title.waitForExistence(timeout: 3))
+    title.click()
+    title.typeText("unfinished")
+    let window = app.windows.firstMatch
+    let minimize = window.buttons[XCUIIdentifierMinimizeWindow]
+    XCTAssertTrue(minimize.isEnabled)
+    minimize.click()
+    reopenFromMenu(in: app)
+    XCTAssertTrue(title.waitForExistence(timeout: 3))
+    app.typeText("-restored")
+    XCTAssertEqual(title.value as? String, "unfinished-restored")
+    app.typeKey("w", modifierFlags: .command)
+    XCTAssertTrue(window.waitForNonExistence(timeout: 3))
+    reopenFromMenu(in: app)
+    XCTAssertTrue(window.waitForExistence(timeout: 3))
+    XCTAssertTrue(app.buttons["settings.sidebar.keyboard"].isSelected)
+  }
+
+  private func reopenFromMenu(in app: XCUIApplication) {
+    app.activate()
+    let appMenu = app.menuBars.firstMatch.menuBarItems["Owltype"]
+    guard appMenu.waitForExistence(timeout: 3) else {
+      attachHierarchy(of: app, named: "Settings reopen menu")
+      XCTFail("Missing app menu")
+      return
+    }
+    appMenu.click()
+    let settings = appMenu.menuItems["设置…"]
+    guard settings.waitForExistence(timeout: 3) else {
+      attachHierarchy(of: app, named: "Settings reopen item")
+      XCTFail("Missing Settings menu item")
+      return
+    }
+    settings.click()
+  }
+
   private func launchSettings(seedFilterEntries: Bool = false) throws -> XCUIApplication {
     let root = FileManager.default.temporaryDirectory
       .appendingPathComponent("OwltypeUITests-\(UUID().uuidString)", isDirectory: true)
@@ -169,11 +231,14 @@ final class OwlSettingsUITests: XCTestCase {
       }
       try JSONSerialization.data(withJSONObject: ["formatVersion": 1, "entries": entries])
         .write(to: root.appendingPathComponent("owl_templates.json"))
-      try Data(#"{"formatVersion":1,"committed":true}"#.utf8)
-        .write(to: root.appendingPathComponent("owl_templates_state.json"))
     }
 
+    let history = [["id": UUID().uuidString, "text": "uitest clipboard", "createdAt": 0] as [String: Any]]
+    try JSONSerialization.data(withJSONObject: history)
+      .write(to: root.appendingPathComponent("clipboard-history.json"))
+
     let app = XCUIApplication()
+    addTeardownBlock { app.terminate() }
     app.launchArguments = ["--ui-test-show-settings"]
     app.launchEnvironment["OWL_TEST_USER_DIR"] = root.path
     app.launchEnvironment["OWL_TEST_LOG_DIR"] = root.appendingPathComponent("logs", isDirectory: true).path
@@ -187,34 +252,15 @@ final class OwlSettingsUITests: XCTestCase {
   }
 
   private func openPage(_ page: String, in app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
-    guard let row = sidebarElement(page, in: app) else {
+    let row = app.buttons["settings.sidebar.\(page)"]
+    guard row.waitForExistence(timeout: 3) else {
+      attachHierarchy(of: app, named: "Missing sidebar page \(page)")
       XCTFail("Missing sidebar page \(page)", file: file, line: line)
       return
     }
     app.activate()
-    row.click()
-  }
-
-  private func sidebarElement(_ page: String, in app: XCUIApplication) -> XCUIElement? {
-    let title = [
-      "shortcuts": "快捷键设置",
-      "appearance": "候选窗设置",
-      "quickSend": "快捷片段",
-      "clipboard": "剪贴板",
-      "project": "划词工具箱",
-      "ai": "AI 配置",
-      "skin": "皮肤外观",
-      "about": "关于",
-    ][page] ?? page
-    let candidates = [
-      app.otherElements["settings.sidebar.\(page)"],
-      app.buttons[title],
-      app.staticTexts[title],
-    ]
-    for element in candidates where element.waitForExistence(timeout: 0.5) {
-      return element
-    }
-    return nil
+    row.coordinate(withNormalizedOffset: CGVector(dx: 0.96, dy: 0.5)).click()
+    XCTAssertTrue(row.isSelected, "Right-side click should select \(page)", file: file, line: line)
   }
 
   private func tapMany(_ labels: [String], in app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {

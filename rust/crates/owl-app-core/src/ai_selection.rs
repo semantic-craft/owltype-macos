@@ -134,18 +134,7 @@ fn spaces(t: &str) -> String {
 fn finalize(t: &str) -> String {
     spaces(&width(&quotes(&ellipsis(t))))
 }
-fn sequence(cached: &str) -> Vec<String> {
-    let mut all = vec![
-        "axSelectedText".into(),
-        "paste".into(),
-        "clipboardOnly".into(),
-    ];
-    if let Some(i) = all.iter().position(|v| v == cached) {
-        let v = all.remove(i);
-        all.insert(0, v);
-    }
-    all
-}
+pub use crate::host_delivery::{sequence, sequence_for_mode, Inserter};
 fn rewrite_copy(action: &str) -> Value {
     let (noun, progress, inserted, copied) = match action {
         "promptOptimize" => (
@@ -204,6 +193,12 @@ pub fn rule(name: &str, a: Value) -> Value {
             json!({"text":output,"empty":trim(&output).is_empty()})
         }
         "insertSequence" => json!(sequence(s(&a, "cached"))),
+        "hostDeliverySequence" => json!(sequence_for_mode(
+            s(&a, "mode"),
+            s(&a, "cached"),
+            a["hasIMK"] == true,
+            a["preferPaste"] == true,
+        )),
         "replacementAdmission" => json!(if trim(t).is_empty() {
             "未生成可替换文本。"
         } else if a["hasTarget"] != true {
@@ -213,7 +208,6 @@ pub fn rule(name: &str, a: Value) -> Value {
         }),
         "enabledActions" => {
             let order = [
-                "jevReply",
                 "ask",
                 "polish",
                 "sourceVerification",
@@ -234,7 +228,6 @@ pub fn rule(name: &str, a: Value) -> Value {
                 "effect": match action {
                     "translate" | "researchAssist" => "question",
                     "sourceVerification" => "verify",
-                    "jevReply" => "jevReply",
                     "ask" => "none",
                     _ => "rewrite",
                 },
@@ -265,39 +258,6 @@ pub fn rule(name: &str, a: Value) -> Value {
             })
         }
         _ => json!({"error":"unknown_ai_rule"}),
-    }
-}
-#[derive(Default)]
-pub struct Inserter {
-    cache: std::collections::HashMap<String, String>,
-    key: String,
-    sequence: Vec<String>,
-    index: usize,
-    done: bool,
-}
-impl Inserter {
-    pub fn event(&mut self, event: &str, a: Value) -> Result<Value, String> {
-        match event {
-            "begin" => {
-                self.key = s(&a, "bundleID").into();
-                self.sequence = sequence(self.cache.get(&self.key).map_or("", String::as_str));
-                self.index = 0;
-                self.done = false;
-            }
-            "result" => {
-                if !self.done {
-                    if a["success"] == true {
-                        self.cache
-                            .insert(self.key.clone(), self.sequence[self.index].clone());
-                        self.done = true;
-                    } else {
-                        self.index += 1;
-                    }
-                }
-            }
-            _ => return Err("invalid_event".into()),
-        }
-        Ok(json!({"strategy":self.sequence.get(self.index),"done":self.done}))
     }
 }
 #[derive(Default)]

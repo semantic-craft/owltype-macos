@@ -1,8 +1,8 @@
 {
   "packageId": "owltype-dictpack",
-  "packageVersion": 4,
-  "configurationVersion": "msime-macos-v0.55.0-native-input-v1",
-  "wubiDictionaryDigest": "sha256:54ee94799d8e33d5356468bdae164d21f68ce8ca0de9e6464ed4b3783924b93c",
+  "packageVersion": 5,
+  "configurationVersion": "msime-macos-v0.59.1-native-input-v1",
+  "wubiDictionaryDigest": "sha256:2e1ff8eaaa4a6dee7fc0947c17c4bf58f5bf5fc5c8a2f87c2ed7ccbf9926b146",
   "requiredFiles": [
     "msime-pinyin.db",
     "msime-wubi.db",
@@ -23,8 +23,6 @@
     "wubi86-jidian.LICENSE",
     "rime-kaomoji.LICENSE",
     "OpenCC.LICENSE",
-    "jieba.LICENSE",
-    "phrase-pinyin-data.LICENSE",
     "python-pinyin.LICENSE",
     "rime-ice-Credits.md",
     "msime-others-NOTICE.txt",
@@ -65,124 +63,5 @@
       "kind": "settled",
       "expectedSize": 25480184
     }
-  ],
-  "legacyEngine": {
-    "contractVersion": 1,
-    "capabilities": [
-      "dictionary-contract-v1",
-      "pinyin-wubi-v1",
-      "persistent-user-journal-v1"
-    ],
-    "sqliteRequirements": [
-      {
-        "role": "main-dictionary",
-        "tables": [
-          {
-            "table": "tbl_1_n",
-            "columns": [
-              "key",
-              "jp",
-              "value",
-              "weight"
-            ]
-          },
-          {
-            "table": "wubi86",
-            "columns": [
-              "key",
-              "value",
-              "weight"
-            ]
-          },
-          {
-            "table": "quick_parases",
-            "columns": [
-              "key",
-              "value",
-              "weight"
-            ]
-          }
-        ]
-      },
-      {
-        "role": "english-dictionary",
-        "tables": [
-          {
-            "table": "english_words",
-            "columns": [
-              "word",
-              "display",
-              "weight"
-            ]
-          }
-        ]
-      }
-    ]
-  },
-  "nativeEngine": {
-    "contractVersion": 1,
-    "capabilities": [
-      "dictionary-contract-v1",
-      "pinyin-wubi-v1",
-      "persistent-user-journal-v1"
-    ],
-    "sqliteRequirements": [
-      {
-        "role": "main-dictionary",
-        "tables": [
-          {
-            "table": "tbl_1_n",
-            "columns": [
-              "key",
-              "jp",
-              "value",
-              "weight"
-            ]
-          },
-          {
-            "table": "quick_parases",
-            "columns": [
-              "key",
-              "value",
-              "weight"
-            ]
-          }
-        ]
-      },
-      {
-        "role": "english-dictionary",
-        "tables": [
-          {
-            "table": "english_words",
-            "columns": [
-              "word",
-              "display",
-              "weight"
-            ]
-          }
-        ]
-      },
-      {
-        "role": "wubi-dictionary",
-        "tables": [
-          {
-            "table": "wubi86",
-            "columns": [
-              "key",
-              "value",
-              "weight"
-            ]
-          },
-          {
-            "table": "wubi98",
-            "columns": [
-              "key",
-              "value",
-              "weight"
-            ]
-          }
-        ]
-      }
-    ]
-  }
+  ]
 }

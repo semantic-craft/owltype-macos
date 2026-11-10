@@ -27,7 +27,6 @@ final class OwlPromptFillModel: ObservableObject {
   init(invocation: OwlTemplateInvocation) {
     switch invocation.content {
     case .plainText: title = "快捷片段"
-    case .prompt(let entry): title = entry.title
     case .template(let entry): title = entry.title
     }
     self.invocation = invocation
@@ -36,7 +35,6 @@ final class OwlPromptFillModel: ObservableObject {
     observation = invocation.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
   }
 
-  convenience init(entry: OwlPromptEntry, invocation: OwlTemplateInvocation) { self.init(invocation: invocation) }
   convenience init(template: OwlTemplateEntry, invocation: OwlTemplateInvocation) { self.init(invocation: invocation) }
 
   var isEditing: Bool { invocation.state == .awaitingConfirmation }

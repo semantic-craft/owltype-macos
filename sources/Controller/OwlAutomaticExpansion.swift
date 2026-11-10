@@ -148,7 +148,7 @@ enum OwlAutomaticExpansionScope {
 /// that handleAutomaticExpansion uses, without constructing an IMK server in the test process.
 enum OwlAutomaticExpansionControllerEntry {
   static func start(input: OwlAutomaticExpansionRecognizer.Input, bundleID: @autoclosure () -> String?,
-                    runtime: OwlAutomaticExpansionRuntime, engineSession: EngineSession?, openHost: () -> Bool) -> Bool {
+                    runtime: OwlAutomaticExpansionRuntime, engineSession: OwlRustSession?, openHost: () -> Bool) -> Bool {
     guard case .text(";") = input, runtime.enabled, !runtime.index.isEmpty,
           runtime.allows(bundleID: bundleID()),
           let engineSession, engineSession.isValid, let raw = engineSession.input(),
@@ -253,7 +253,6 @@ final class OwlAutomaticExpansionRuntime {
       switch OwlTemplateStore.mode(dataDir: dataDir) {
       case .empty: entries = []
       case .unified: entries = try OwlTemplateStore.load(dataDir: dataDir).entries
-      case .legacy: throw OwlTemplateError.legacyRequiresMigration
       case .unavailable(let message): throw OwlTemplateError.invalid(message)
       }
       try publish(entries: entries, enabled: defaults.bool(forKey: Self.enabledKey),

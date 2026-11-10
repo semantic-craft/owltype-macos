@@ -21,7 +21,7 @@ final class OwlKeyboardSettingsApplicationTests: XCTestCase {
         refreshed = true
         XCTAssertEqual(engine.lifecycleTrace, ["startMaintenance", "joinMaintenance"])
       })
-    XCTAssertTrue(try application.apply(.current(), mode: .fuzzy).succeeded)
+    XCTAssertTrue(try application.apply(mode: .fuzzy).succeeded)
     XCTAssertTrue(refreshed)
     XCTAssertTrue(engine.deployedConfigFiles.isEmpty)
   }
@@ -34,7 +34,7 @@ final class OwlKeyboardSettingsApplicationTests: XCTestCase {
       refresh: {}
     )
 
-    let outcome = try application.apply(.current(), mode: .config)
+    let outcome = try application.apply(mode: .config)
 
     XCTAssertTrue(outcome.succeeded)
     XCTAssertEqual(outcome.written, [])
@@ -52,33 +52,9 @@ final class OwlKeyboardSettingsApplicationTests: XCTestCase {
       refresh: {}
     )
 
-    let outcome = try application.apply(.current(), mode: .config)
+    let outcome = try application.apply(mode: .config)
 
     XCTAssertFalse(outcome.succeeded)
     XCTAssertEqual(outcome.written, [])
-  }
-
-  func testApplyRefusesPendingMigrationRecovery() throws {
-    let journal = directory
-      .appendingPathComponent(".owl-template-migration", isDirectory: true)
-      .appendingPathComponent("journal.json")
-    try FileManager.default.createDirectory(
-      at: journal.deletingLastPathComponent(),
-      withIntermediateDirectories: true
-    )
-    try Data("{broken".utf8).write(to: journal)
-    let engine = FakeInputEngine()
-    let application = OwlKeyboardSettingsApplication(
-      engine: engine,
-      directory: directory,
-      refresh: { XCTFail("Recovery-pending apply must not refresh") }
-    )
-
-    XCTAssertThrowsError(try application.apply(.current(), mode: .config)) { error in
-      XCTAssertEqual((error as? OwlKeyboardSettingsApplication.Failure)?.errorDescription,
-                     OwlKeyboardSettingsApplication.Failure.recoveryPending.errorDescription)
-    }
-    XCTAssertTrue(engine.deployedConfigFiles.isEmpty)
-    XCTAssertTrue(engine.lifecycleTrace.isEmpty)
   }
 }

@@ -16,6 +16,7 @@ use crate::types::WordItem;
 /// allowing a user supplied file to make a session allocate without bound.
 const MAX_HELPCODE_BYTES: u64 = 1024 * 1024;
 
+/// A helpcode table: the code letters (one or two, lowercase) of each character, which the session uses to filter and order candidates and to annotate them. Read one from a resource directory with [`load_helpcode_keymap`], from a file's bytes with [`HelpcodeKeymap::from_table_bytes`], or build one with [`HelpcodeKeymap::from_codes`]; a session takes it through `SessionOptions::helpcode_table` or `Session::set_helpcode_table`.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct HelpcodeKeymap {
     codes: HashMap<String, String>,
@@ -25,6 +26,7 @@ pub struct HelpcodeKeymap {
 pub type SharedKeymap = Arc<HelpcodeKeymap>;
 
 impl HelpcodeKeymap {
+    /// A table from character to code letters as given; the caller has already applied the file rules of [`load_helpcode_keymap`].
     pub fn from_codes(codes: HashMap<String, String>) -> Self {
         Self { codes }
     }
@@ -150,11 +152,28 @@ pub fn load_helpcode_keymap(resources: &Path, schema: &str) -> Result<HelpcodeKe
     Ok(HelpcodeKeymap::from_codes(parse_helpcode_table(&bytes)))
 }
 
-/// 主资源确实缺少内置表时，读取宿主指定的随包副本；已有表和自定义表不回退。
+/// 按 `schema` 读表，`custom/<stem>` 先在用户目录 `user_root` 下找：`user_root/helpcodes/custom` 里有这张表（扩展名大小写规则同 `helpcode_path`）就读它，没有时再读资源目录里的那份。宿主把状态根交给 `user_root`：资源目录是安装包或词库代次，升级和在线词库更新都会换掉它，用户自己放的表只有在状态根下才跟得过去。内置方案只读 `resources`，`user_root` 不是绝对路径时当作没有。
+pub fn load_helpcode_keymap_in(
+    resources: &Path,
+    schema: &str,
+    user_root: Option<&Path>,
+) -> Result<HelpcodeKeymap> {
+    if custom_schema_stem(schema).is_some() {
+        if let Some(user_root) = user_root.filter(|path| path.is_absolute()) {
+            if let Ok(keymap) = load_helpcode_keymap(user_root, schema) {
+                return Ok(keymap);
+            }
+        }
+    }
+    load_helpcode_keymap(resources, schema)
+}
+
+/// 主资源确实缺少内置表时，读取宿主指定的随包副本；已有表和自定义表不回退。自定义表先读用户目录，见 [`load_helpcode_keymap_in`]。
 pub(crate) fn load_helpcode_keymap_with_fallback(
     resources: &Path,
     schema: &str,
     fallback_resources: Option<&Path>,
+    user_root: Option<&Path>,
 ) -> Result<HelpcodeKeymap> {
     if built_in_helpcode_file(schema).is_some() {
         let path = helpcode_path(resources, schema)?;
@@ -166,7 +185,7 @@ pub(crate) fn load_helpcode_keymap_with_fallback(
             }
         }
     }
-    load_helpcode_keymap(resources, schema)
+    load_helpcode_keymap_in(resources, schema, user_root)
 }
 
 fn read_helpcode_file(file: File) -> Option<Vec<u8>> {
@@ -285,28 +304,52 @@ pub fn is_quanpin_double_help_mode(pinyin_with_cases: &str) -> bool {
     bytes.len() > 2 && bytes[bytes.len() - 2..].iter().all(u8::is_ascii_uppercase)
 }
 
+/// 一个词参与辅助码匹配的两个字母：单字是它的码的第一、二位，词语是首字、尾字各自的码的首位。`pair` 说两位都在、能当两码整体比：单字的码正好两位，词语首尾字都有码。一码、两码的匹配都从这里取，按多个候选字母匹配时（网格辅助码的整组）每个词只查一次码表。
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub(crate) struct HelpcodeEnds {
+    pub(crate) first: Option<u8>,
+    pub(crate) last: Option<u8>,
+    pub(crate) pair: bool,
+}
+
+pub(crate) fn helpcode_ends(word: &str, keymap: &HelpcodeKeymap) -> HelpcodeEnds {
+    if word.is_empty() {
+        return HelpcodeEnds::default();
+    }
+    if count_han_chars(word) == 1 {
+        let Some(code) = keymap.code(word).map(str::as_bytes) else {
+            return HelpcodeEnds::default();
+        };
+        return HelpcodeEnds {
+            first: code.first().copied(),
+            last: code.get(1).copied(),
+            pair: code.len() == 2,
+        };
+    }
+    let initial = |character: &str| {
+        keymap
+            .code(character)
+            .and_then(|code| code.as_bytes().first().copied())
+    };
+    let (first, last) = (initial(first_han_char(word)), initial(last_han_char(word)));
+    HelpcodeEnds {
+        first,
+        last,
+        pair: first.is_some() && last.is_some(),
+    }
+}
+
 pub fn match_single_helpcode(
     word: &str,
     help_code: &str,
     keymap: &HelpcodeKeymap,
 ) -> SingleHelpcodeMatch {
-    if word.is_empty() || help_code.len() != 1 {
+    if help_code.len() != 1 {
         return SingleHelpcodeMatch::None;
     }
-    let letter = help_code.as_bytes()[0];
-    let (matches_first, matches_last) = if count_han_chars(word) == 1 {
-        let Some(code) = keymap.code(word).map(str::as_bytes) else {
-            return SingleHelpcodeMatch::None;
-        };
-        (code[0] == letter, code.get(1) == Some(&letter))
-    } else {
-        let initial = |character: &str| keymap.code(character).map(|code| code.as_bytes()[0]);
-        (
-            initial(first_han_char(word)) == Some(letter),
-            initial(last_han_char(word)) == Some(letter),
-        )
-    };
-    match (matches_first, matches_last) {
+    let letter = Some(help_code.as_bytes()[0]);
+    let ends = helpcode_ends(word, keymap);
+    match (ends.first == letter, ends.last == letter) {
         (true, true) => SingleHelpcodeMatch::Both,
         (true, false) => SingleHelpcodeMatch::First,
         (false, true) => SingleHelpcodeMatch::Last,
@@ -315,24 +358,12 @@ pub fn match_single_helpcode(
 }
 
 pub fn matches_double_helpcodes(word: &str, help_codes: &str, keymap: &HelpcodeKeymap) -> bool {
-    if word.is_empty() || help_codes.len() != 2 {
+    if help_codes.len() != 2 {
         return false;
     }
     let expected = help_codes.as_bytes();
-    if count_han_chars(word) == 1 {
-        return keymap
-            .code(word)
-            .is_some_and(|code| code.as_bytes() == expected);
-    }
-    match (
-        keymap.code(first_han_char(word)),
-        keymap.code(last_han_char(word)),
-    ) {
-        (Some(first), Some(last)) => {
-            first.as_bytes()[0] == expected[0] && last.as_bytes()[0] == expected[1]
-        }
-        _ => false,
-    }
+    let ends = helpcode_ends(word, keymap);
+    ends.pair && ends.first == Some(expected[0]) && ends.last == Some(expected[1])
 }
 
 /// First and Both matches, then Last, then the rest, each stable; unchanged unless `help_code` is one letter.
@@ -373,6 +404,26 @@ pub fn reorder_candidates_with_single_helpcode(
     }
 
     candidates
+}
+
+/// 一码严格筛选：只保留至少一个汉字命中该码的候选；未命中的候选被排除。
+pub fn filter_candidates_with_single_helpcode(
+    candidates: Vec<WordItem>,
+    help_code: &str,
+    keymap: &HelpcodeKeymap,
+) -> Vec<WordItem> {
+    if help_code.len() != 1 {
+        return Vec::new();
+    }
+    candidates
+        .into_iter()
+        .filter(|candidate| {
+            !matches!(
+                match_single_helpcode(&candidate.word, help_code, keymap),
+                SingleHelpcodeMatch::None
+            )
+        })
+        .collect()
 }
 
 /// Only the double-helpcode matches; empty unless `help_codes` is two letters.
@@ -530,7 +581,7 @@ mod tests {
         )
         .unwrap();
         let load = |schema| {
-            load_helpcode_keymap_with_fallback(resources.path(), schema, Some(bundle.path()))
+            load_helpcode_keymap_with_fallback(resources.path(), schema, Some(bundle.path()), None)
         };
         assert_eq!(load("xiaohe").unwrap().code("合"), Some("ab"));
         assert!(load("custom/synthetic").is_err());
@@ -538,7 +589,8 @@ mod tests {
         assert!(load_helpcode_keymap_with_fallback(
             resources.path(),
             "xiaohe",
-            Some(Path::new("relative"))
+            Some(Path::new("relative")),
+            None
         )
         .unwrap()
         .is_empty());
@@ -561,6 +613,51 @@ mod tests {
             .unwrap();
             assert!(load("xiaohe").unwrap().is_empty());
         }
+    }
+
+    /// 自定义表先读状态根下的那份：资源目录换成新安装包或新词库代次、里面没有这张表时，用户的表照样读得到；两边都有时用户目录优先；内置方案不读用户目录；相对路径的用户目录不算数。
+    #[test]
+    fn custom_tables_are_read_from_the_user_root_first() {
+        let resources = tempfile::tempdir().unwrap();
+        let state = tempfile::tempdir().unwrap();
+        let user = state.path().join("helpcodes/custom");
+        std::fs::create_dir_all(&user).unwrap();
+        std::fs::write(user.join("synthetic.TXT"), "你=ab\n").unwrap();
+        std::fs::write(
+            state.path().join("helpcodes/xiaohe_helpcode.txt"),
+            "你=zz\n",
+        )
+        .unwrap();
+        let load = |schema| load_helpcode_keymap_in(resources.path(), schema, Some(state.path()));
+        assert_eq!(load("custom/synthetic").unwrap().code("你"), Some("ab"));
+        assert!(load("xiaohe").unwrap().is_empty());
+        assert_eq!(
+            load("custom/missing").unwrap_err().to_string(),
+            UNKNOWN_HELPCODE_SCHEMA
+        );
+        let legacy = resources.path().join("helpcodes/custom");
+        std::fs::create_dir_all(&legacy).unwrap();
+        std::fs::write(legacy.join("synthetic.txt"), "你=cd\n").unwrap();
+        std::fs::write(legacy.join("legacy.txt"), "你=ef\n").unwrap();
+        assert_eq!(load("custom/synthetic").unwrap().code("你"), Some("ab"));
+        assert_eq!(load("custom/legacy").unwrap().code("你"), Some("ef"));
+        assert_eq!(
+            load_helpcode_keymap_with_fallback(
+                resources.path(),
+                "custom/synthetic",
+                None,
+                Some(state.path())
+            )
+            .unwrap()
+            .code("你"),
+            Some("ab")
+        );
+        assert_eq!(
+            load_helpcode_keymap_in(resources.path(), "custom/synthetic", Some(Path::new("rel")))
+                .unwrap()
+                .code("你"),
+            Some("cd")
+        );
     }
 
     #[test]
@@ -860,5 +957,7 @@ mod tests {
             filter_candidates_with_double_helpcodes(items(&["泥", "你", "拟"]), "ab", &map);
         assert_eq!(words(&filtered), ["你"]);
         assert!(filter_candidates_with_double_helpcodes(items(&["你"]), "a", &map).is_empty());
+        let strict = filter_candidates_with_single_helpcode(items(&["泥", "你", "拟"]), "a", &map);
+        assert_eq!(words(&strict), ["你", "拟"]);
     }
 }

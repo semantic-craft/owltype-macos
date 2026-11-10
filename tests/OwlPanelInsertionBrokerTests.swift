@@ -64,8 +64,11 @@ final class OwlPanelInsertionBrokerTests: XCTestCase {
       return .init(restore: { events.append("original host") }, isRestored: { true })
     }, pasteboardWrite: { _ in XCTFail("must not copy"); return false })
     picker.capture()
+    var templateEntry = OwlTemplateEntry(title: "A", body: "{{value}}")
+    templateEntry.bodyType = .template
+    templateEntry.syntax = .legacyDoubleBraces
     let invocation = OwlTemplateInvocation(
-      content: .prompt(OwlPromptEntry(code: "a", title: "A", body: "{{value}}")),
+      content: .template(templateEntry),
       broker: picker.transferCapture(), deliver: { events.append($0.text); return .confirmed })
     invocation.start { _ in events.append("fill shown") }
     picker.restoreFocus()

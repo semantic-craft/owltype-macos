@@ -1,5 +1,6 @@
 //! Selection and commit (core-session.md §5.7).
 
+use super::cantonese_learning::{is_cantonese_row, CantonesePick};
 use super::chain::Pick;
 use super::input::InputSession;
 use crate::diagnostics;
@@ -15,7 +16,7 @@ use crate::types::{
 use crate::user_dictionary::journal::is_user_inserted;
 
 /// 提交只会读取这些候选字段；纠错来源用于计算原始按键的消费长度。
-fn clone_selected_candidate(item: &WordItem, copy_sentence_words: bool) -> WordItem {
+pub(super) fn clone_selected_candidate(item: &WordItem, copy_sentence_words: bool) -> WordItem {
     WordItem {
         pinyin: item.pinyin.clone(),
         canonical_pinyin: item.canonical_pinyin.clone(),
@@ -81,9 +82,13 @@ impl InputSession {
         let Some(candidate) = self.candidates().get(index) else {
             return KeyResult::unhandled();
         };
-        let character = edge.character(&candidate.word).to_owned();
+        let mut character = edge.character(&candidate.word).to_owned();
         if character.is_empty() {
             return KeyResult::unhandled();
+        }
+        // 光标后编辑：光标前固定的那段照样交出去，取字只取光标后那一行的字。
+        if self.caret_edit.active {
+            character = self.caret_edit_edge_text(&character);
         }
         // One character of a candidate is not what the composition spelled, so nothing is learned and the rest is dropped.
         self.reset_composition();
@@ -110,6 +115,9 @@ impl InputSession {
 
     /// Commit segment by segment until nothing is composing. An open Korean Hanja list is closed first, so finishing (punctuation, leaving the client, a host's finish key) commits the Hangul: only an explicit choice commits a Hanja.
     pub(super) fn finish_composition(&mut self, first_index: usize) -> KeyResult {
+        if self.glide_selection_pending && self.has_composition() {
+            return KeyResult::handled();
+        }
         // 上屏/结束组字同样结束大写串：宿主结束键（`Action::Finish`、失焦、macOS 的 Cmd+A）与字面标点路由都从这里过，不经过 `handle_command`（#7616）。
         self.end_uppercase_run();
         self.close_korean_hanja();
@@ -168,8 +176,37 @@ impl InputSession {
         result
     }
 
-    /// input_session.cpp:828-956.
+    /// 选中第 `index` 条并上屏或推进组字。光标后编辑生效时先交给它（`commit_caret_edit`）。
     pub(super) fn commit(&mut self, index: usize) -> KeyResult {
+        if let Some((_, rows)) = &self.glide_candidates {
+            let Some(row) = rows.get(index) else {
+                // 结束组字允许无效索引回落原文，不能让 finish 的循环停在同一笔上。
+                let text = self.raw_with_cases().to_owned();
+                self.reset_composition();
+                self.chain.reset();
+                return KeyResult::committed(text);
+            };
+            let mut text = row.word.clone();
+            let english = text.as_bytes().last().is_some_and(u8::is_ascii_alphabetic);
+            self.glide_prefers_english = Some(english);
+            if english {
+                text.push(' ');
+            }
+            self.reset_composition();
+            self.chain.reset();
+            return KeyResult::committed(text);
+        }
+        if self.caret_edit.active && self.conversion.is_none() && self.date_time_menu_page.is_none()
+        {
+            if let Some(result) = self.commit_caret_edit(index) {
+                return result;
+            }
+        }
+        self.commit_plain(index)
+    }
+
+    /// input_session.cpp:828-956.
+    fn commit_plain(&mut self, index: usize) -> KeyResult {
         // 「📅日期」入口不上屏：候选窗换成这一组的全部格式，组字原样留着（`EnterDateTimeCandidatePage`）。
         if let Some(keyword) = self.date_time_menu_keyword_at(index) {
             self.enter_date_time_menu(&keyword);
@@ -225,14 +262,29 @@ impl InputSession {
                 return KeyResult::committed(text);
             };
             let text = candidate.word.clone();
+            let key = candidate.canonical_pinyin.clone();
+            let dictionary_word = self.engine.cantonese_dictionary_word(&key, &text);
+            let cantonese_row = is_cantonese_row(candidate);
             let end = candidate.pinyin.len();
-            if self.engine.select_cantonese_end(end) {
+            // 组句标记和调频都在拿走这一段之前取：拿走后候选换成剩下那段的。
+            let pick = CantonesePick {
+                key: &key,
+                word: &dictionary_word,
+                cantonese_row,
+                composed: cantonese_row && self.engine.cantonese_row_is_composed(&key, &text),
+            };
+            let mut diagnostic = self.learn_cantonese_frequency(index, &pick);
+            let composing = self.engine.select_cantonese_end(end);
+            if let Some(phrase_diagnostic) = self.note_cantonese_piece(&pick, composing) {
+                diagnostic.get_or_insert(phrase_diagnostic);
+            }
+            if composing {
                 self.update_mixed_candidates();
             } else {
                 self.reset_composition();
             }
             self.chain.reset();
-            return KeyResult::committed(text);
+            return committed(Some(text.to_string()), diagnostic);
         }
         if self.korean_rules_apply() || self.vietnamese_rules_apply() || self.tibetan_rules_apply()
         {
@@ -398,7 +450,8 @@ impl InputSession {
     ) -> Result<()> {
         self.canonical_phrase_engine()
             .create_word_from_canonical_pinyin(pinyin, word)?;
-        if crate::user_dictionary::wubi_learning::learn(&self.paths, word)? {
+        let profile = self.engine.wubi_input_options().profile;
+        if crate::user_dictionary::wubi_learning::learn(&self.paths, word, profile)? {
             self.engine.reset_cache();
         }
         Ok(())
@@ -411,7 +464,7 @@ impl InputSession {
     }
 
     /// `record_personal_context`, with its diagnostic kept only when nothing earlier failed.
-    fn record_context_into(
+    pub(super) fn record_context_into(
         &mut self,
         diagnostic: &mut Option<String>,
         selected: Option<&WordItem>,

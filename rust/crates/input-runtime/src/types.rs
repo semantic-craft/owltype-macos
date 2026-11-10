@@ -31,9 +31,15 @@ pub struct Candidate {
     /// True when Engine corrected the typed spelling for this candidate.
     /// Presentation layers may mark it without changing committed text.
     pub corrected: bool,
+    /// 这一行是 26 键双拼按首选规则坐上第一位的触点纠错（#10018）：宿主给它画平台已有的强调色，读屏标签后面接「，已纠正」；`annotation` 里的原始按键照旧显示。只会出现在第一位，为假时不出现在 JSON 里，没有触点的宿主（桌面、实体键盘）永远看不到它。
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub confident_correction: bool,
     /// Engine fixed-position slot, or zero when dynamically ranked.
     pub fixed_position: u8,
     pub highlighted: bool,
+    /// 「仅当前高亮」的候选词翻译生效时，高亮这一行要留出译文的位置，回答还没到也留：竖排的宿主据此给这一行留一行译文高（两种目标语言时留两行，和横排的预留行数一样），移动高亮时窗口高度不跳。为假时不出现在 JSON 里，旧宿主可忽略。
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub translation_reserved: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub translation: Option<String>,
     /// 与 `translation` 同源的 UTF-8 字节范围；空时省略，旧宿主可忽略。
@@ -62,6 +68,8 @@ pub struct TranslationCandidates {
     pub generation: u64,
     pub scheme: u8,
     pub local_mode: String,
+    /// `candidates` 里高亮那一行的位置；高亮不在这一组座位里时为 `None`。
+    pub highlighted: Option<usize>,
     pub candidates: Vec<TranslationCandidate>,
 }
 
@@ -79,6 +87,22 @@ pub struct CandidateSnapshot {
     pub candidates: Vec<Candidate>,
 }
 
+/// 一代候选里按需取的一段（[`Runtime::candidate_range`]），身份与 [`CandidateSnapshot`] 里同一座位的那一行相同。
+///
+/// 触屏宿主的横向候选条每键都要重画，只取它这次建得出来的那一批，不必每键把整代候选（单个声母可有几千行）序列化一遍再在宿主主线程上解析。
+#[derive(Clone, Debug, Serialize)]
+pub struct CandidateRange {
+    pub session: u64,
+    pub generation: u64,
+    pub preedit: String,
+    /// Engine-owned kana reading for Japanese, the composing Hangul for Korean; empty for other schemes.
+    pub reading: String,
+    /// 这一代已经放出来的候选总数。引擎可能还扣着一段尾部（首字母只先给 24 行），从这个位置往后再取时才放出来。
+    pub total: usize,
+    /// 座位 `start` 起的候选，最多 `count` 行，到 `total` 为止。
+    pub candidates: Vec<Candidate>,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
 pub enum CharacterWidth {
     Fullwidth,
@@ -87,6 +111,9 @@ pub enum CharacterWidth {
 
 #[derive(Clone, Debug, Serialize)]
 pub struct View {
+    /// 混合滑行仍待用户明确选词；宿主可把确认键路由到高亮候选，不得据此自动结束组字。
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub requires_candidate_selection: bool,
     /// 非组字的上屏后联想；空格、回车、数字和失焦均不自动提交这些候选。
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub prediction: bool,
@@ -99,6 +126,8 @@ pub struct View {
     pub nine_key: bool,
     /// 引擎当前的组码网格：`"none"`、`"nine_key"`、`"fourteen_key"`、`"nine_key_shuangpin"` 或 `"eighteen_key"`。宿主据此决定是否显示拼音条、读音行和三栏面板：几种网格共用 `nine_key_spellings`、`nine_key_reading`、`nine_key_single_character` 和 `nine_key_strokes`。九键双拼的数字和九键一样不当选词键，但 `nine_key` 为假（它没有英文九键，也不开注音九键）。
     pub key_grid: &'static str,
+    /// 这次组字是在组码网格里打的（九宫格会话在组字，或五笔 14 键在组字），转述引擎 `Session::grid_composing`。`key_grid` 开着时硬件键盘的字母照样走 26 键的全拼、双拼，这时它为假：宿主要分清当前组字走的是网格还是 26 键（例如光标隔着显示分隔画在哪一侧，两者的退格删的不是同一格）时看它，不看 `key_grid`。没有组字时为假。
+    pub grid_composing: bool,
     pub nine_key_spellings: Vec<String>,
     /// 全拼九键组字时，首选候选覆盖的数字显示成它的拼音（`xi'an`），给键盘的读音行用；其他情况为空，包括注音九键。全拼下 `preedit` 仍是数字；注音下是转换结果加上未完成的数字。
     pub nine_key_reading: String,
@@ -106,6 +135,12 @@ pub struct View {
     pub nine_key_single_character: bool,
     /// 九宫格候选当前按这几笔的笔顺前缀筛选（`hspnz`），空表示不按笔画。组字结束时清空。
     pub nine_key_strokes: String,
+    /// 这次组字能用十四／十八键网格辅助码（[`Action::GridHelpcode`]）；宿主据此画「辅」角标、接进入手势。
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub grid_helpcode_available: bool,
+    /// 放下分隔符后画在读音后面的辅助码（`|Q[ER]`），只在输入法里画，不进组字区、不上屏；没有分隔符时为空。非空时 `nine_key_spellings` 是辅助码的整串解释，不是拼音。
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub grid_helpcode_display: String,
     /// Applied touch presentation, independent of Engine-owned Chinese nine-key digit handling.
     pub touch_keyboard_layout: TouchKeyboardLayout,
     /// Applied Engine configuration, not a newer deferred preference snapshot.
@@ -141,12 +176,23 @@ pub struct View {
     pub editing_text: String,
     /// Byte offset in Engine's ASCII editing_text, not an OS UTF-16 offset.
     pub caret_position: usize,
+    /// 辅助码前导键（偏好 `helpcode.trigger_key`）按下后、辅助码还没输满两位时，前导键在 `editing_text` 里的位置：`{"key": ";", "position": 2}` 表示画成 `ni;`。前导键不进 `editing_text`，`preedit` 已经把它紧挨着插在已输入的码前面（只插不删，见 `msime_client.h` 的 `View.helpcode_trigger`）；宿主画 `editing_text`（行内「原始按键」样式）时把 `key` 插在第 `position` 个字节前，`caret_position` 不小于 `position` 时光标后移 `key` 的长度。其余时候不出现在 JSON 里。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub helpcode_trigger: Option<msime_engine::HelpcodeTrigger>,
+    /// 组字光标在 `preedit` 里的位置，按 Unicode 标量计，宿主自己换算成它的字符串单位。宿主画 `preedit`（全拼分词、双拼「拼音分词」展开的全拼）时用它放光标；画 `editing_text` 时仍用 `caret_position`。两者没有可靠对应时等于 `preedit` 的长度。
+    pub preedit_caret: usize,
     /// 整句改字时改好的整句，宿主在它非空时把它（接在 `phrase_prefix` 后面）画在行内代替拼音，光标画在 `conversion_focus_start` 处，`conversion_focus_start..conversion_focus_end` 是候选所替换的那一段；候选是这一段的字和词。不在改字时为空。
     pub conversion: String,
     /// 光标在 `conversion` 的第几个字之前，按 Unicode 标量计，宿主自己换算成它的字符串单位。
     pub conversion_focus_start: usize,
     /// 光标处那一段的结尾，按 Unicode 标量计；光标在句末时等于 `conversion_focus_start`，没有候选。
     pub conversion_focus_end: usize,
+    /// 光标后编辑（偏好 `caret_edit_suffix`）正在生效：候选是组字光标后那段的，首选是整句。宿主在候选窗右侧显示「候选编辑：光标后」。没有生效时不出现在 JSON 里。
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub caret_edit_suffix: bool,
+    /// 光标后编辑里首选（`Candidate::id.index` 为 0 的那一行）开头固定的那段文字：光标前那段原文的最佳转换，加上本模式已经暂存的部分。能分段画候选的宿主把首选的这几个字（按 Unicode 标量数）画淡。空时不出现在 JSON 里。
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub caret_edit_prefix: String,
     pub page: usize,
     pub page_size: usize,
     pub page_count: usize,
@@ -172,6 +218,9 @@ pub struct OutputContext {
 pub struct Transition {
     pub handled: bool,
     pub commit: Option<String>,
+    /// 快捷短语指定的光标后文本，包含同次上屏的标点尾巴。空字符串表示末尾，缺字段表示不定位。
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub commit_cursor_suffix: Option<String>,
     /// Mode before dispatch; committing may clear a local mode or apply deferred settings.
     pub commit_context: Option<OutputContext>,
     pub diagnostic: Option<String>,
@@ -387,6 +436,8 @@ pub enum TranslationService {
     Off,
     #[serde(rename = "account")]
     Account,
+    /// 宿主内离线推理，不交给网络 Provider。
+    Local,
     Tencent,
     NiuTrans,
     Custom,

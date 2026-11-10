@@ -41,7 +41,7 @@ final class OwlPromptOptimizeService {
 
   init(
     remote: OwlStructuredDraftingRemote? = nil,
-    apiKeyProvider: @escaping () throws -> String? = OwlCloudKeychain.readDeepSeekAPIKey,
+    apiKeyProvider: @escaping () throws -> String? = { nil },
     profileProvider: @escaping () -> OwlProviderProfile? = {
       OwlProviderProfileStore.shared.defaultProfile
     },

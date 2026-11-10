@@ -383,6 +383,30 @@
           ]
         },
         {
+          "id": "settings-interaction-hardening",
+          "title": "设置交互与浮动面板",
+          "status": "done",
+          "summary": "设置侧栏与模板授权使用整行热区。进入设置页后后台读取模板、供应商状态和诊断快照。设置窗口支持最小化恢复。候选、状态、语音和 Agent 预览共用不抢焦点的面板策略。",
+          "evidence": [
+            {
+              "kind": "file",
+              "ref": "tests/OwlSettingsUITests.swift",
+              "note": "隔离应用覆盖导航空白区、模板保存与 Agent 授权。"
+            },
+            {
+              "kind": "file",
+              "ref": "tests/OwlCandidatePanelAppearanceLifecycleTests.swift",
+              "note": "检查四个 AppKit 面板的焦点策略和语音胶囊的鼠标穿透。"
+            },
+            {
+              "kind": "file",
+              "ref": "scripts/check-rust-delivery.py",
+              "note": "从主程序路径检查 Rust 符号，并验证 MCP helper 与词库。"
+            }
+          ],
+          "next": "保留已安装输入法的跨应用点击和发布安装验收。"
+        },
+        {
           "id": "review-backlog",
           "title": "8 张开放工单：功能余项、可选改进与历史证据分开处理",
           "status": "done",

@@ -1,6 +1,6 @@
 [package]
 name = "msime-input-runtime"
-description = "Session orchestration for input hosts: focus, candidate paging and generational selection."
+description = "Shared input runtime above msime-engine: candidate staging, asynchronous providers, and punctuation/fullwidth policies."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -8,8 +8,8 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-msime-engine = { path = "../engine" }
 msime-client-core = { path = "../client-core" }
+msime-engine = { path = "../engine" }
 msime-path-trust = { path = "../path-trust" }
 rustix = { workspace = true, features = ["process"] }
 # The model and its reference implementation live upstream, where other input methods

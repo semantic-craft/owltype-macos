@@ -439,30 +439,6 @@ pub fn dispatch<H: Host>(h: &mut H, op: &str, a: Value) -> Result<Value> {
         "resolvedWorkspace" => Ok(prepare_workspace(h, s(&a, "input"))
             .map(|v| json!(endpoint(&v)))
             .unwrap_or(Value::Null)),
-        "legacyMigrate" => {
-            if !sorted(load(h)).is_empty() {
-                return Ok(Value::Null);
-            }
-            let reference = effect(h, "legacy_read", json!({})).unwrap_or(Value::Null);
-            if reference.is_null() {
-                return Ok(Value::Null);
-            }
-            let id = storage::uuid(h)?;
-            let p = json!({"id":id,"displayName":"DeepSeek","kind":"openai_compatible","endpoint":a["endpoint"],"model":a["model"],"providerID":"deepseek","secretName":secret_name(&id),"isDefault":true,"createdAt":effect(h,"now",json!({}))?});
-            if effect(
-                h,
-                "secret_write",
-                json!({"name":p["secretName"],"reference":reference}),
-            )
-            .is_err()
-            {
-                return Ok(Value::Null);
-            }
-            match mutate(h, "add", &json!({"profile":p,"replacing":[]})) {
-                Ok(saved) => Ok(saved.into_iter().find(|v| v["id"] == p["id"]).unwrap_or(p)),
-                Err(_) => Ok(Value::Null),
-            }
-        }
         "load" => Ok(read_file(h).unwrap_or(json!({"schemaVersion":1,"profiles":[]}))),
         "profiles" => Ok(json!(sorted(load(h)))),
         "readable" => Ok(json!(read(h).ok().map(sorted))),

@@ -69,24 +69,6 @@ final class OwlGetAppOptionsRoundTripTests: XCTestCase {
     return config
   }
 
-  func testBundledFactoryConfigReadsWithoutRimeBuildArtifacts() throws {
-    let shared = try XCTUnwrap(Bundle.main.sharedSupportURL)
-    let emptyUserData = temporaryRoot.appendingPathComponent("EmptyUserData", isDirectory: true)
-    try FileManager.default.createDirectory(at: emptyUserData, withIntermediateDirectories: true)
-
-    let config = OwlConfig(sharedSupportURL: shared, userDataURL: emptyUserData)
-    XCTAssertTrue(config.openBaseConfig())
-    XCTAssertTrue(config.has(section: "style"))
-    XCTAssertEqual(config.getString("style/candidate_list_layout"), "stacked")
-    XCTAssertEqual(config.getBool("style/inline_preedit"), true)
-    XCTAssertEqual(config.getBool("style/inline_candidate"), false)
-    XCTAssertEqual(config.getDouble("chord_duration"), 0.1)
-    XCTAssertEqual(
-      config.getAppOptions("com.apple.Terminal"),
-      ["ascii_mode": true, "no_inline": true]
-    )
-  }
-
   func testUserAddedAppOptionReadsBackFromOwltypeDomain() {
     XCTAssertEqual(openConfig().getAppOptions(Self.testBundleID), ["ascii_mode": true])
   }

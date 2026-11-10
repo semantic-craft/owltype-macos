@@ -7,31 +7,49 @@ final class OwlTemplateEditorModel: ObservableObject {
   @Published var draft = OwlTemplateEntry()
   @Published var status = ""
   @Published var canEdit = true
-  @Published var lastBackupURL: URL?
   @Published private(set) var automaticEnabled: Bool
   @Published private(set) var disabledBundleIDs: [String]
   private let defaults: UserDefaults
   private let automaticRuntime: OwlAutomaticExpansionRuntime
-  let writer: OwlConfigWriter
+  let dataDir: URL
   private let write: (OwlTemplateLibrary, OwlTemplateLibrary) throws -> Void
 
-  init(writer: OwlConfigWriter = OwlConfigWriter(), defaults: UserDefaults = OwlDefaults.standard,
+  init(dataDir: URL = OwlApp.userDir, defaults: UserDefaults = OwlDefaults.standard,
        automaticRuntime: OwlAutomaticExpansionRuntime = .shared,
+       category: OwlTemplateEntry.Category = .general,
        write: ((OwlTemplateLibrary, OwlTemplateLibrary) throws -> Void)? = nil) {
-    self.writer = writer
+    self.dataDir = dataDir
     self.defaults = defaults
     self.automaticRuntime = automaticRuntime
     automaticEnabled = defaults.bool(forKey: OwlAutomaticExpansionRuntime.enabledKey)
     disabledBundleIDs = defaults.stringArray(forKey: OwlAutomaticExpansionRuntime.disabledBundleIDsKey) ?? []
-    self.write = write ?? { try OwlTemplateStore.save($0, writer: writer, expectedLibrary: $1) }
+    self.write = write ?? { try OwlTemplateStore.save($0, dataDir: dataDir, expectedLibrary: $1) }
+    draft.category = category
   }
 
   func reload() {
-    do {
-      library = try OwlTemplateBackup(dataDir: writer.dataDir).currentLibrary()
+    applyLibrary(Result { try OwlTemplateStore.load(dataDir: dataDir) })
+  }
+
+  @MainActor
+  func loadLibraryForEditing(
+    read: @escaping @Sendable (URL) throws -> OwlTemplateLibrary = { try OwlTemplateStore.load(dataDir: $0) }
+  ) async {
+    let directory = dataDir
+    let result = await Task.detached(priority: .userInitiated) {
+      Result { try read(directory) }
+    }.value
+    guard !Task.isCancelled else { return }
+    applyLibrary(result)
+  }
+
+  private func applyLibrary(_ result: Result<OwlTemplateLibrary, Error>) {
+    switch result {
+    case .success(let library):
+      self.library = library
       canEdit = true
       status = ""
-    } catch {
+    case .failure(let error):
       canEdit = false
       status = error.localizedDescription
     }
@@ -48,7 +66,7 @@ final class OwlTemplateEditorModel: ObservableObject {
   }
 
   func reloadAutomaticConfiguration() {
-    do { try automaticRuntime.reload(dataDir: writer.dataDir, defaults: defaults) }
+    do { try automaticRuntime.reload(dataDir: dataDir, defaults: defaults) }
     catch { status = "自动展开暂不可用：" + error.localizedDescription }
   }
 
@@ -61,7 +79,7 @@ final class OwlTemplateEditorModel: ObservableObject {
   @discardableResult
   func addDisabledBundleID(_ text: String) -> Bool {
     do {
-      disabledBundleIDs = try OwlStorageHost(dataDir: writer.dataDir).call("editor_disabled_apps", ["values": disabledBundleIDs, "text": text, "remove": false])
+      disabledBundleIDs = try OwlStorageHost(dataDir: dataDir).call("editor_disabled_apps", ["values": disabledBundleIDs, "text": text, "remove": false])
       defaults.set(disabledBundleIDs, forKey: OwlAutomaticExpansionRuntime.disabledBundleIDsKey)
       reloadAutomaticConfiguration()
       return true
@@ -80,7 +98,7 @@ final class OwlTemplateEditorModel: ObservableObject {
     struct Result: Decodable { let draft: OwlTemplateEntry; let status: String? }
     var args = values; args["action"] = action; args["draft"] = OwlAppCore.payload(draft)
     do {
-      let result: Result = try OwlStorageHost(dataDir: writer.dataDir).call("editor_edit", args)
+      let result: Result = try OwlStorageHost(dataDir: dataDir).call("editor_edit", args)
       draft = result.draft
       if let message = result.status { status = message }
       return true
@@ -95,24 +113,15 @@ final class OwlTemplateEditorModel: ObservableObject {
 
   func delete(_ entry: OwlTemplateEntry) -> Bool {
     do {
-      let outcome = try OwlTemplateBackup(dataDir: writer.dataDir).delete(id: entry.id, expected: library)
-      library = outcome.library; lastBackupURL = outcome.backupURL
+      library = try OwlTemplateStore.delete(id: entry.id, expected: library, dataDir: dataDir)
       if draft.id == entry.id { newDraft(category: entry.category) }
-      status = "已删除，完整库备份已保留，可从备份恢复。"
+      status = "已删除。"
       return true
     } catch { status = error.localizedDescription; return false }
   }
 
-  func restore(_ preview: OwlTemplateBackup.Preview) throws {
-    let outcome = try OwlTemplateBackup(dataDir: writer.dataDir).restore(preview)
-    library = outcome.library; lastBackupURL = outcome.backupURL
-    if let updated = library.entries.first(where: { $0.id == draft.id }) { draft = updated }
-    status = "恢复完成，当前库其他条目已保留。候选调用在重新部署后生效。"
-  }
-
   func importRaycast(_ preview: OwlRaycastImport.Preview) throws {
-    let outcome = try OwlRaycastImport(dataDir: writer.dataDir).commit(preview)
-    library = outcome.library; lastBackupURL = outcome.backupURL
+    library = try OwlRaycastImport(dataDir: dataDir).commit(preview)
     if let first = preview.selectedIndices.first, let entry = preview.rows[first].entry { draft = entry }
     status = "已导入 \(preview.selectedCount) 项（待处理 \(preview.pendingCount) 项）。默认仅搜索，未启用自动展开。"
   }
@@ -155,7 +164,7 @@ final class OwlTemplateEditorModel: ObservableObject {
     guard canEdit else { return false }
     struct Result: Decodable { let draft: OwlTemplateEntry; let library: OwlTemplateLibrary; let status: String }
     do {
-      let result: Result = try OwlStorageHost(dataDir: writer.dataDir).call("editor_save", ["draft": OwlAppCore.payload(draft), "library": OwlAppCore.payload(library)])
+      let result: Result = try OwlStorageHost(dataDir: dataDir).call("editor_save", ["draft": OwlAppCore.payload(draft), "library": OwlAppCore.payload(library)])
       try write(result.library, library)
       library = result.library; draft = result.draft; status = result.status
       return true
@@ -170,6 +179,7 @@ struct OwlTemplatePage: View {
   @State private var promptOnly = false
   var onRedeploy: (() -> Void)?
   @StateObject private var model: OwlTemplateEditorModel
+  @State private var hasLoadedLibrary = false
   @State private var search = ""
   @State private var selectedTag: String?
   @State private var newTag = ""
@@ -178,7 +188,6 @@ struct OwlTemplatePage: View {
   @State private var disabledBundleIDInput = ""
   @State private var filePanelHost = OwlTemplateFilePanelHost()
   @State private var importPreview: OwlRaycastImport.Preview?
-  @State private var restorePreview: OwlTemplateBackup.Preview?
   @State private var deletion: OwlTemplateEntry?
   @State private var showingDelete = false
   @State private var pendingAction: (() -> Void)?
@@ -192,11 +201,13 @@ struct OwlTemplatePage: View {
   @State private var diagnosticSelection: NSRange?
 
   init(palette: OwlCandidatePalette, promptOnly: Bool = false,
-       writer: OwlConfigWriter = OwlConfigWriter(), onRedeploy: (() -> Void)? = nil) {
+       dataDir: URL = OwlApp.userDir, onRedeploy: (() -> Void)? = nil) {
     self.palette = palette
     _promptOnly = State(initialValue: promptOnly)
     self.onRedeploy = onRedeploy
-    _model = StateObject(wrappedValue: OwlTemplateEditorModel(writer: writer))
+    _model = StateObject(wrappedValue: OwlTemplateEditorModel(
+      dataDir: dataDir, category: promptOnly ? .prompt : .general
+    ))
   }
 
   private var entries: [OwlTemplateEntry] {
@@ -231,8 +242,12 @@ struct OwlTemplatePage: View {
     }
     .background(OwlTemplateFilePanelWindow(host: filePanelHost).frame(width: 0, height: 0))
     .onDisappear { filePanelHost.activePanel?.cancel(nil) }
-    .onAppear { model.newDraft(category: promptOnly ? .prompt : .general); model.reload(); model.reloadAutomaticConfiguration(); resetPreview() }
-    .onChange(of: model.draft) { _, _ in resetPreview() }
+    .task {
+      guard !hasLoadedLibrary else { return }
+      await model.loadLibraryForEditing()
+      guard !Task.isCancelled else { return }
+      hasLoadedLibrary = true
+    }
     .onChange(of: model.library) { _, library in
       if let tag = selectedTag, !OwlTemplateStore.tags(in: library.entries).contains(tag) { selectedTag = nil }
     }
@@ -261,27 +276,26 @@ struct OwlTemplatePage: View {
     } message: { Text("正文中的动态字段将开始解析。剪贴板只在本次调用时主动读取一次，不启用剪贴板历史。") }
     .confirmationDialog("当前草稿尚未保存", isPresented: $showingUnsaved, titleVisibility: .visible) {
       Button("保存并继续") { if model.save() { onRedeploy?(); performPending() } }
+        .disabled(!hasLoadedLibrary || !model.canEdit)
       Button("放弃草稿并继续", role: .destructive) { performPending() }
       Button("取消", role: .cancel) { pendingAction = nil }
     }
     .alert("删除这个模板？", isPresented: $showingDelete, presenting: deletion) { entry in
       Button("取消", role: .cancel) { deletion = nil }
-      Button("备份并删除", role: .destructive) { if model.delete(entry) { onRedeploy?() }; deletion = nil }
+      Button("删除", role: .destructive) { if model.delete(entry) { onRedeploy?() }; deletion = nil }
     } message: { entry in
       Text(entry.title + " · " + String(entry.id.uuidString.prefix(8)) + "\n" + (entry.trigger ?? "仅搜索") +
-        " · " + entry.tags.joined(separator: "、") + "\n" + String(entry.body.prefix(160)) + "\n删除前会备份整个已保存库。")
+        " · " + entry.tags.joined(separator: "、") + "\n" + String(entry.body.prefix(160)))
     }
     .sheet(item: $importPreview) { preview in
       OwlRaycastImportView(preview: preview) { selection in try model.importRaycast(selection); onRedeploy?() }
-    }
-    .sheet(item: $restorePreview) { preview in
-      OwlTemplateRestoreView(preview: preview) { selection in try model.restore(selection); onRedeploy?() }
     }
   }
 
   private var libraryList: some View {
     VStack(alignment: .leading, spacing: 12) {
       Text("快捷片段").font(.headline)
+      if !hasLoadedLibrary { ProgressView("正在读取模板…").controlSize(.small) }
       categoryFilter
       TextField("搜索标题、正文、标签或触发词", text: $search)
       Picker("标签筛选", selection: $selectedTag) {
@@ -291,15 +305,10 @@ struct OwlTemplatePage: View {
       Button("新建") { withSavedDraft { model.newDraft(category: promptOnly ? .prompt : .general) } }
       automaticSettings
       Button("导入 Raycast JSON…") { withSavedDraft { chooseRaycastImport() } }
-        .disabled(!model.canEdit).accessibilityIdentifier("template-import-raycast")
-      Menu("导出与恢复") {
-        Button("导出完整原生备份…", action: exportBackup)
-        Button("从原生备份恢复…") { withSavedDraft { chooseRestore() } }
-        Button("打开本地备份文件夹") {
-          NSWorkspace.shared.open(model.writer.dataDir.appendingPathComponent(".owl-backup"))
-        }
-      }.disabled(!model.canEdit)
-      if entries.isEmpty { Text(model.library.entries.isEmpty ? "尚无模板" : "无匹配条目").font(.caption).foregroundStyle(.secondary) }
+        .disabled(!hasLoadedLibrary || !model.canEdit).accessibilityIdentifier("template-import-raycast")
+      Button("导出模板库 JSON…", action: exportBackup)
+        .disabled(!hasLoadedLibrary || !model.canEdit)
+      if hasLoadedLibrary && entries.isEmpty { Text(model.library.entries.isEmpty ? "尚无模板" : "无匹配条目").font(.caption).foregroundStyle(.secondary) }
       ScrollView {
         LazyVStack(alignment: .leading, spacing: 8) {
           ForEach(entries) { entry in
@@ -311,7 +320,7 @@ struct OwlTemplatePage: View {
                 if !entry.tags.isEmpty { Text(entry.tags.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary) }
               }.frame(maxWidth: .infinity, alignment: .leading).padding(8)
                 .background(model.draft.id == entry.id ? palette.accent.opacity(0.12) : .clear)
-            }.buttonStyle(.plain)
+            }.buttonStyle(.owlPlain)
           }
         }
       }.frame(minHeight: 80, maxHeight: 240)
@@ -347,12 +356,13 @@ struct OwlTemplatePage: View {
         }
         .contentShape(Rectangle())
     }
-    .buttonStyle(.plain)
+    .buttonStyle(.owlPlain)
     .accessibilityAddTraits(selected ? .isSelected : [])
   }
 
   private var editor: some View {
-    VStack(alignment: .leading, spacing: 12) {
+    let parsed = model.parsed
+    return VStack(alignment: .leading, spacing: 12) {
       Text("编辑条目").font(.headline)
       if model.draft.isPendingReview {
         Text("导入待处理：可保存修改，但不能调用。修正后验证启用，或明确转为普通文本。").font(.caption).foregroundStyle(.orange)
@@ -443,10 +453,11 @@ struct OwlTemplatePage: View {
         .font(.caption).foregroundStyle(.secondary)
       OwlTemplateBodyEditor(documentID: model.draft.id, text: Binding(get: { model.draft.body }, set: { model.setBody($0) }), selection: $diagnosticSelection)
         .frame(height: 180).border(palette.ink.opacity(0.15)).accessibilityIdentifier("template-body")
-      diagnostics
-      if !model.parsed.parameters.isEmpty {
+      let preview = OwlTemplateEngine.render(parsed, values: previewValues)
+      diagnostics(preview.diagnostics)
+      if !parsed.parameters.isEmpty {
         Text("参数与试填").font(.headline)
-        ForEach(model.parsed.parameters) { parameter in
+        ForEach(parsed.parameters) { parameter in
           VStack(alignment: .leading, spacing: 4) {
             HStack {
               Text(parameter.name + (parameter.isRequired ? " · 必填" : " · 可选"))
@@ -467,19 +478,19 @@ struct OwlTemplatePage: View {
         }
       }
       Text(model.draft.bodyType == .plainText ? "完整正文预览" : "展开结果预览（试填值不保存）").font(.caption)
-      let preview = OwlTemplateEngine.render(model.parsed, values: previewValues)
       if let offset = preview.cursorOffset {
         Text(OwlTemplateCursorPlacement.positionDescription(text: preview.previewText, offset: offset))
           .font(.caption).accessibilityIdentifier("template-editor-cursor-preview")
       }
       ScrollView([.horizontal, .vertical]) {
-        Text(verbatim: OwlTemplateEngine.render(model.parsed, values: previewValues).previewText)
+        Text(verbatim: preview.previewText)
           .font(.system(.body, design: .monospaced)).textSelection(.enabled)
           .frame(maxWidth: .infinity, alignment: .topLeading)
       }.frame(height: 150).accessibilityIdentifier("template-preview")
-      Text("仅搜索不会自动展开。候选编码只接受小写字母开头的字母或数字。")
-        .font(.caption).foregroundStyle(.secondary)
-    }.disabled(!model.canEdit).padding(.bottom, 16)
+    }
+    .padding(.bottom, 16)
+    .onChange(of: parsed.initialValues, initial: true) { _, values in previewValues = values }
+    .onChange(of: model.draft.id) { _, _ in previewValues = parsed.initialValues }
   }
 
   private var automaticSettings: some View {
@@ -535,15 +546,15 @@ struct OwlTemplatePage: View {
     }
   }
 
-  private var diagnostics: some View {
+  private func diagnostics(_ diagnostics: [OwlTemplateEngine.Diagnostic]) -> some View {
     VStack(alignment: .leading, spacing: 4) {
-      ForEach(Array(OwlTemplateEngine.render(model.parsed, values: previewValues).diagnostics.enumerated()), id: \.offset) { _, diagnostic in
+      ForEach(Array(diagnostics.enumerated()), id: \.offset) { _, diagnostic in
         Button {
           diagnosticSelection = diagnostic.range
         } label: {
           Text(diagnostic.location(in: model.draft.body) + "：" + model.diagnosticMessage(diagnostic) + " 查看位置")
             .font(.caption).foregroundStyle(diagnostic.severity == .error ? .red : .orange)
-        }.buttonStyle(.plain)
+        }.buttonStyle(.owlPlain)
       }
     }
   }
@@ -551,19 +562,16 @@ struct OwlTemplatePage: View {
   private var saveBar: some View {
     VStack(alignment: .leading, spacing: 8) {
       HStack(spacing: 8) {
-        Button("保存") { if model.save() { onRedeploy?() } }.accessibilityIdentifier("template-save").disabled(!model.canEdit)
+        Button("保存") { if model.save() { onRedeploy?() } }.accessibilityIdentifier("template-save").disabled(!hasLoadedLibrary || !model.canEdit)
           .buttonStyle(OwlFilledButtonStyle(palette: palette))
           .fixedSize()
-        Button("复制为新条目") { withSavedDraft { model.draft = model.draft.duplicated(); model.status = "副本尚未保存。" } }.disabled(!model.canEdit)
+        Button("复制为新条目") { withSavedDraft { model.draft = model.draft.duplicated(); model.status = "副本尚未保存。" } }.disabled(!hasLoadedLibrary || !model.canEdit)
           .buttonStyle(OwlTemplateSecondaryButtonStyle(palette: palette))
         Button("删除…", role: .destructive) {
           deletion = model.library.entries.first { $0.id == model.draft.id }; showingDelete = deletion != nil
         }.disabled(!model.canEdit || !model.library.entries.contains { $0.id == model.draft.id })
           .buttonStyle(OwlTemplateSecondaryButtonStyle(palette: palette))
         Spacer()
-      }
-      if let backupURL = model.lastBackupURL {
-        Button("查看本次操作前的备份") { NSWorkspace.shared.activateFileViewerSelecting([backupURL]) }.font(.caption)
       }
       if !model.status.isEmpty { Text(model.status).font(.caption).foregroundStyle(palette.ink2).fixedSize(horizontal: false, vertical: true) }
     }
@@ -588,8 +596,12 @@ struct OwlTemplatePage: View {
     panel.message = "导出整个已保存库（包含所有标签和参数）；未保存草稿不包含在内。"
     presentFilePanel(panel) { [weak model] url in
       guard let model else { return }
-      do { try OwlTemplateBackup(dataDir: model.writer.dataDir).export(to: url); model.status = "完整原生备份已导出。" }
-      catch { model.status = error.localizedDescription }
+      do {
+        var bytes = try OwlTemplateStore.encoded(model.library)
+        bytes.append(0x0A)
+        try bytes.write(to: url, options: .atomic)
+        model.status = "模板库 JSON 已导出。"
+      } catch { model.status = error.localizedDescription }
     }
   }
 
@@ -599,17 +611,7 @@ struct OwlTemplatePage: View {
     panel.message = "选择 Raycast 基础 JSON；下一步预览并选择要导入的条目。"
     presentFilePanel(panel) { [weak model] url in
       guard let model else { return }
-      do { importPreview = try OwlRaycastImport(dataDir: model.writer.dataDir).preview(data: Data(contentsOf: url)) }
-      catch { model.status = error.localizedDescription }
-    }
-  }
-
-  private func chooseRestore() {
-    let panel = NSOpenPanel()
-    panel.allowedContentTypes = [.json]; panel.allowsMultipleSelection = false; panel.canChooseDirectories = false
-    presentFilePanel(panel) { [weak model] url in
-      guard let model else { return }
-      do { restorePreview = try OwlTemplateBackup(dataDir: model.writer.dataDir).preview(data: Data(contentsOf: url)) }
+      do { importPreview = try OwlRaycastImport(dataDir: model.dataDir).preview(data: Data(contentsOf: url)) }
       catch { model.status = error.localizedDescription }
     }
   }
@@ -639,7 +641,6 @@ struct OwlTemplatePage: View {
     }
   }
 
-  private func resetPreview() { previewValues = model.parsed.initialValues }
 }
 
 private struct OwlTemplateSecondaryButtonStyle: ButtonStyle {

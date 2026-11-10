@@ -92,12 +92,15 @@ struct OwlAgentPage: View {
 
   @State private var enabled = OwlAgentAccessPreferences.isEnabled()
   @State private var library: OwlTemplateLibrary?
+  @State private var entries: [OwlTemplateEntry] = []
   @State private var libraryNote = ""
-  @State private var records = OwlAgentCallLog.shared.records
+  @State private var libraryRevision = UUID()
+  @State private var records: [OwlAgentCallRecord] = []
+  @State private var logRevision = UUID()
   @State private var status = ""
   @State private var copied = ""
 
-  private let helperPath = OwlAgentSettings.helperPath()
+  private static let cliConfig = OwlAgentSettings.cliConfig(helperPath: OwlAgentSettings.helperPath())
 
   var body: some View {
     ScrollView {
@@ -109,11 +112,20 @@ struct OwlAgentPage: View {
       }
       .padding(20)
     }
-    .onAppear(perform: reload)
-    .onReceive(NotificationCenter.default.publisher(for: OwlAgentCallLog.didChange)) { _ in
-      records = OwlAgentCallLog.shared.records
+    .task(id: libraryRevision) { await reloadLibrary() }
+    .task(id: logRevision) {
+      let revision = logRevision
+      let snapshot = await Task.detached(priority: .utility) { OwlAgentCallLog.shared.records }.value
+      guard !Task.isCancelled, revision == logRevision else { return }
+      records = snapshot
     }
-    .onReceive(NotificationCenter.default.publisher(for: OwlTemplateStore.libraryDidCommit)) { _ in reloadLibrary() }
+    .onReceive(NotificationCenter.default.publisher(for: OwlAgentCallLog.didChange)) { _ in
+      logRevision = UUID()
+    }
+    .onReceive(NotificationCenter.default.publisher(for: OwlTemplateStore.libraryDidCommit)
+      .receive(on: DispatchQueue.main)) { _ in
+      libraryRevision = UUID()
+    }
   }
 
   private var switchCard: some View {
@@ -133,21 +145,18 @@ struct OwlAgentPage: View {
   private var templatesCard: some View {
     SettingsCard(title: "开放给 Agent 的模板", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
       VStack(alignment: .leading, spacing: 10) {
-        if let library {
-          let entries = OwlAgentSettings.listedTemplates(library)
+        if library != nil {
           if entries.isEmpty { note("还没有模板。可在「快捷片段」页新建。") }
           ForEach(entries) { entry in
-            Toggle(isOn: Binding(get: { entry.isExposedToAgents }, set: { setExposed($0, entry.id) })) {
-              VStack(alignment: .leading, spacing: 2) {
-                Text(entry.title.isEmpty ? "未命名模板" : entry.title).font(.system(size: 13))
-                if let issue = entry.executionIssue {
-                  Text("模板有误，修正前不会提供给 Agent：\(issue)").font(.system(size: 11)).foregroundStyle(palette.ink3)
-                }
-              }
-            }
-            .toggleStyle(.checkbox)
+            SettingsToggleRow(
+              title: entry.title,
+              isOn: entry.isExposedToAgents,
+              palette: palette
+            ) { setExposed(!entry.isExposedToAgents, entry.id) }
             .accessibilityIdentifier("agent-template-\(entry.id.uuidString)")
           }
+        } else if libraryNote.isEmpty {
+          ProgressView("正在读取模板…").controlSize(.small)
         } else {
           note(libraryNote)
         }
@@ -159,11 +168,11 @@ struct OwlAgentPage: View {
   private var configCard: some View {
     SettingsCard(title: "接入本机 Agent", palette: palette, theme: theme, reduceTransparency: reduceTransparency) {
       VStack(alignment: .leading, spacing: 10) {
-        note("Antigravity CLI：在终端运行这条命令。猫头鹰不需要任何模型 API key。")
-        snippet(OwlAgentSettings.agyCommand(helperPath: helperPath), id: "agy")
-        note("Grok Build：运行这条命令，或把下面的配置加入 ~/.grok/config.toml（写入文字要等你确认，配置里把单次调用的等待放宽到 \(OwlAgentSettings.toolTimeoutSeconds) 秒）。")
-        snippet(OwlAgentSettings.grokCommand(helperPath: helperPath), id: "command")
-        snippet(OwlAgentSettings.grokConfig(helperPath: helperPath), id: "config")
+        note("Antigravity CLI：在终端运行。")
+        snippet(Self.cliConfig.agyCommand, id: "agy")
+        note("Grok Build：运行这条命令，或把下面的配置加入 ~/.grok/config.toml（可等待写入确认）。")
+        snippet(Self.cliConfig.grokCommand, id: "command")
+        snippet(Self.cliConfig.grokConfig, id: "config")
       }
     }
   }
@@ -217,25 +226,22 @@ struct OwlAgentPage: View {
       .frame(maxWidth: .infinity, alignment: .leading)
   }
 
-  private func reload() {
-    enabled = OwlAgentAccessPreferences.isEnabled()
-    records = OwlAgentCallLog.shared.records
-    reloadLibrary()
-  }
-
-  private func reloadLibrary() {
-    switch OwlTemplateStore.mode() {
-    case .unified, .empty:
-      do { library = try OwlTemplateStore.mode() == .empty ? OwlTemplateLibrary() : OwlTemplateStore.load() } catch {
-        library = nil
-        libraryNote = "模板库暂时读不出来：\((error as? LocalizedError)?.errorDescription ?? String(describing: error))"
+  private func reloadLibrary() async {
+    let revision = libraryRevision
+    let result = await Task.detached(priority: .userInitiated) {
+      Result {
+        let library = try OwlTemplateStore.load()
+        return (library, OwlAgentSettings.listedTemplates(library))
       }
-    case .legacy:
+    }.value
+    guard !Task.isCancelled, revision == libraryRevision else { return }
+    switch result {
+    case .success(let snapshot):
+      (library, entries) = snapshot
+      libraryNote = ""
+    case .failure(let error):
       library = nil
-      libraryNote = "请先在「快捷片段」页完成模板迁移，再选择要开放的模板。"
-    case .unavailable(let message):
-      library = nil
-      libraryNote = message
+      libraryNote = "模板库暂时读不出来：\(error.localizedDescription)"
     }
   }
 
@@ -245,10 +251,13 @@ struct OwlAgentPage: View {
       self.library = try OwlAgentSettings.setExposed(exposed, id: id, in: library) {
         try OwlTemplateStore.save($0, expectedLibrary: $1)
       }
+      if let index = entries.firstIndex(where: { $0.id == id }) {
+        entries[index].isExposedToAgents = exposed
+      }
       status = ""
     } catch {
       status = (error as? LocalizedError)?.errorDescription ?? String(describing: error)
-      reloadLibrary()
+      libraryRevision = UUID()
     }
   }
 

@@ -212,7 +212,7 @@ struct OwlAIConversationView: View {
           .foregroundColor(isSelected ? palette.accent : palette.ink)
           .cornerRadius(5)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.owlPlain)
       }
     }
   }
@@ -303,7 +303,7 @@ struct OwlAIConversationView: View {
       .overlay(Capsule().stroke(palette.ink3.opacity(0.35), lineWidth: 1))
       .contentShape(Capsule())
     }
-    .buttonStyle(.plain)
+    .buttonStyle(.owlPlain)
     .accessibilityLabel(action.title)
   }
 
@@ -422,7 +422,7 @@ struct OwlAIConversationView: View {
           .font(.system(size: 12, weight: .semibold))
           .foregroundColor(canSend ? palette.accent : palette.ink3.opacity(0.6))
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.owlPlain)
         .disabled(!canSend)
       }
     }
@@ -451,7 +451,7 @@ struct OwlAIConversationView: View {
             .font(.system(size: 9, weight: .semibold))
             .foregroundColor(palette.ink3)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.owlPlain)
         .accessibilityLabel(NSLocalizedString("移除任务", comment: "remove composer task"))
       }
       ForEach(task.clarifications, id: \.self) { clarification in
@@ -494,7 +494,7 @@ struct OwlAIConversationView: View {
             .foregroundColor(currentAnswer != nil ? palette.onAccent : palette.ink3.opacity(0.5))
             .cornerRadius(5)
           }
-          .buttonStyle(.plain)
+          .buttonStyle(.owlPlain)
           .disabled(currentAnswer == nil)
           .keyboardShortcut(.defaultAction)
           .background(
@@ -544,7 +544,7 @@ struct OwlAIConversationView: View {
     Button(action: action) {
       Text(title).font(.system(size: 12, weight: .medium))
     }
-    .buttonStyle(.plain)
+    .buttonStyle(.owlPlain)
     .foregroundColor(enabled ? palette.ink2 : palette.ink3.opacity(0.5))
     .disabled(!enabled)
   }

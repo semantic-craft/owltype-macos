@@ -51,15 +51,10 @@ Controllers receive it at init; the application delegate only wires it to AppKit
 
 ## Dictionary
 
-**Resource generation** — one verified, immutable copy of the bundled `msime` resources in the
-Rust resource store (`OwlRustResourceStore`), named by its digest. Typing uses the active
-generation, or the bundled files directly when none is active.
-
-**Dictionary lifecycle** — `OwlDictPackCenter`: `prepare()` copies the bundled resources into a
-candidate generation, `activate()` makes it current after the user confirms, `rollback()` returns
-to the previous one. `needsPrompt` is true while no generation is active or the active one is
-older than the bundled version. Only Rust state decides; the legacy Rime YAML download
-(`.owl-dictpack.json`, `cn_dicts/`) is never read or changed.
+**Resource generation** — the validated bundled `msime` SQLite resource directory resolved by
+`OwlRustResourceStore` and `OwlRustCompatibleResources` from `Bundle.main.sharedSupportURL/msime`.
+Typing reads these immutable bundled SQLite dictionaries and rerank models directly without
+multi-generation staging or user-directory copies.
 
 ## AI
 

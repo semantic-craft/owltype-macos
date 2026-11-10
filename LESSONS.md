@@ -5,6 +5,17 @@ that the lesson is in place: which file to read, which command to run, what resu
 and dates observed. Count distinct
 review dates, not retries. Keep deterministic checks in the local gate.
 
+## `codesign -R` inline requirements in package scripts must use `-R'=anchor ...'` without a separator `=`
+
+**Pass inline `SecRequirement` strings to `/usr/bin/codesign` as `-R'=anchor ...'` (one `=`, which marks an inline requirement rather than a file path), never `-R='=anchor ...'`, and validate `-R` syntax against real `/usr/bin/codesign` in `scripts/pkg-leftovers.selftest.sh`.**
+
+- Reason: on 2026-11-08 installing `package/Owltype-update.pkg` via `/usr/sbin/installer -pkg ... -target /` failed in `./postinstall` with `error: invalid or corrupted code requirement(s)` / `line 1:1: unexpected token: =`. Commit `678ffa2` (#414) wrote `-R='=anchor ...'` in `scripts/postinstall` (whereas `Installer.swift` wrote `-R'=anchor ...'`). Because `-R` is a short `getopt` option, `-R='=anchor ...'` passed `==anchor ...` as `optarg`, leaving a leading `=` in the requirement expression after `codesign` stripped the inline prefix. `scripts/pkg-leftovers.selftest.sh` had mocked `/usr/bin/codesign` as `exit 0` without checking `-R` syntax.
+- Prevention: use `-R'=anchor ...'` in [postinstall](scripts/postinstall), matching [Installer.swift](installer/Sources/Installer.swift), and have the mock `codesign` in [pkg-leftovers.selftest.sh](scripts/pkg-leftovers.selftest.sh) forward any `-R*` argument to `/usr/bin/codesign --verify "$arg" /bin/ls` and fail on `invalid or corrupted code requirement`.
+- Regression: [pkg-leftovers.selftest.sh](scripts/pkg-leftovers.selftest.sh) fails closed on `-R='=anchor ...'` and passes on `-R'=anchor ...'`.
+- Scope: `scripts/postinstall` and `scripts/pkg-leftovers.selftest.sh`.
+- Verify (验证点): `bash scripts/pkg-leftovers.selftest.sh` passes (`19 passed, 0 failed`) and `rg -n -- "-R='=" scripts/ installer/ sources/` prints nothing.
+- Seen on 1 distinct date: 2026-11-08.
+
 ## Input-menu PDF icons must use pure vector paths without SVG masks and be verified through AppKit
 
 **Author `resources/OwlMenuIcon.svg` with `fill-rule="evenodd"` vector subpaths rather than `<mask>`, and verify the generated `OwlMenuIcon.pdf` by drawing it through `NSImage` in AppKit.**
@@ -1472,3 +1483,52 @@ fails `OwlSettingsUITests`; the suite is not in the gate, so both drifted unnoti
   pagination and head/base drift rejection. Retired projection flags must fail
   before GitHub access or output writes. This is isolated snapshot validation,
   not external task dispatch or shared-ledger acceptance.
+
+## A plain SwiftUI button needs an interaction shape inside its label
+
+**Use `.buttonStyle(.owlPlain)`. Put the full intended hit area inside the label.**
+
+- Reason: on 2026-11-10, a window-local AppKit click probe against `18e6b40` clicked the text, the empty right side, and the key chip in template and radio row fixtures. The template and radio each ran once; the rectangular positive control ran three times. The Agent exposure checkbox also ignored the empty part of its row.
+- Prevention: the shared style makes its label rectangular. The radio label includes its spacer and decorative key chips. Keep its real trailing picker separate so VoiceOver can reach both controls.
+- Regression: SwiftLint reports `owl_plain_button_hit_area` against the original template and radio sources. The Settings UI suite clicks the right side of every visible sidebar row and checks the actual selection. It also clicks the empty part of a template row and the Agent exposure row.
+- Verify (验证点): `swiftlint lint` and `python3 scripts/verify.py swift --test OwlSettingsUITests`.
+- Seen on 1 distinct date: 2026-11-10.
+
+## Settings navigation reads snapshots without resetting a draft
+
+**Load templates and provider status off the main thread. Keep Carbon TIS calls on the main queue.**
+
+- Reason: the template and Agent pages revalidated the same library during synchronous page entry. Opening the template page also republished the automatic expansion index and notified the active input session. On 2026-11-10 an isolated diagnostics run trapped in `TISCreateInputSourceList` after moving the whole report to a worker.
+- Prevention: publish library data separately from the draft. Agent refreshes discard results for superseded requests. Capture TIS values on main and build the remainder of the diagnostic report on a worker.
+- Regression: `testLoadingTemplatesLeavesAnInProgressDraftUntouched` holds the read open until an edit occurs. The Settings UI suite opens Diagnostics and continues through the remaining pages. It runs in its own scheme with a separate preview bundle ID.
+- Verify (验证点): `python3 scripts/verify.py swift --test OwlSettingsActionTests --test OwlSettingsUITests`.
+- Seen on 1 distinct date: 2026-11-10.
+
+## Restore the open settings editor from the menu
+
+**If Settings is already open or minimized, bring its existing window forward.**
+
+- Reason: on 2026-11-10 the baseline settings window had a disabled minimize button. Opening Settings from the menu also replaced its hosting view and its draft state.
+- Prevention: `OwlSettingsWindow.restoreIfOpen` deminiaturizes the existing window. Closing the window still allows the menu to open a fresh settings view.
+- Regression: `testReopenSettingsRestoresMinimizedEditorAndCanOpenAfterClose` clicks the native minimize button, opens Settings from the menu, appends text without refocusing the field, and repeats after closing the window.
+- Verify (验证点): `python3 scripts/verify.py swift --test OwlSettingsUITests/testReopenSettingsRestoresMinimizedEditorAndCanOpenAfterClose`.
+- Seen on 1 distinct date: 2026-11-10.
+
+## Host-facing floating panels share the nonactivating policy
+
+**Use `OwlFloatingPanel` for panels that leave keyboard input with the host. A display-only capsule passes mouse events through.**
+
+- Reason: an isolated AppKit probe on 2026-11-10 showed that the voice capsule could receive mouse events even though it has no controls. Candidate windows also repeated the nonactivating rules instead of sharing them.
+- Prevention: the common base inserts the nonactivating mask and prevents subclasses from becoming key or main. Interactive panels accept the first click; the voice capsule ignores mouse events.
+- Regression: `testHostFacingPanelsCannotBecomeKeyOrMain` checks the four concrete panels, including the voice capsule's mouse behavior.
+- Verify (验证点): `python3 scripts/verify.py swift --test OwlCandidatePanelAppearanceLifecycleTests`. This proves AppKit window policy, not installed input method delivery.
+- Seen on 1 distinct date: 2026-11-10.
+
+## A Rust symbol elsewhere in the bundle cannot replace the main executable
+
+**Require the main executable at its launch path and check the Rust symbols in that file.**
+
+- Reason: on 2026-11-10, the standalone Rust delivery check passed after moving the executable to `Contents/MacOS/Owltype.misplaced` in an isolated release copy.
+- Regression: `test_rejects_a_misplaced_main_executable` renames the main program and also tests a replacement program without the required symbols.
+- Verify (验证点): `python3 scripts/check-rust-delivery.selftest.py` passes, and `make release` validates the built bundle before removing local signatures.
+- Seen on 1 distinct date: 2026-11-10.

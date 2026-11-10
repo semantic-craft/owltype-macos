@@ -80,7 +80,7 @@ fn build_catalog() -> Value {
 pub fn effective(raw: &Value) -> Value {
     let input = match raw["inputMethod"].as_str().unwrap_or("") {
         "doublePinyin" => "doublePinyin",
-        "wubi" | "wubi86" | "wubiPinyin" => "wubi",
+        "wubi" => "wubi",
         _ => "pinyin",
     };
     let wubi = match raw["wubiScheme"].as_str().unwrap_or("") {
@@ -88,7 +88,6 @@ pub fn effective(raw: &Value) -> Value {
         "pinyinMix" => "pinyinMix",
         "jidian98" => "jidian98",
         "pinyinMix98" => "pinyinMix98",
-        _ if raw["inputMethod"] == "wubiPinyin" => "pinyinMix",
         _ => "jidian86",
     };
     let double = match raw["doublePinyin"].as_str().unwrap_or("") {

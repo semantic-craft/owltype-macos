@@ -23,7 +23,6 @@ import SwiftUI
 
 /// Delegate-owned user-data actions exposed by the settings maintenance page.
 struct OwlSettingsUserDataActions {
-  let migrateLegacy: () -> Void
   let resetUserDict: () -> Void
 }
 
@@ -51,7 +50,6 @@ struct OwlSettingsView: View {
   let onShowOnboarding: () -> Void
   /// Candidate setting changed → refresh all live runtime consumers.
   let onPanelPreferencesChanged: () -> Void
-  var writesConfigPatches = true
 
   @Environment(\.accessibilityReduceMotion) private var reduceMotion
   @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
@@ -110,7 +108,6 @@ struct OwlSettingsView: View {
       Section {
         ForEach(OwlSettingsPage.visibleCases) { page in
           sidebarRow(page)
-            .onTapGesture { state.selectedPage = page }
         }
       } header: {
         sidebarHeader
@@ -161,32 +158,35 @@ struct OwlSettingsView: View {
   @ViewBuilder
   private func sidebarRow(_ page: OwlSettingsPage) -> some View {
     let selected = page == state.selectedPage
-    HStack(spacing: 10) {
-      Image(systemName: page.symbol)
-        .font(.system(size: 13, weight: .medium))
-        .frame(width: 24, height: 24)
-        .foregroundStyle(selected ? palette.onAccent : palette.ink2)
-        .background {
-          RoundedRectangle(cornerRadius: 6, style: .continuous)
-            .fill(selected ? palette.onAccent.opacity(0.2) : palette.card2)
+    Button { state.selectedPage = page } label: {
+      HStack(spacing: 10) {
+        Image(systemName: page.symbol)
+          .font(.system(size: 13, weight: .medium))
+          .frame(width: 24, height: 24)
+          .foregroundStyle(selected ? palette.onAccent : palette.ink2)
+          .background {
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+              .fill(selected ? palette.onAccent.opacity(0.2) : palette.card2)
+          }
+          .accessibilityHidden(true)
+        Text(page.title)
+          .font(.system(size: 14, weight: selected ? .semibold : .regular))
+          .foregroundStyle(selected ? palette.onAccent : palette.ink)
+        Spacer(minLength: 0)
+      }
+      .padding(.horizontal, 10)
+      .padding(.vertical, 7)
+      .background {
+        if selected {
+          RoundedRectangle(cornerRadius: 8, style: .continuous)
+            .fill(palette.accent)
         }
-        .accessibilityHidden(true)
-      Text(page.title)
-        .font(.system(size: 14, weight: selected ? .semibold : .regular))
-        .foregroundStyle(selected ? palette.onAccent : palette.ink)
-      Spacer(minLength: 0)
-    }
-    .padding(.horizontal, 10)
-    .padding(.vertical, 7)
-    .background {
-      if selected {
-        RoundedRectangle(cornerRadius: 8, style: .continuous)
-          .fill(palette.accent)
       }
     }
-    .listRowInsets(EdgeInsets(top: 2, leading: 6, bottom: 2, trailing: 6))
+    .buttonStyle(.owlPlain)
+    .listRowInsets(EdgeInsets())
     .listRowBackground(Color.clear)
-    .contentShape(Rectangle())
+    .accessibilityAddTraits(selected ? .isSelected : [])
     .accessibilityIdentifier("settings.sidebar.\(page.rawValue)")
   }
 
@@ -203,10 +203,8 @@ struct OwlSettingsView: View {
           theme: theme,
           reduceTransparency: reduceTransparency,
           onSelectSchema: onSelectSchema,
-          onRedeploy: onRedeploy,
           onApplyKeyboardConfigFast: onApplyKeyboardConfigFast,
-          onApplyFuzzyConfigFast: onApplyFuzzyConfigFast,
-          writesConfigPatches: writesConfigPatches
+          onApplyFuzzyConfigFast: onApplyFuzzyConfigFast
         )
       case .shortcuts:
         OwlKeyboardPage(
@@ -215,10 +213,8 @@ struct OwlSettingsView: View {
           theme: theme,
           reduceTransparency: reduceTransparency,
           onSelectSchema: onSelectSchema,
-          onRedeploy: onRedeploy,
           onApplyKeyboardConfigFast: onApplyKeyboardConfigFast,
           onApplyFuzzyConfigFast: onApplyFuzzyConfigFast,
-          writesConfigPatches: writesConfigPatches,
           variant: .shortcuts
         )
       case .appearance:
@@ -226,7 +222,7 @@ struct OwlSettingsView: View {
       case .schemes:
         schemesPage
       case .quickSend:
-        OwlTemplateSettingsRoute(palette: palette, onRedeploy: { _ = onRedeploy() })
+        OwlTemplatePage(palette: palette, onRedeploy: { _ = onRedeploy() })
       case .clipboard:
         OwlClipboardPage(
           palette: palette,
@@ -373,7 +369,6 @@ struct OwlSettingsView: View {
         actionButton(title: OwlInputMenuTitles.deploy, systemImage: "arrow.triangle.2.circlepath") {
           _ = onRedeploy()
         }
-        actionButton(title: OwlInputMenuTitles.migrateLegacyUserData, systemImage: "arrow.right.arrow.left.square", action: userDataActions.migrateLegacy)
         actionButton(title: OwlInputMenuTitles.resetUserDict, systemImage: "trash", action: userDataActions.resetUserDict)
         actionButton(title: OwlInputMenuTitles.configFolder, systemImage: "folder", action: onOpenDataFolder)
         actionButton(title: OwlInputMenuTitles.logs, systemImage: "doc.text.magnifyingglass", action: onOpenLog)
@@ -399,7 +394,7 @@ struct OwlSettingsView: View {
           .fill(palette.accent)
       }
     }
-    .buttonStyle(.plain)
+    .buttonStyle(.owlPlain)
     .accessibilityLabel(title)
   }
 
@@ -684,12 +679,8 @@ struct OwlSettingsView: View {
           written: outcome.written,
           deploySucceeded: outcome.succeeded
         )
-      } catch OwlConfigWriteError.refusedNeverTouch(let name) {
-        candidatePageSizeApplyStatus = "已拒绝写入受保护文件：\(name)。候选个数未生效，请查看诊断日志。"
       } catch {
-        candidatePageSizeApplyStatus = writesConfigPatches
-          ? "写入失败，候选个数未生效，请查看诊断日志：\(error.localizedDescription)"
-          : "应用失败，候选个数未生效，请查看诊断日志：\(error.localizedDescription)"
+        candidatePageSizeApplyStatus = "应用失败，候选个数未生效，请查看诊断日志：\(error.localizedDescription)"
       }
       isApplyingCandidatePageSize = false
     }
@@ -697,18 +688,13 @@ struct OwlSettingsView: View {
 
   static func candidatePageSizeApplyStatusMessage(
     written: [String],
-    deploySucceeded: Bool,
-    writesConfigPatches: Bool = true
+    deploySucceeded: Bool
   ) -> String {
     let files = written.joined(separator: "、")
     if deploySucceeded {
       return files.isEmpty ? "候选个数已生效。" : "候选个数已生效：\(files)。"
     }
-    return files.isEmpty
-      ? "应用失败，候选个数未生效，请查看诊断日志。"
-      : writesConfigPatches
-        ? "已写入 \(files)，但应用失败；候选个数未生效，请查看诊断日志。"
-        : "应用失败，候选个数未生效，请查看诊断日志。"
+    return "应用失败，候选个数未生效，请查看诊断日志。"
   }
 
   // MARK: - Status line

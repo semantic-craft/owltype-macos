@@ -2,6 +2,80 @@ import AppKit
 import ApplicationServices
 import InputMethodKit
 
+enum OwlHostDeliveryMode: String, Codable, Equatable, Sendable {
+  case caretInsertion
+  case selectionReplacement
+}
+
+enum OwlInsertStrategy: String, Codable, Equatable, Sendable {
+  case imkInsert        // IMK client direct caret insertion
+  case axSelectedText   // AX selection writeback
+  case paste            // Clipboard + simulated ⌘V paste
+  case clipboardOnly    // Clipboard copy-only terminal fallback
+}
+
+enum OwlInsertOutcome: Equatable, Sendable {
+  case inserted(OwlInsertStrategy)
+  case copiedToClipboard
+  case failed(String)
+}
+
+enum OwlInsertLadder {
+  static func sequence(cached: OwlInsertStrategy?) -> [OwlInsertStrategy] {
+    OwlAIBusinessCore.call("insertSequence", ["cached": cached?.rawValue as Any? ?? NSNull()])
+  }
+
+  static func sequence(
+    mode: OwlHostDeliveryMode,
+    cached: OwlInsertStrategy? = nil,
+    hasIMK: Bool = true,
+    preferPaste: Bool = false
+  ) -> [OwlInsertStrategy] {
+    OwlAIBusinessCore.call("hostDeliverySequence", [
+      "mode": mode.rawValue,
+      "cached": cached?.rawValue as Any? ?? NSNull(),
+      "hasIMK": hasIMK,
+      "preferPaste": preferPaste
+    ])
+  }
+}
+
+enum OwlPasteInserter {
+  static func paste(_ text: String) -> Bool {
+    let pasteboard = NSPasteboard.general
+    let saved = pasteboard.string(forType: .string)
+    pasteboard.clearContents()
+    pasteboard.setString(text, forType: .string)
+    guard postCommandV() else { return false }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+      guard let saved else { return }
+      pasteboard.clearContents()
+      pasteboard.setString(saved, forType: .string)
+    }
+    return true
+  }
+
+  static func copyOnly(_ text: String) {
+    let pasteboard = NSPasteboard.general
+    pasteboard.clearContents()
+    pasteboard.setString(text, forType: .string)
+  }
+
+  private static func postCommandV() -> Bool {
+    guard let source = CGEventSource(stateID: .combinedSessionState) else { return false }
+    let vKey = CGKeyCode(9)
+    guard let keyDown = CGEvent(keyboardEventSource: source, virtualKey: vKey, keyDown: true),
+          let keyUp = CGEvent(keyboardEventSource: source, virtualKey: vKey, keyDown: false) else {
+      return false
+    }
+    keyDown.flags = .maskCommand
+    keyUp.flags = .maskCommand
+    keyDown.post(tap: .cghidEventTap)
+    keyUp.post(tap: .cghidEventTap)
+    return true
+  }
+}
+
 enum OwlTemplateDeliveryOutcome: Equatable {
   enum Reason: String, Equatable {
     case missingHost, focusNotRestored, targetChanged, unverifiableTarget, secureInput
@@ -606,5 +680,64 @@ final class OwlTemplateHostDelivery {
           let role = role as? String, [kAXTextFieldRole, kAXTextAreaRole, kAXComboBoxRole].contains(role) else { return nil }
     _ = AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subrole)
     return Field(element: element, isSecure: subrole as? String == kAXSecureTextFieldSubrole)
+  }
+
+  // MARK: - Unified Host Delivery Service (.caretInsertion & .selectionReplacement)
+
+  typealias Mode = OwlHostDeliveryMode
+
+  @MainActor
+  static func insertCaretOrFallback(
+    _ text: String,
+    client: IMKTextInput? = nil,
+    frontmostApp: NSRunningApplication? = nil,
+    imkInsert: ((String) -> Bool)? = nil,
+    paste: (String) -> Bool = { OwlPasteInserter.paste($0) },
+    copyOnly: (String) -> Void = { OwlPasteInserter.copyOnly($0) }
+  ) -> OwlInsertOutcome {
+    if let imkInsert {
+      if imkInsert(text) {
+        return .inserted(.imkInsert)
+      }
+    } else if let client {
+      client.insertText(text, replacementRange: .empty)
+      return .inserted(.imkInsert)
+    }
+    if let app = frontmostApp, !app.isActive {
+      app.activate()
+    }
+    if paste(text) {
+      return .inserted(.paste)
+    }
+    copyOnly(text)
+    return .copiedToClipboard
+  }
+
+  @MainActor
+  static func replaceSelection(
+    _ text: String,
+    bundleID: String?,
+    session: OwlAppSession,
+    axSet: () -> Bool,
+    paste: (String) -> Bool = { OwlPasteInserter.paste($0) },
+    copyOnly: (String) -> Void = { OwlPasteInserter.copyOnly($0) }
+  ) -> OwlInsertOutcome {
+    struct Step: Decodable { let strategy: OwlInsertStrategy?; let done: Bool }
+    var step: Step = session.call("begin", [
+      "bundleID": bundleID ?? "",
+      "mode": OwlHostDeliveryMode.selectionReplacement.rawValue
+    ])
+    while let strategy = step.strategy {
+      let success: Bool
+      switch strategy {
+      case .imkInsert: success = false
+      case .axSelectedText: success = axSet()
+      case .paste: success = paste(text)
+      case .clipboardOnly: copyOnly(text); success = true
+      }
+      step = session.call("result", ["success": success])
+      if step.done { return strategy == .clipboardOnly ? .copiedToClipboard : .inserted(strategy) }
+    }
+    return .failed("插入失败。")
   }
 }

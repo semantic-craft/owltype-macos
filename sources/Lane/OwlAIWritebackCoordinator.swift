@@ -59,24 +59,14 @@ final class OwlAIWritebackCoordinator {
     client: IMKTextInput?,
     frontApp: NSRunningApplication?
   ) -> Outcome {
-    // Tier 1: Direct IMK client insertion
-    if let client {
-      client.insertText(text, replacementRange: .empty)
+    switch OwlTemplateHostDelivery.insertCaretOrFallback(text, client: client, frontmostApp: frontApp) {
+    case .inserted(.imkInsert):
       return .insertedToClient
-    }
-
-    // Tier 2: Fallback to simulated ⌘V paste ladder
-    if let app = frontApp, !app.isActive {
-      app.activate()
-    }
-    let pasted = OwlPasteInserter.paste(text)
-    if pasted {
+    case .inserted(.paste):
       return .pastedFallback
+    default:
+      return .copiedToClipboard
     }
-
-    // Tier 3: Clipboard copy-only fallback
-    OwlPasteInserter.copyOnly(text)
-    return .copiedToClipboard
   }
 
   private func executeSelectionWriteback(

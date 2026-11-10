@@ -1,8 +1,11 @@
 //! Dictionary-state export and import (user-dictionary.md §14, api-contract §5.13): one consistent read of the journal's entries, fixed positions and selection counts, its SHA-256 revision, and staging a complete replacement generation from a record stream.
 
+use std::collections::HashMap;
 use std::fs;
 use std::io::ErrorKind;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock, PoisonError};
+use std::time::{Duration, SystemTime};
 
 use rusqlite::{params, OpenFlags, TransactionBehavior};
 use sha2::{Digest, Sha256};
@@ -117,6 +120,7 @@ fn read_state(file: &Path, emit: &mut dyn FnMut(&DictionaryStateRecord) -> bool)
                         .get::<_, Option<i64>>(11)?
                         .is_some_and(|length| (0..=16).contains(&length)),
             )?;
+            // 这一版不认识的种类（更新的版本写下的，降级后读到）仍让整份状态失败，不像回放那样跳过：云同步上传是整份替换云端快照，悄悄少掉这些行的快照传上去，会把别的设备的这些词从云端删掉。代价是降级的设备上依赖整份状态的功能（快照准备和激活、WebDAV 读本机词库）停到升级回去为止。
             let kind = PersonalDictionaryKind::from_journal_name(&row.get::<_, String>(0)?)
                 .ok_or_else(invalid_state)?;
             // `sqlite3_column_int64` reads NULL as 0; legacy journals built without NOT NULL can hold one.
@@ -186,13 +190,151 @@ fn read_state(file: &Path, emit: &mut dyn FnMut(&DictionaryStateRecord) -> bool)
 }
 
 /// SHA-256 hex over `text("msime-local-dictionary-state-v1")` and every streamed record, where `text(s)` is `integer(len)` then the bytes and `integer` is a big-endian u64 (dictionary_revision.rs). Apple computes the same digest; keep the framing byte for byte.
+///
+/// 每次都完整读一遍日志。算完顺带把结果记进 [`cached_dictionary_state_revision`](crate::host::cached_dictionary_state_revision) 的缓存，所以准备、激活快照这些必须拿精确值的地方算出来的新结果，之后的预览也直接用上。
 pub fn dictionary_state_revision(paths: &RuntimePaths) -> Result<String> {
+    state_revision(paths, false, SystemTime::now)
+}
+
+/// 与 [`dictionary_state_revision`] 结果相同，但日志主文件和 `-wal`、`-journal` 旁路文件自上次完整计算以来都没变时，直接返回上次的结果，不打开 SQLite。
+///
+/// 宿主在每次失焦、每隔几秒的空闲轮询里都要拿这个修订号发布本机词库版本，日志动辄几十万行，每次都排序全表扫描再做 SHA-256，低端机上就是持续的耗电和发热，而绝大多数时候日志根本没动。判断“没动”只看 stat：长度、修改时间，unix 上再加设备号、inode 和状态改变时间。SQLite 的每次提交都会改主文件（回滚日志模式）或追加、重写 `-wal`（WAL 模式），所以内容变了这几项必然有一项变；检查点、换文件这类内容不变的改动只会多算一次，不会少算。长度为零的旁路文件里没有任何页，与不存在等价，按不存在处理，免得会话开关连接时建了又删的空 `-wal` 让缓存每次都失效。
+///
+/// 修改时间的精度有限（Linux 按时钟节拍取粗粒度时间，部分文件系统只到秒），同一个时间粒度里先 stat、后又写入的话 stat 可能完全一样。所以只有文件的最后改动离现在已经超过 [`REVISION_SETTLE`] 时才记缓存，跟 git 处理 racy-clean 索引是同一个思路：之后的任何写入都会带上比记下的更晚的时间戳。刚写过的日志每次都完整计算。stat 失败也一律完整计算、不记缓存。
+pub fn cached_dictionary_state_revision(paths: &RuntimePaths) -> Result<String> {
+    state_revision(paths, true, SystemTime::now)
+}
+
+/// `now` 只在要记缓存时才取：wasm32-unknown-unknown 上取系统时间会 panic，而那里 stat 本来就失败，走不到这一步。
+fn state_revision(
+    paths: &RuntimePaths,
+    use_cache: bool,
+    now: impl FnOnce() -> SystemTime,
+) -> Result<String> {
+    paths.validate()?;
+    let journal = paths.user(assets::USER_JOURNAL);
+    // 开始读日志之前取：读的过程中又有写入的话，之后再 stat 必然与它不同，不会拿这次的结果去回答。
+    let stamp = JournalStamp::read(&journal);
+    if use_cache {
+        if let Some(stamp) = &stamp {
+            let cache = revision_cache()
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner);
+            if let Some((cached, revision)) = cache.get(&journal) {
+                if cached == stamp {
+                    return Ok(revision.clone());
+                }
+            }
+        }
+    }
     let mut revision = Revision::new();
     stream_dictionary_state(paths, &mut |record| {
         revision.record(record);
         true
     })?;
-    Ok(revision.finish())
+    let revision = revision.finish();
+    if let Some(stamp) = stamp.filter(|stamp| stamp.settled(now())) {
+        let mut cache = revision_cache()
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        if cache.len() >= REVISION_CACHE_LIMIT && !cache.contains_key(&journal) {
+            cache.clear();
+        }
+        cache.insert(journal, (stamp, revision.clone()));
+    }
+    Ok(revision)
+}
+
+/// 日志文件最后一次改动要早于现在多久，这次算出的修订号才记进缓存，见 [`cached_dictionary_state_revision`]。两秒盖过 FAT 这类最粗的两秒时间精度。
+pub(crate) const REVISION_SETTLE: Duration = Duration::from_secs(2);
+
+/// 宿主进程里通常只有一份日志；准备快照时会多出暂存代次的日志，测试里是各自的临时目录。满了就整个清掉重来。
+const REVISION_CACHE_LIMIT: usize = 16;
+
+/// 按日志路径记下的 stat 和修订号。
+fn revision_cache() -> &'static Mutex<HashMap<PathBuf, (JournalStamp, String)>> {
+    static CACHE: OnceLock<Mutex<HashMap<PathBuf, (JournalStamp, String)>>> = OnceLock::new();
+    CACHE.get_or_init(Default::default)
+}
+
+/// 日志主文件、`-wal`、`-journal` 各自的 stat，`None` 是不存在（旁路文件长度为零也算）。
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct JournalStamp([Option<FileStamp>; 3]);
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct FileStamp {
+    length: u64,
+    modified: SystemTime,
+    #[cfg(unix)]
+    device: u64,
+    #[cfg(unix)]
+    inode: u64,
+    #[cfg(unix)]
+    changed: (i64, i64),
+}
+
+impl JournalStamp {
+    /// 任何一个文件 stat 失败（不存在除外）时是 `None`，这次不查也不记缓存。
+    fn read(journal: &Path) -> Option<Self> {
+        let side = |suffix: &str| {
+            let mut name = journal.as_os_str().to_owned();
+            name.push(suffix);
+            PathBuf::from(name)
+        };
+        Some(Self([
+            FileStamp::read(journal, false)?,
+            FileStamp::read(&side("-wal"), true)?,
+            FileStamp::read(&side("-journal"), true)?,
+        ]))
+    }
+
+    fn settled(&self, now: SystemTime) -> bool {
+        let Some(horizon) = now.checked_sub(REVISION_SETTLE) else {
+            return false;
+        };
+        self.0
+            .iter()
+            .flatten()
+            .all(|file| file.last_change().is_some_and(|time| time < horizon))
+    }
+}
+
+impl FileStamp {
+    fn read(path: &Path, empty_is_absent: bool) -> Option<Option<Self>> {
+        let metadata = match fs::symlink_metadata(path) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == ErrorKind::NotFound => return Some(None),
+            Err(_) => return None,
+        };
+        if empty_is_absent && metadata.len() == 0 {
+            return Some(None);
+        }
+        #[cfg(unix)]
+        use std::os::unix::fs::MetadataExt;
+        Some(Some(Self {
+            length: metadata.len(),
+            modified: metadata.modified().ok()?,
+            #[cfg(unix)]
+            device: metadata.dev(),
+            #[cfg(unix)]
+            inode: metadata.ino(),
+            #[cfg(unix)]
+            changed: (metadata.ctime(), metadata.ctime_nsec()),
+        }))
+    }
+
+    /// 修改时间与（unix 上）状态改变时间里较晚的一个；状态改变时间换算不了时是 `None`，不记缓存。
+    fn last_change(&self) -> Option<SystemTime> {
+        #[cfg(unix)]
+        {
+            let seconds = u64::try_from(self.changed.0).ok()?;
+            let nanos = u32::try_from(self.changed.1).ok()?;
+            let changed = SystemTime::UNIX_EPOCH.checked_add(Duration::new(seconds, nanos))?;
+            Some(self.modified.max(changed))
+        }
+        #[cfg(not(unix))]
+        Some(self.modified)
+    }
 }
 
 /// The framing of `dictionary_revision.rs` and `hash_dictionary_state` (bridge.cpp:441-466).
@@ -432,7 +574,7 @@ fn build_generation(
     )
 }
 
-/// [`merge_dictionary_state`] 的结果：各类记录写进本机的条数，以及没写的条数和原因。
+/// [`merge_dictionary_state`](crate::host::merge_dictionary_state) 的结果：各类记录写进本机的条数，以及没写的条数和原因。
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct DictionaryStateMerge {
     /// 写进来的学习调权（`user_inserted = 0` 的 upsert）和删除记录。
@@ -461,7 +603,6 @@ pub fn merge_dictionary_state(
     maximum_records: usize,
 ) -> Result<DictionaryStateMerge> {
     use super::personal::open_edit_connection;
-    use super::replay::{apply_english, apply_pinyin, apply_simple};
     use rusqlite::OptionalExtension;
 
     paths.validate()?;
@@ -524,37 +665,15 @@ pub fn merge_dictionary_state(
                     }
                     let (key_bytes, value_bytes) = (key.as_bytes(), value.as_bytes());
                     // 编码拼不出表名（`Ok(false)`），或这一代词库里没有那张表（准备语句时报 no such table，什么也没执行），这一行就存不下，计入 skipped。别的 SQL 错误（磁盘满、I/O 失败、库损坏、约束）照常上抛，整个合并回滚，调用方留着待合并的文件下次再试，而不是把没写进去的记录当成跳过。
-                    let applied = match kind {
-                        PersonalDictionaryKind::Pinyin => {
-                            apply_pinyin(&transaction, key_bytes, value_bytes, *deleted, *weight)
-                        }
-                        PersonalDictionaryKind::Wubi | PersonalDictionaryKind::Wubi98 => {
-                            apply_simple(
-                                &transaction,
-                                kind.wubi_table().unwrap_or_default(),
-                                key_bytes,
-                                value_bytes,
-                                *deleted,
-                                *weight,
-                            )
-                        }
-                        PersonalDictionaryKind::QuickPhrase => apply_simple(
-                            &transaction,
-                            "quick_parases",
-                            key_bytes,
-                            value_bytes,
-                            *deleted,
-                            *weight,
-                        ),
-                        PersonalDictionaryKind::English => apply_english(
-                            &transaction,
-                            key_bytes,
-                            value_bytes,
-                            *deleted,
-                            *weight,
-                            display.as_bytes(),
-                        ),
-                    };
+                    let applied = apply_entry(
+                        &transaction,
+                        *kind,
+                        key_bytes,
+                        value_bytes,
+                        *deleted,
+                        *weight,
+                        display.as_bytes(),
+                    );
                     let applied = match applied {
                         Ok(applied) => applied,
                         Err(error) if missing_table(&error) => false,
@@ -616,6 +735,200 @@ pub fn merge_dictionary_state(
     }
     transaction.commit()?;
     Ok(merge)
+}
+
+/// 整份换上云端快照时（host-api 的云同步「下载」激活），把旧的一代 `active` 日志里 `kinds` 这几种词库的行并进新的一代 `staged`。这几种是云同步还不收的（新世纪五笔）：云端快照里没有它们，不并过来的话每一次下载都会把它们删掉，连用户自己的词在内，而 [`merge_dictionary_state`] 不写用户自己的词。
+///
+/// 规则：新的一代日志里已有同一个词（`dictionary,key,value`）时保留新的一代；其余的行连同 `operation`、`weight`、`display`、`user_inserted`、`updated_at` 原样写进日志，并按回放的写法改工作词库（与 [`merge_dictionary_state`] 相同）。这一代没有那张表（还没并进新世纪表的代次，或没有 `msime-pinyin.db` 的版本）时只写日志，码表并进来后的那次回放再写（`generation::merge_downloaded_wubi`）；编码存不进去的行和 `operation` 不认识的行跳过。全部在一个 IMMEDIATE 事务里，写库出错整体回滚。旧的一代没有日志、或日志里没有这几种的行时不打开新的一代。返回写进来的行数。
+///
+/// 调用方必须持有词库的独占维护权，新的一代还没换入。
+pub fn carry_dictionary_rows(
+    active: &RuntimePaths,
+    staged: &RuntimePaths,
+    main_dictionary: bool,
+    kinds: &[PersonalDictionaryKind],
+) -> Result<usize> {
+    use super::personal::open_edit_connection;
+    use rusqlite::OptionalExtension;
+
+    active.validate()?;
+    staged.validate()?;
+    let source = active.user(assets::USER_JOURNAL);
+    if kinds.is_empty() || !source.exists() {
+        return Ok(0);
+    }
+    // 先把要带的行读出来，再打开新的一代：大多数用户没有这几种的行，什么也不碰。
+    let mut rows = Vec::new();
+    {
+        let connection = open_database(&source, OpenFlags::SQLITE_OPEN_READ_ONLY)?;
+        let mut statement = connection.prepare(
+            "SELECT key,value,operation,weight,display,user_inserted,updated_at
+             FROM user_dictionary_operations WHERE dictionary=?1 ORDER BY updated_at,rowid",
+        )?;
+        for kind in kinds {
+            let mut cursor = statement.query([kind.journal_name()])?;
+            while let Some(row) = cursor.next()? {
+                let operation: String = row.get(2)?;
+                if operation != "upsert" && operation != "delete" {
+                    continue;
+                }
+                rows.push((
+                    *kind,
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    operation,
+                    row.get::<_, Option<i64>>(3)?.unwrap_or(0),
+                    row.get::<_, String>(4)?,
+                    row.get::<_, Option<i64>>(5)?.unwrap_or(0),
+                    row.get::<_, Option<i64>>(6)?,
+                ));
+            }
+        }
+    }
+    if rows.is_empty() {
+        return Ok(0);
+    }
+    let mut connection = open_edit_connection(staged, main_dictionary)?;
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let mut carried = 0usize;
+    {
+        let mut existing = transaction.prepare(
+            "SELECT 1 FROM personal_journal.user_dictionary_operations WHERE dictionary=?1 AND key=?2 AND value=?3",
+        )?;
+        let mut journal = transaction.prepare(
+            "INSERT INTO personal_journal.user_dictionary_operations(dictionary,key,value,operation,weight,display,user_inserted,updated_at) VALUES(?1,?2,?3,?4,?5,?6,?7,COALESCE(?8,unixepoch()))",
+        )?;
+        for (kind, key, value, operation, weight, display, user_inserted, updated_at) in &rows {
+            let name = kind.journal_name();
+            if existing
+                .query_row(params![name, key, value], |_| Ok(()))
+                .optional()?
+                .is_some()
+            {
+                continue;
+            }
+            let applied = match apply_entry(
+                &transaction,
+                *kind,
+                key.as_bytes(),
+                value.as_bytes(),
+                operation == "delete",
+                *weight,
+                display.as_bytes(),
+            ) {
+                Ok(applied) => applied,
+                // 没有那张表时行照样记进日志，回放在表并进来以后再写；回放对没有表的行同样只是跳过，不会因此失败。
+                Err(error) if missing_table(&error) => true,
+                Err(error) => return Err(error.into()),
+            };
+            if !applied {
+                continue;
+            }
+            journal.execute(params![
+                name,
+                key,
+                value,
+                operation,
+                weight,
+                display,
+                user_inserted,
+                updated_at
+            ])?;
+            carried += 1;
+        }
+    }
+    transaction.commit()?;
+    Ok(carried)
+}
+
+/// 按回放的写法把一行改进工作词库（`transaction` 是 `open_edit_connection` 打开的连接）：编码拼不出表名时 `Ok(false)`，这一代没有那张表时是准备语句报的 no such table（[`missing_table`]）。
+fn apply_entry(
+    transaction: &rusqlite::Connection,
+    kind: PersonalDictionaryKind,
+    key: &[u8],
+    value: &[u8],
+    deleted: bool,
+    weight: i64,
+    display: &[u8],
+) -> rusqlite::Result<bool> {
+    use super::replay::{apply_english, apply_pinyin, apply_simple};
+    match kind {
+        PersonalDictionaryKind::Pinyin => apply_pinyin(transaction, key, value, deleted, weight),
+        PersonalDictionaryKind::Wubi
+        | PersonalDictionaryKind::Wubi98
+        | PersonalDictionaryKind::WubiXsj => apply_simple(
+            transaction,
+            kind.wubi_table().unwrap_or_default(),
+            key,
+            value,
+            deleted,
+            weight,
+        ),
+        PersonalDictionaryKind::QuickPhrase => {
+            apply_simple(transaction, "quick_parases", key, value, deleted, weight)
+        }
+        PersonalDictionaryKind::English => {
+            apply_english(transaction, key, value, deleted, weight, display)
+        }
+        // 粤语词没有工作表：用户自己加的和打字造的词由 `merge_dictionary_state` 按词计数；删除留下的墓碑和调频写下的权重不进快照，计入 skipped。
+        PersonalDictionaryKind::Cantonese => Ok(false),
+    }
+}
+
+/// 把粤语行（用户加的和打字造的词，以及调频学到的权重）写进 `paths` 的日志，日志里已有同一个词（同一 `dictionary,key,value`）的保留已有的那一行，返回写进去的条数。`user_inserted` 照原样写：学到的权重仍不进「我的词条」。
+///
+/// 粤语词没有工作表，日志就是它们存放的地方，而词库快照（云同步和本地备份共用的格式）装不下它们，所以 [`stage_dictionary_state`] 整份建出来的新一代里没有它们。宿主激活新一代前用 [`stream_dictionary_state`] 从旧的一代读出来，经这里写进新的一代；不这样做，用户加的粤语词和粤语学到的东西就随旧的一代一起被换掉，云端和备份里都没有，再也取不回来（#10544）。
+///
+/// `words` 里只能是粤语的、没删的词条，别的记录报 `INVALID_DICTIONARY_STATE`；编码、词或权重超出日志上限的词条跳过不写，不让一条坏行挡住整次激活。全部在一个 IMMEDIATE 事务里，写库失败整体回滚。调用方必须持有独占维护权。
+pub fn add_cantonese_words(paths: &RuntimePaths, words: &[DictionaryStateRecord]) -> Result<usize> {
+    paths.validate()?;
+    if words.is_empty() {
+        return Ok(0);
+    }
+    // A connection of its own, as `build_generation` opens: the caller is about to move this generation into place, and a cached handle would keep the file open.
+    let mut connection = open_database(
+        &paths.user(assets::USER_JOURNAL),
+        OpenFlags::SQLITE_OPEN_READ_WRITE | OpenFlags::SQLITE_OPEN_CREATE,
+    )?;
+    ensure_schema(&connection)?;
+    let transaction = connection.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    let mut added = 0usize;
+    {
+        let mut insert = transaction.prepare(
+            "INSERT OR IGNORE INTO user_dictionary_operations(dictionary,key,value,operation,weight,display,user_inserted) VALUES(?1,?2,?3,'upsert',?4,?5,?6)",
+        )?;
+        for word in words {
+            let DictionaryStateRecord::Entry {
+                kind: PersonalDictionaryKind::Cantonese,
+                key,
+                value,
+                weight,
+                display,
+                deleted: false,
+                user_inserted,
+            } = word
+            else {
+                return Err(invalid_state());
+            };
+            if !(bounded(key, MAX_KEY_BYTES, false)
+                && bounded(value, MAX_VALUE_BYTES, false)
+                && bounded(display, MAX_VALUE_BYTES, true)
+                && (0..=MAX_STAGED_WEIGHT).contains(weight))
+            {
+                continue;
+            }
+            added += insert.execute(params![
+                PersonalDictionaryKind::Cantonese.journal_name(),
+                key,
+                value,
+                weight,
+                display,
+                i64::from(*user_inserted),
+            ])?;
+        }
+    }
+    transaction.commit()?;
+    Ok(added)
 }
 
 /// 语句准备时报「没有这张表」：SQLite 对它用通用的 `SQLITE_ERROR`，只能看消息区分。这时语句一条也没执行，跳过这一行不会留下半截修改。
@@ -757,6 +1070,91 @@ mod tests {
             fs::write(&journal, &original).unwrap();
             assert_eq!(dictionary_state_revision(&paths).unwrap(), revision);
         }
+    }
+
+    /// 缓存版修订号：日志没动时直接给上次的结果、不再读日志；主文件或 `-wal` 一有写入就重新计算；刚写过的日志不记缓存。`later` 当作已经过了 [`REVISION_SETTLE`]。
+    #[test]
+    fn the_cached_revision_is_reused_only_while_the_journal_is_untouched() {
+        let root = tempfile::tempdir().unwrap();
+        let paths = paths(root.path());
+        let journal = paths.user(assets::USER_JOURNAL);
+        let later = || SystemTime::now() + REVISION_SETTLE * 30;
+        let cached = |paths: &RuntimePaths| state_revision(paths, true, later).unwrap();
+        let entry = |journal: &Path| {
+            revision_cache()
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .get(journal)
+                .cloned()
+        };
+
+        let empty = dictionary_state_revision(&paths).unwrap();
+        assert_eq!(cached(&paths), empty);
+        assert_eq!(
+            entry(&journal).map(|(_, revision)| revision),
+            Some(empty.clone())
+        );
+
+        sql(
+            &journal,
+            "CREATE TABLE user_dictionary_operations (
+                dictionary TEXT, key TEXT, value TEXT, weight INTEGER,
+                display TEXT, operation TEXT, user_inserted INTEGER);
+             CREATE TABLE fixed_candidate_positions (
+                context_key TEXT, entry_key TEXT, value TEXT, position INTEGER);
+             CREATE TABLE candidate_selection_state (
+                context_key TEXT, entry_key TEXT, value TEXT, selection_count INTEGER);
+             INSERT INTO user_dictionary_operations VALUES
+                ('pinyin', 'synthetic-key', '测试', 1, '', 'upsert', 1);",
+        );
+        let first = dictionary_state_revision(&paths).unwrap();
+        assert_ne!(first, empty);
+        // 刚写过的日志：照常算出新结果，但不记缓存。
+        assert_eq!(cached_dictionary_state_revision(&paths).unwrap(), first);
+        let stamp = JournalStamp::read(&journal).unwrap();
+        assert!(entry(&journal).is_none_or(|(cached, _)| cached != stamp));
+
+        assert_eq!(cached(&paths), first);
+        // 命中时不读日志：把记下的结果换掉，缓存版原样给回来。
+        revision_cache()
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .get_mut(&journal)
+            .unwrap()
+            .1 = "synthetic".to_owned();
+        assert_eq!(cached(&paths), "synthetic");
+        // 不走缓存的版本照常读日志，并把记下的结果改回来。
+        assert_eq!(state_revision(&paths, false, later).unwrap(), first);
+        assert_eq!(cached(&paths), first);
+
+        // 回滚日志模式的提交改主文件：一行带溢出页的记录让它变长。
+        let long = "x".repeat(4_000);
+        sql(
+            &journal,
+            &format!(
+                "INSERT INTO user_dictionary_operations VALUES
+                    ('pinyin', 'long', '{long}', 1, '{long}', 'upsert', 1);"
+            ),
+        );
+        let second = cached(&paths);
+        assert_ne!(second, first);
+        assert_eq!(second, dictionary_state_revision(&paths).unwrap());
+
+        // WAL 模式的提交只追加到 `-wal`，主文件不动。
+        let writer = Connection::open(&journal).unwrap();
+        writer
+            .query_row("PRAGMA journal_mode=WAL", [], |_| Ok(()))
+            .unwrap();
+        assert_eq!(cached(&paths), second);
+        writer
+            .execute_batch("UPDATE user_dictionary_operations SET weight=7 WHERE key='long'")
+            .unwrap();
+        let mut wal = journal.as_os_str().to_owned();
+        wal.push("-wal");
+        assert!(fs::metadata(&wal).unwrap().len() > 0);
+        let third = cached(&paths);
+        assert_ne!(third, second);
+        assert_eq!(third, dictionary_state_revision(&paths).unwrap());
     }
 
     // engine-bridge tests.rs `dictionary_revision_uses_real_journal_and_rejects_corruption`.
@@ -1567,6 +1965,83 @@ mod tests {
             ),
             Some(1)
         );
+    }
+
+    /// 粤语词写进一代的日志：已有同一个词的保留已有的那一行，超出日志上限的跳过；学到的权重（`user_inserted=0`）照原样写入；不是粤语的、或已删的记录整批拒绝、什么也不写。
+    #[test]
+    fn cantonese_words_are_added_to_a_generation_and_existing_rows_are_kept() {
+        use PersonalDictionaryKind::*;
+        let root = tempfile::tempdir().unwrap();
+        let resources = resources(root.path());
+        let staged = stage(&resources, &root.path().join("staged"), vec![]).unwrap();
+        let journal = staged.user(assets::USER_JOURNAL);
+        let count = || {
+            weight(
+                &journal,
+                "SELECT count(*) FROM user_dictionary_operations WHERE dictionary='cantonese' AND operation='upsert' AND user_inserted=1",
+            )
+        };
+        assert_eq!(
+            add_cantonese_words(
+                &staged,
+                &[
+                    entry(Cantonese, "nei hou", "你好", 100_000, "", false, true),
+                    entry(
+                        Cantonese,
+                        &"a".repeat(MAX_KEY_BYTES + 1),
+                        "你",
+                        1,
+                        "",
+                        false,
+                        true
+                    ),
+                ],
+            )
+            .unwrap(),
+            1
+        );
+        assert_eq!(
+            add_cantonese_words(
+                &staged,
+                &[
+                    entry(Cantonese, "nei hou", "你好", 7, "", false, true),
+                    entry(Cantonese, "m goi", "唔該", 9, "", false, true),
+                    entry(Cantonese, "nei hou", "妳好", 901, "", false, false),
+                ],
+            )
+            .unwrap(),
+            2
+        );
+        assert_eq!(count(), Some(2));
+        // 学到的权重照样带过去，仍不算用户的词。
+        assert_eq!(
+            weight(
+                &journal,
+                "SELECT weight FROM user_dictionary_operations WHERE dictionary='cantonese' AND value='妳好' AND user_inserted=0"
+            ),
+            Some(901)
+        );
+        assert_eq!(
+            weight(
+                &journal,
+                "SELECT weight FROM user_dictionary_operations WHERE dictionary='cantonese' AND value='你好'"
+            ),
+            Some(100_000)
+        );
+        for rejected in [
+            entry(Pinyin, "ni'hao", "你好", 1, "", false, true),
+            entry(Cantonese, "sik faan", "食飯", 0, "", true, true),
+        ] {
+            assert!(add_cantonese_words(
+                &staged,
+                &[
+                    entry(Cantonese, "sik faan", "食飯", 1, "", false, true),
+                    rejected
+                ],
+            )
+            .is_err());
+        }
+        assert_eq!(count(), Some(2));
     }
 
     // test_dictionary_state.cpp `--capacity`: a large state stages and streams back whole.

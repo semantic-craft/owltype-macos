@@ -3,7 +3,7 @@ import SwiftUI
 
 /// A single nonactivating surface follows the active IMK session, never a background controller.
 @MainActor
-final class OwlInputStatusPanel: NSPanel {
+final class OwlInputStatusPanel: OwlFloatingPanel {
   static let shared = OwlInputStatusPanel()
   static let enabledKey = "OwlInputStatusPanelEnabled"
   private weak var owner: OwlInputController?
@@ -20,23 +20,15 @@ final class OwlInputStatusPanel: NSPanel {
     let settings: OwlCandidatePanelSettings.Snapshot
   }
 
-  override var canBecomeKey: Bool { false }
-  override var canBecomeMain: Bool { false }
   var isEnabled: Bool { OwlDefaults.standard.object(forKey: Self.enabledKey) as? Bool ?? true }
 
   private init() {
-    super.init(contentRect: NSRect(x: 0, y: 0, width: 340, height: 48),
-               styleMask: [.borderless, .nonactivatingPanel], backing: .buffered, defer: false)
-    isReleasedWhenClosed = false
-    isOpaque = false
-    backgroundColor = .clear
-    hasShadow = true
-    level = .floating
-    hidesOnDeactivate = false
-    isMovableByWindowBackground = true
-    collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-    setFrameAutosaveName("OwlInputStatusPanel")
-    if !setFrameUsingName("OwlInputStatusPanel"), let screen = NSScreen.main {
+    super.init(contentRect: NSRect(x: 0, y: 0, width: 340, height: 48))
+    if !OwlTestStorage.isEnabled {
+      setFrameAutosaveName("OwlInputStatusPanel")
+    }
+    let restored = !OwlTestStorage.isEnabled && setFrameUsingName("OwlInputStatusPanel")
+    if !restored, let screen = NSScreen.main {
       setFrameOrigin(NSPoint(x: screen.visibleFrame.maxX - frame.width - 24,
                              y: screen.visibleFrame.minY + 24))
     }
@@ -95,20 +87,12 @@ final class OwlInputStatusPanel: NSPanel {
         case .hide: self.toggleVisibility(controller)
         }
       })
-      let hosting = NSHostingView(rootView: view)
+      let hosting = OwlFirstClickHostingView(rootView: view)
       contentView = hosting
       setContentSize(hosting.fittingSize)
     }
     keepOnScreen()
     if !isVisible { orderFrontRegardless() }
-  }
-
-  static func reachableFrame(_ frame: NSRect, screens: [NSRect]) -> NSRect {
-    guard let screen = screens.first(where: { $0.intersects(frame) }) ?? screens.first else { return frame }
-    var result = frame
-    result.origin.x = min(max(frame.minX, screen.minX), max(screen.minX, screen.maxX - frame.width))
-    result.origin.y = min(max(frame.minY, screen.minY), max(screen.minY, screen.maxY - frame.height))
-    return result
   }
 
   private func keepOnScreen() {
@@ -127,7 +111,7 @@ struct OwlInputStatusView: View {
   var body: some View {
     HStack(spacing: 3) {
       StatusDragHandle().frame(width: 16, height: 32).help("拖动状态栏")
-      button(schemaLabel, label: "输入方案：\(OwlDictPackPrompt.displayName(for: presentation.schema))；打开键盘设置", action: .schema)
+      button(schemaLabel, label: "输入方案：\(OwlRustSchemaMap.displayName(for: presentation.schema))；打开键盘设置", action: .schema)
       Rectangle().fill(palette.ink.opacity(0.12)).frame(width: 1, height: 18).padding(.horizontal, 4)
       button(presentation.ascii ? "英" : "中", label: presentation.ascii ? "英文输入；切换中文" : "中文输入；切换英文", action: .language, accent: true)
       button(presentation.punctuation ? "." : "。", label: presentation.punctuation ? "英文标点；切换中文标点" : "中文标点；切换英文标点", action: .punctuation)
@@ -150,7 +134,7 @@ struct OwlInputStatusView: View {
     if presentation.schema.hasPrefix("double_pinyin") { return "双拼" }
     if presentation.schema == "melt_eng" { return "英文" }
     if ["rime_ice", "pinyin_simp"].contains(presentation.schema) { return "拼音" }
-    return String(OwlDictPackPrompt.displayName(for: presentation.schema).prefix(4))
+    return String(OwlRustSchemaMap.displayName(for: presentation.schema).prefix(4))
   }
 
   private func button(_ text: String, label: String, action selected: Action, accent: Bool = false) -> some View {
@@ -169,7 +153,7 @@ private struct StatusButtonStyle: ButtonStyle {
     configuration.label.foregroundStyle(palette.ink)
       .background(RoundedRectangle(cornerRadius: 7)
         .fill(configuration.isPressed ? palette.accent.opacity(0.16) : Color.clear))
-      .contentShape(RoundedRectangle(cornerRadius: 7))
+      .contentShape(.interaction, Rectangle())
   }
 }
 

@@ -2,38 +2,34 @@
 //  OwlRustDictPackResource.swift
 //  Owltype
 //
-//  The Rust resource environment and the one package it installs: the bundled
-//  msime resources, copied into a generation for the transactional store. The
-//  store sees userRoot only as an exclusion boundary.
+//  Direct bundled SQLite resource catalog and environment for the Rust msime engine.
+//  Loads immutable bundled dictionary and model assets directly from
+//  `Bundle.main.sharedSupportURL/msime` without multi-generation staging or leases.
 //
 
 import Foundation
-import SQLite3
 
-enum OwlRustResourceBuildError: Error, LocalizedError, Equatable {
-  case sqlite(String)
+enum OwlRustResourceError: Error, LocalizedError, Equatable, Sendable {
+  case sharedSupportUnavailable
+  case directoryMissing(String)
+  case fileMissing(String)
+  case fileNotRegular(String)
+  case fileOperationFailed(path: String, message: String)
 
   var errorDescription: String? {
     switch self {
-    case .sqlite(let message):
-      return "读取资源 SQLite 失败：\(message)"
+    case .sharedSupportUnavailable:
+      return "无法定位随包 SharedSupport 目录"
+    case .directoryMissing(let path):
+      return "随包词库目录缺失：\(path)"
+    case .fileMissing(let path):
+      return "随包词库资源文件缺失：\(path)"
+    case .fileNotRegular(let path):
+      return "随包词库资源不是普通文件或经过符号链接：\(path)"
+    case .fileOperationFailed(let path, let message):
+      return "资源目录操作失败 \(path)：\(message)"
     }
   }
-}
-
-struct OwlRustResourceBuildStats: Codable, Equatable, Sendable {
-  let pinyinEntries: Int
-  let wubiEntries: Int
-  let englishEntries: Int
-  let rejectedPinyinEntries: Int
-  let rejectedWubiEntries: Int
-  let rejectedEnglishEntries: Int
-}
-
-struct OwlRustResourcePackageBuild: Equatable, Sendable {
-  let root: URL
-  let manifest: OwlRustResourceManifest
-  let stats: OwlRustResourceBuildStats
 }
 
 struct OwlRustResourceGeneration: Equatable, Sendable {
@@ -41,122 +37,78 @@ struct OwlRustResourceGeneration: Equatable, Sendable {
   let contentID: String
 }
 
-struct OwlRustResourceEnvironment: Sendable {
-  static let activeInputKind = OwlRustResourceInputKind.pinyinWubi
-
-  let dictionaryRoot: URL
-  let packageRoot: URL
-  let configuration: OwlRustResourceConfiguration
-
-  static func production(userRoot: URL = OwlApp.userDir) -> Self {
-    let resourcesRoot = userRoot.appendingPathComponent(
-      "rust-resources", isDirectory: true
-    )
-    return Self(
-      dictionaryRoot: userRoot,
-      packageRoot: resourcesRoot.appendingPathComponent("candidate", isDirectory: true),
-      configuration: OwlRustResourceConfiguration(
-        libraryRoot: resourcesRoot.appendingPathComponent("library", isDirectory: true),
-        stagingRoot: resourcesRoot.appendingPathComponent("staging", isDirectory: true),
-        runtimeRoot: resourcesRoot.appendingPathComponent("runtime", isDirectory: true),
-        stateRoot: resourcesRoot.appendingPathComponent("state", isDirectory: true),
-        userRoot: userRoot.appendingPathComponent("msime-user", isDirectory: true),
-        cacheRoot: userRoot.appendingPathComponent("msime-cache", isDirectory: true)
-      )
-    )
-  }
-
-  func makeStore() throws -> OwlRustResourceStore {
-    try FileManager.default.createDirectory(
-      at: configuration.userRoot, withIntermediateDirectories: true
-    )
-    return try OwlRustResourceStore(
-      configuration: configuration, engine: .owlRustNativeInputV1, requireCompatibleResources: true
-    )
-  }
-
-  func activeState(
-    inputKind: OwlRustResourceInputKind = Self.activeInputKind
-  ) throws -> OwlRustResourceActiveState? {
-    struct Reply: Decodable { let state: OwlRustResourceActiveState? }
-    let decoder = JSONDecoder()
-    decoder.dateDecodingStrategy = .iso8601
-    do {
-      let reply: Reply = try OwlStorageHost(dataDir: configuration.stateRoot).call("resource_contract_active",
-        ["stateRoot": configuration.stateRoot.path, "inputKind": inputKind.rawValue], decoder: decoder)
-      return reply.state
-    } catch let error as OwlAppCore.Failure { throw OwlResourceBusiness.map(error) }
-  }
-
-  private struct Generation: Decodable {
-    let resourcesPath: String
-    let contentID: String
-    var value: OwlRustResourceGeneration { OwlRustResourceGeneration(resourcesURL: URL(fileURLWithPath: resourcesPath, isDirectory: true), contentID: contentID) }
-  }
-  func activeGeneration() throws -> OwlRustResourceGeneration? {
-    struct Reply: Decodable { let generation: Generation? }
-    let reply: Reply = try OwlResourceBusiness.call("active_generation", ["stateRoot": configuration.stateRoot.path,
-      "libraryRoot": configuration.libraryRoot.path, "inputKind": Self.activeInputKind.rawValue])
-    return reply.generation?.value
-  }
-  func validatedGeneration(_ record: OwlRustResourceRecord) throws -> OwlRustResourceGeneration {
-    let reply: Generation = try OwlResourceBusiness.call("validated", ["libraryRoot": configuration.libraryRoot.path, "record": OwlAppCore.payload(record)])
-    return reply.value
-  }
-}
-
-struct OwlRustDictPackPreparedResources: Codable, Equatable, Sendable {
-  let resource: OwlRustResourcePrepared
-  let stats: OwlRustResourceBuildStats
-
-  var version: Int { resource.record.manifest.version }
-  var licenseIdentifiers: [String] {
-    resource.record.manifest.license.map(\.identifier).sorted()
-  }
-}
-
-struct OwlDictPackCandidate: Equatable, Sendable {
-  let version: Int
-  let digest: String
-  let licenseIdentifiers: [String]
-  let pinyinEntries: Int
-  let wubiEntries: Int
-  let englishEntries: Int
-  let rejectedEntries: Int
-
-  init(prepared: OwlRustDictPackPreparedResources) {
-    version = prepared.version
-    digest = prepared.resource.record.digest
-    licenseIdentifiers = prepared.licenseIdentifiers
-    pinyinEntries = prepared.stats.pinyinEntries
-    wubiEntries = prepared.stats.wubiEntries
-    englishEntries = prepared.stats.englishEntries
-    rejectedEntries = prepared.stats.rejectedPinyinEntries
-      + prepared.stats.rejectedWubiEntries
-      + prepared.stats.rejectedEnglishEntries
-  }
-}
-
-/// An update is the same immutable compatibility set shipped by this binary.
-/// Never rebuild ordinary Pinyin from the legacy YAML download after activation.
 enum OwlRustCompatibleResources {
-  static var packageId: String { OwlResourceBusiness.catalog.packageId }
-  static var packageVersion: Int { OwlResourceBusiness.catalog.packageVersion }
-  static var configurationVersion: String { OwlResourceBusiness.catalog.configurationVersion }
-  static var wubiDictionaryDigest: String { OwlResourceBusiness.catalog.wubiDictionaryDigest }
-  static var requiredFiles: [String] { OwlResourceBusiness.catalog.requiredFiles }
-
-  static func build(sharedSupport: URL, at root: URL, version: Int) throws -> OwlRustResourcePackageBuild {
-    struct Reply: Decodable { let manifest: OwlRustResourceManifest; let stats: OwlRustResourceBuildStats }
-    let reply: Reply = try OwlResourceBusiness.call("build", ["sharedSupport": sharedSupport.path, "root": root.path, "version": version])
-    return OwlRustResourcePackageBuild(root: root, manifest: reply.manifest, stats: reply.stats)
+  struct Catalog: Decodable, Sendable {
+    let packageId: String
+    let packageVersion: Int
+    let configurationVersion: String
+    let wubiDictionaryDigest: String
+    let requiredFiles: [String]
+    let notices: [String]
+    let models: [OwlRerankModelDescriptor]
   }
-  static func validate(at root: URL, manifest: OwlRustResourceManifest, requireCompleteMarker: Bool) throws {
-    let _: Bool = try OwlResourceBusiness.call("compatible", ["root": root.path, "manifest": OwlAppCore.payload(manifest), "complete": requireCompleteMarker])
+
+  static let catalog: Catalog = OwlAppCore.required(["operation": "resource_catalog"])
+
+  static var packageId: String { catalog.packageId }
+  static var packageVersion: Int { catalog.packageVersion }
+  static var configurationVersion: String { catalog.configurationVersion }
+  static var wubiDictionaryDigest: String { catalog.wubiDictionaryDigest }
+  static var requiredFiles: [String] { catalog.requiredFiles }
+  static var notices: [String] { catalog.notices }
+  static var models: [OwlRerankModelDescriptor] { catalog.models }
+  static var contentID: String {
+    let digestHex = wubiDictionaryDigest.replacingOccurrences(of: "sha256:", with: "")
+    return "bundled-v\(packageVersion)-\(digestHex)"
+  }
+
+  static func bundledResourcesURL(sharedSupport: URL? = Bundle.main.sharedSupportURL) throws -> URL {
+    guard let sharedSupport else {
+      throw OwlRustResourceError.sharedSupportUnavailable
+    }
+    return sharedSupport.appendingPathComponent("msime", isDirectory: true)
+  }
+
+  static func validateBundledResources(
+    sharedSupport: URL? = Bundle.main.sharedSupportURL
+  ) throws -> OwlRustResourceGeneration {
+    let msimeURL = try bundledResourcesURL(sharedSupport: sharedSupport)
+    var isDir: ObjCBool = false
+    guard FileManager.default.fileExists(atPath: msimeURL.path, isDirectory: &isDir),
+          isDir.boolValue else {
+      throw OwlRustResourceError.directoryMissing(msimeURL.path)
+    }
+    for relativePath in requiredFiles {
+      let fileURL = msimeURL.appendingPathComponent(relativePath, isDirectory: false)
+      guard FileManager.default.fileExists(atPath: fileURL.path) else {
+        throw OwlRustResourceError.fileMissing(relativePath)
+      }
+      let values = try? fileURL.resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey])
+      guard values?.isRegularFile == true, values?.isSymbolicLink != true else {
+        throw OwlRustResourceError.fileNotRegular(relativePath)
+      }
+    }
+    return OwlRustResourceGeneration(
+      resourcesURL: msimeURL,
+      contentID: contentID
+    )
   }
 }
 
-extension OwlRustEngineIdentity {
-  static var owlRustNativeInputV1: Self { OwlResourceBusiness.catalog.nativeEngine }
-  static var owlRustResourceV1: Self { OwlResourceBusiness.catalog.legacyEngine }
+struct OwlRustResourceEnvironment: Sendable {
+  let userRoot: URL
+  let sharedSupportURL: URL?
+  let store: OwlRustResourceStore
+
+  static func production(
+    userRoot: URL = OwlApp.userDir,
+    sharedSupportURL: URL? = Bundle.main.sharedSupportURL
+  ) -> Self {
+    let store = OwlRustResourceStore(userRoot: userRoot, sharedSupportURL: sharedSupportURL)
+    return Self(userRoot: userRoot, sharedSupportURL: sharedSupportURL, store: store)
+  }
+
+  func activeGeneration() throws -> OwlRustResourceGeneration {
+    try store.resolveBundledGeneration()
+  }
 }

@@ -44,7 +44,6 @@ cargo test -p owl-msime-ffi
 
 ```sh
 python3 scripts/verify.py swift \
-  --test OwlUserMigrationTests \
   --test OwlUserDictResetTests \
   --test OwlInputHabitsTests \
   --test OwlInputHabitsIntegrationTests \

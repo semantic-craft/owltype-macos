@@ -14,6 +14,7 @@ msime-engine = { path = "../engine" }
 msime-input-runtime = { path = "../input-runtime" }
 msime-client-core = { path = "../client-core" }
 msime-path-trust = { path = "../path-trust" }
+owl-app-core = { path = "../owl-app-core" }
 rusqlite = { workspace = true, features = ["bundled", "backup"] }
 serde.workspace = true
 serde_json.workspace = true

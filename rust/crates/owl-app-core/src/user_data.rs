@@ -209,14 +209,6 @@ fn reset<H: Host>(host: &mut H, timestamp: &str) -> Result<Value> {
 }
 pub fn dispatch<H: Host>(host: &mut H, operation: &str, args: Value) -> Result<Value> {
     match operation {
-        "user_migration_limitations" => {
-            serde_json::from_str(include_str!("user_migration_limitations.json"))
-                .map_err(|_| "invalid_payload".into())
-        }
-        "user_migration_import" => crate::user_migration::import(host, args),
-        "user_migration_stage" => crate::user_migration::stage(host, args),
-        "user_migration_scan" => crate::user_migration::scan(host),
-        "user_migration_plan" => crate::user_migration::plan(args),
         "user_reset_items" => match reset_items(host) {
             Ok(items) => Ok(json!({"removedItems":items})),
             Err(e) => Ok(reset_error("inspection", "msime-user", e, None)),

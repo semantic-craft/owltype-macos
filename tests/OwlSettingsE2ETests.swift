@@ -53,78 +53,14 @@ final class OwlSettingsE2EContractTests: XCTestCase {
     OwlFuzzyPreferences.chc = true
     OwlFuzzyPreferences.anang = true
 
-    let snapshot = OwlKeyboardSnapshot.current()
-    XCTAssertEqual(snapshot.inputMethod, .wubi)
-    XCTAssertEqual(snapshot.wubiScheme, .pinyinMix)
-    XCTAssertEqual(snapshot.doublePinyin, .mspy)
-    XCTAssertFalse(snapshot.shiftSwitchCJK)
-    XCTAssertEqual(snapshot.pageSize, 9)
-    XCTAssertTrue(snapshot.slashSymbolMenu)
-    XCTAssertEqual(snapshot.appEnglishBundleIDs, ["com.apple.Terminal"])
-    XCTAssertEqual(snapshot.fuzzy.enabledCount, 3)
-
-    let dataDir = try makeTempDir()
-    let written = try OwlManagedKeyboardPatchPlan.apply(
-      snapshot: snapshot,
-      writer: OwlConfigWriter(dataDir: dataDir),
-      timestamp: "20260622-settings-e2e"
-    )
-
-    XCTAssertEqual(written, [
-      "default.custom.yaml",
-      "owltype.custom.yaml",
-      "rime_ice.custom.yaml",
-      "wubi86_jidian.custom.yaml",
-      "wubi86_jidian_pinyin.custom.yaml",
-      "wubi86_jidian_trad.custom.yaml",
-      "wubi86_jidian_trad_pinyin.custom.yaml",
-    ])
-
-    let defaultPatch = try read("default.custom.yaml", in: dataDir)
-    XCTAssertTrue(defaultPatch.contains("wubi86_jidian_trad_pinyin"))
-    XCTAssertTrue(defaultPatch.contains("\"menu/page_size\": 9"))
-    XCTAssertFalse(defaultPatch.contains("\"ascii_composer/switch_key/Shift_L\": commit_code"))
-    XCTAssertFalse(defaultPatch.contains("\"ascii_composer/switch_key/Shift_R\": commit_code"))
-    XCTAssertTrue(defaultPatch.contains("toggle: ascii_punct"))
-    XCTAssertTrue(defaultPatch.contains("accept: minus"))
-    XCTAssertTrue(defaultPatch.contains("accept: bracketleft"))
-    XCTAssertTrue(defaultPatch.contains("accept: comma"))
-    XCTAssertTrue(defaultPatch.contains("send: 2"))
-    XCTAssertTrue(defaultPatch.contains("send: 3"))
-    XCTAssertTrue(defaultPatch.contains("\"punctuator/half_shape/+\":"))
-    XCTAssertTrue(defaultPatch.contains("\"punctuator/full_shape/+\":"))
-    XCTAssertTrue(defaultPatch.contains("\"/\": [\"、\", \"/\", \"／\", \"÷\"]"))
-    // app_options moved to the owltype domain (task 07-08): NOT in default anymore — it lives in
-    // owltype.custom.yaml, the only domain OwlConfig.getAppOptions reads.
-    XCTAssertFalse(defaultPatch.contains("app_options/"))
-    let owlPatch = try read("owltype.custom.yaml", in: dataDir)
-    XCTAssertTrue(owlPatch.contains("\"app_options/com.apple.Terminal/ascii_mode\": true"))
-    XCTAssertFalse(owlPatch.contains("bad:key"))
-    XCTAssertFalse(defaultPatch.contains("Super_L"))
-
-    let rimeIcePatch = try read("rime_ice.custom.yaml", in: dataDir)
-    XCTAssertTrue(rimeIcePatch.contains("\"speller/algebra/+\""))
-    XCTAssertTrue(rimeIcePatch.contains("derive/^zh/z/"))
-    XCTAssertTrue(rimeIcePatch.contains("derive/^ch/c/"))
-    XCTAssertTrue(rimeIcePatch.contains("derive/an$/ang/"))
-
-    for name in [
-      "wubi86_jidian.custom.yaml",
-      "wubi86_jidian_pinyin.custom.yaml",
-      "wubi86_jidian_trad.custom.yaml",
-      "wubi86_jidian_trad_pinyin.custom.yaml",
-    ] {
-      let patch = try read(name, in: dataDir)
-      XCTAssertTrue(patch.contains("\"translator/comment_format\": []"), name)
-      XCTAssertTrue(patch.contains("\"reverse_lookup/comment_format\": []"), name)
-      XCTAssertTrue(patch.contains("\"reverse_lookup/prefix\": \"z\""), name)
-      XCTAssertTrue(patch.contains("\"speller/auto_clear\": max_length"), name)
-      XCTAssertTrue(patch.contains("lua_filter@*wubi86_jidian_single_char_only"), name)
-      XCTAssertFalse(patch.contains("lua_filter@*wubi86_jidian_single_char_first_filter"), name)
-      XCTAssertTrue(patch.contains("\"punctuator/half_shape/+\":"), name)
-      XCTAssertTrue(patch.contains("\"punctuator/full_shape/+\":"), name)
-      XCTAssertTrue(patch.contains("\"/\": [\"、\", \"/\", \"／\", \"÷\"]"), name)
-    }
+    XCTAssertEqual(OwlKeyboardPreferences.inputMethod, .wubi)
+    XCTAssertEqual(OwlKeyboardPreferences.wubiScheme, .pinyinMix)
+    XCTAssertEqual(OwlKeyboardPreferences.doublePinyin, .mspy)
+    XCTAssertFalse(OwlKeyboardPreferences.shiftSwitchCJK)
+    XCTAssertEqual(OwlKeyboardPreferences.pageSize, 9)
+    XCTAssertTrue(OwlKeyboardPreferences.slashSymbolMenu)
+    XCTAssertEqual(OwlKeyboardPreferences.appEnglishBundleIDs, ["com.apple.Terminal"])
+    XCTAssertEqual(OwlFuzzySnapshot.current().enabledCount, 3)
 
     XCTAssertEqual(OwlCommitTransform.apply(to: "猫头鹰AI第3条"), "猫头鹰 AI 第 3 条")
     XCTAssertEqual(OwlCommitTransform.apply(to: "1. 第一项\n"), "1. 第一项\n")
@@ -140,7 +76,6 @@ final class OwlSettingsE2EContractTests: XCTestCase {
     panelSettings.edit(.animationsEnabled(false), state: panelEditingState, onChange: {})
     panelSettings.edit(.skin(.wuda), state: panelEditingState, onChange: {})
     OwlCloudPreferences.isEnabled = true
-    OwlCloudPreferences.provider = .deepSeek
     OwlCloudPreferences.deepSeekModel = "deepseek-reasoner"
 
     XCTAssertEqual(panelSettings.snapshot().appearance, .dark)
@@ -150,7 +85,6 @@ final class OwlSettingsE2EContractTests: XCTestCase {
     XCTAssertFalse(panelSettings.snapshot().animationsEnabled)
     XCTAssertEqual(panelSettings.snapshot().skin, .wuda)
     XCTAssertTrue(OwlCloudPreferences.isEnabled)
-    XCTAssertEqual(OwlCloudPreferences.provider, .deepSeek)
     XCTAssertEqual(OwlCloudPreferences.deepSeekModel, OwlCloudPreferences.reasonerDeepSeekModel)
   }
 
@@ -160,18 +94,14 @@ final class OwlSettingsE2EContractTests: XCTestCase {
     let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
     defer { defaults.removePersistentDomain(forName: suiteName) }
 
-    let quickEntry = try OwlQuickSendStore.entry(text: "猫头鹰测试", code: "mtycs")
-    try OwlQuickSendStore.save(
-      [quickEntry],
-      writer: OwlConfigWriter(dataDir: dataDir),
-      timestamp: "20260622-settings-e2e"
+    var template = OwlTemplateEntry(title: "猫头鹰测试", body: "猫头鹰测试")
+    template.trigger = "mtycs"
+    template.invocationMode = .candidate
+    try OwlTemplateStore.save(
+      OwlTemplateLibrary(entries: [template]),
+      dataDir: dataDir
     )
-    // load reads the JSON source of truth: exactly the saved entries. The derived table carries
-    // the same bare code (no prefix — ` collides with rime-ice's radical-search lead key).
-    XCTAssertEqual(OwlQuickSendStore.load(dataDir: dataDir), [quickEntry])
-    XCTAssertTrue(try read("owl_quick_send.txt", in: dataDir).contains("猫头鹰测试\tmtycs\t100000"))
-    XCTAssertFalse(try read("owl_quick_send.txt", in: dataDir).contains("`mtycs"))
-    XCTAssertTrue(try read("rime_ice.custom.yaml", in: dataDir).contains("table_translator@owl_quick_send"))
+    XCTAssertEqual(try OwlTemplateStore.load(dataDir: dataDir).entries, [template])
 
     XCTAssertFalse(OwlClipboardStore.isEnabled(defaults: defaults))
     OwlClipboardStore.setEnabled(true, defaults: defaults)
@@ -180,40 +110,6 @@ final class OwlSettingsE2EContractTests: XCTestCase {
     XCTAssertEqual(clipboard.map(\.text), ["判决摘要"])
     try OwlClipboardStore.clear(root: dataDir)
     XCTAssertTrue(OwlClipboardStore.load(root: dataDir).isEmpty)
-  }
-
-  func testQuickSendExamplesAreValidAndEnableRoundtripsToRimePatch() throws {
-    // Every built-in example is a valid quick-send entry (construct via the store's validating
-    // factory so a malformed example fails here), with no newline/Tab and unique codes.
-    var seenCodes = Set<String>()
-    for example in OwlQuickSendExamples.all {
-      let rebuilt = try OwlQuickSendStore.entry(text: example.entry.text, code: example.entry.code)
-      XCTAssertEqual(rebuilt, example.entry, "example \(example.tool) must already be normalized")
-      XCTAssertFalse(example.entry.text.contains("\n"), example.tool)
-      XCTAssertFalse(example.entry.text.contains("\t"), example.tool)
-      XCTAssertNotNil(
-        example.entry.code.range(of: #"^[a-z][a-z0-9]{0,31}$"#, options: .regularExpression),
-        "example code \(example.entry.code) must be valid"
-      )
-      XCTAssertTrue(seenCodes.insert(example.entry.code).inserted, "duplicate example code \(example.entry.code)")
-    }
-
-    // Enabling an example == saving entries that include its `entry`: it roundtrips through `load`
-    // as exactly itself, while the generated TSV + rime_ice patch carry the command under its
-    // bare code (full-code trigger; enable_completion stays off in the patch).
-    let dataDir = try makeTempDir()
-    let claude = try XCTUnwrap(OwlQuickSendExamples.all.first { $0.tool == "Claude Code" })
-    try OwlQuickSendStore.save(
-      [claude.entry],
-      writer: OwlConfigWriter(dataDir: dataDir),
-      timestamp: "20260630-quick-send-examples"
-    )
-    XCTAssertEqual(OwlQuickSendStore.load(dataDir: dataDir), [claude.entry])
-    let table = try read("owl_quick_send.txt", in: dataDir)
-    XCTAssertTrue(table.contains("claude --dangerously-skip-permissions\tyocc\t100000"))
-    XCTAssertFalse(table.contains("`yocc"))
-    XCTAssertFalse(table.contains("\tvyocc\t"))
-    XCTAssertTrue(try read("rime_ice.custom.yaml", in: dataDir).contains("table_translator@owl_quick_send"))
   }
 
   private func makeTempDir() throws -> URL {
@@ -346,7 +242,6 @@ final class OwlSettingsE2EContractTests: XCTestCase {
     "OwlPanelAnimations",
     "OwlSkin",
     "OwlCloudLaneEnabled",
-    "OwlCloudProvider",
     "OwlDeepSeekModel",
     "OwlDeepSeekEndpoint",
   ]

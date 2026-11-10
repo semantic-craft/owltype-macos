@@ -6,15 +6,15 @@ Owltype. This includes Swift configuration and candidate handling. It does not
 launch or install either input method, load personal preferences, or read a
 personal dictionary. Every replay creates new temporary learning state.
 
-The reference source is `macos-v0.55.0`, commit
-`208c10e848bbed99373ca8b609fd2142b6b0b4e2`. The machine's installed MSIME was
-confirmed as version 0.55.0; the selected reference is a source-built Host API,
+The reference source is `macos-v0.59.1`, commit
+`d72bf12105469f4faeb94213404d9abc84ff799f`. The machine's installed MSIME was
+confirmed as version 0.59.1; the selected reference is a source-built Host API,
 not the installed IMK executable. The resource manifest and every file used
 from the selected public desktop resource bundle are pinned by SHA-256 in
 [baseline.json](../../tests/fixtures/pinyin-parity/baseline.json), including the
 bigram/trigram and sentence models. The manifest identifies dictionary release
-`dict-v2.0.39`, builder commit `8bb181be2ed36ed9559a87434cc4c9048077ff29` and
-custom dictionary commit `75978c6a6470171cc805c74e87ef465d894a7be4`.
+`dict-v2.1.2`, builder commit `24852caa38e76f316cac69fd3fdba0d428d4d249` and
+custom dictionary commit `c239ba1a584511d15d33ff9c1c520897993f2013`.
 
 The default `native-mac-host` profile preserves `prepare_host` preferences and
 adds the three boolean capabilities requested by the pinned macOS

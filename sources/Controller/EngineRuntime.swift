@@ -24,7 +24,7 @@ final class EngineRuntime {
   /// The single owner of the global engine lifecycle. Controllers obtain their per-composition
   /// session from it. Swappable so tests can inject a fake; replace the engine, never the runtime,
   /// because controllers hold the runtime they were created with.
-  var engine: InputEngine
+  var engine: OwlRustEngine
   /// User data root: deploy inputs, the template-migration journal and the Rust user data.
   let userDirectory: URL
   private let sharedSupportURL: URL?
@@ -51,7 +51,7 @@ final class EngineRuntime {
   private var liveSessionRefreshCompletions: [@MainActor () -> Void] = []
 
   init(
-    engine: InputEngine = OwlRustEngine.makeConfiguredEngine(),
+    engine: OwlRustEngine = OwlRustEngine.makeConfiguredEngine(),
     userDirectory: URL = OwlApp.userDir,
     sharedSupportURL: URL? = Bundle.main.sharedSupportURL
   ) {
@@ -124,35 +124,16 @@ final class EngineRuntime {
     let trace = OwlLatencyTrace.begin("deploy.startEngine")
     defer { OwlLatencyTrace.end("deploy.startEngine", trace) }
     print("Initializing the Rust input engine...")
-    guard !templateRecoveryBlocksDeployment() else { return false }
     // check for configuration updates
     let maintained = engine.startMaintenance(fullCheck: fullCheck)
     if maintained {
       OwlLatencyTrace.event("deploy.maintenanceStarted")
-    }
-    // update Owltype frontend config — UNCONDITIONALLY: rime's detect_modifications does not
-    // track owltype.custom.yaml, so a owltype-domain-only change (App 默认英文 add) leaves
-    // maintenance with "nothing to do" and used to skip this deploy entirely — the write
-    // then never reached build/owltype.yaml even via 重新部署 (#121 真机验收逮住).
-    // config_file_update is fingerprint-gated → free when unchanged.
-    _ = engine.deployConfigFile(OwlEngineIdentity.configFile, versionKey: "config_version")
-    OwlLatencyTrace.event("deploy.configFile")
-    if maintained {
       return true
     } else {
       print("Owltype: deploy failed during Rime maintenance.")
       Self.deployLog.error("start_maintenance failed (fullCheck=\(fullCheck, privacy: .public)) — installation_update/detect_modifications refused; see the engine log in \(OwlApp.logDir.path, privacy: .public)")
       return false
     }
-  }
-
-  /// While a template migration journal is unresolved, its target files (template dict,
-  /// rime_ice.custom.yaml, …) may be half-written. Typing keeps running on the last compiled
-  /// `build/`; only recompiling from those sources waits until recovery succeeds.
-  private func templateRecoveryBlocksDeployment() -> Bool {
-    guard OwlTemplateMigration.hasPendingRecovery(dataDir: userDirectory) else { return false }
-    Self.deployLog.error("template migration recovery pending — skipped Rime deployment, serving the last build")
-    return true
   }
 
   // MARK: - Config cache and style flags
@@ -238,7 +219,6 @@ final class EngineRuntime {
   /// `directory` overrides where the patches are written (tests); nil means `userDirectory`.
   func applyKeyboardSettings(
     _ mode: OwlKeyboardSettingsApplication.Mode,
-    snapshot: OwlKeyboardSnapshot = .current(),
     directory: URL? = nil
   ) throws -> OwlKeyboardSettingsApplication.Outcome {
     try OwlKeyboardSettingsApplication(
@@ -248,7 +228,7 @@ final class EngineRuntime {
         self.loadSettings()
         MainActor.assumeIsolated { self.requestLiveSessionRefreshWhenIdle {} }
       }
-    ).apply(snapshot, mode: mode)
+    ).apply(mode: mode)
   }
 
   // MARK: - Live sessions
@@ -367,70 +347,6 @@ extension EngineRuntime {
         \(error.localizedDescription, privacy: .public), redeploy=\(redeployed, privacy: .public)
         """)
       return OwlUserDictReset.failureMessage(error: error, redeployed: redeployed)
-    }
-  }
-
-  /// Imports Rime's stable userdb text snapshots into the Rust journal.
-  ///
-  /// Planning and staging happen before shutdown, so a missing or changing snapshot leaves
-  /// typing untouched. Once shutdown begins, every exit path restarts the engine.
-  func migrateLegacyUserData() -> String {
-    let trace = OwlLatencyTrace.begin("migrate.rimeUserData")
-    defer { OwlLatencyTrace.end("migrate.rimeUserData", trace) }
-    let userRoot = userDirectory
-    let rustUserRoot = userRoot.appendingPathComponent("msime-user", isDirectory: true)
-    let staged: OwlUserMigrationStageResult
-    do {
-      let pinsData = try JSONEncoder().encode(OwlPinnedWords.shared.words)
-      let plan = try OwlUserMigration.makePlan(
-        userData: userRoot,
-        pinnedWordsData: pinsData,
-        syncDirectory: OwlSyncSettings(dataDir: userRoot).currentSyncDirectory()
-      )
-      guard !plan.captures.isEmpty || !plan.manifest.pins.isEmpty else {
-        return "没有找到旧版稳定快照或置顶词；请确认旧版猫头鹰的同步目录和设置。"
-      }
-      try FileManager.default.createDirectory(
-        at: rustUserRoot,
-        withIntermediateDirectories: true,
-        attributes: [.posixPermissions: 0o700]
-      )
-      staged = try OwlUserMigrationStage.prepare(
-        plan,
-        in: rustUserRoot
-      )
-    } catch {
-      let reason = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
-      Self.deployLog.error(
-        "legacy user migration staging FAILED: \(reason, privacy: .public)"
-      )
-      return "迁移准备失败，输入引擎未中断：\(reason)"
-    }
-
-    let run = whileStopped {
-      try OwlUserMigrationImport.run(staged, userRoot: userRoot)
-    }
-    switch run {
-    case .blocked:
-      Self.deployLog.error(
-        "legacy user migration BLOCKED: Rust engine still has live sessions; nothing imported"
-      )
-      return "迁移失败：Rust 引擎仍有活动会话，未写入迁移数据。请重新打开猫头鹰后再试。"
-    case .finished(.success(let outcome), let restarted):
-      Self.deployLog.notice("""
-        legacy user migration succeeded: sources=\(outcome.report.sourceCount, privacy: .public) \
-        records=\(outcome.report.recordCount, privacy: .public) \
-        written=\(outcome.report.entriesWritten, privacy: .public) \
-        pins=\(outcome.report.pinsWritten, privacy: .public) \
-        restart=\(restarted, privacy: .public)
-        """)
-      return OwlUserMigrationImport.successMessage(outcome, engineRestarted: restarted)
-    case .finished(.failure(let error), let restarted):
-      Self.deployLog.error("""
-        legacy user migration FAILED: \(error.localizedDescription, privacy: .public), \
-        restart=\(restarted, privacy: .public)
-        """)
-      return OwlUserMigrationImport.failureMessage(error, engineRestarted: restarted)
     }
   }
 

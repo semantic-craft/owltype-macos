@@ -86,7 +86,7 @@ struct OwlEmojiPanelView: View {
         Image(systemName: "xmark").font(.system(size: 12, weight: .medium)).foregroundStyle(palette.ink3)
           .frame(width: 26, height: 26)
       }
-      .buttonStyle(.plain)
+      .buttonStyle(.owlPlain)
       .accessibilityLabel("关闭")
     }
     .padding(.horizontal, 12)
@@ -124,7 +124,7 @@ struct OwlEmojiPanelView: View {
         Rectangle().fill(selected ? palette.accent : Color.clear).frame(height: 2)
       }
     }
-    .buttonStyle(.plain)
+    .buttonStyle(.owlPlain)
     .accessibilityLabel(tab.label)
     .accessibilityAddTraits(selected ? [.isButton, .isSelected] : .isButton)
   }

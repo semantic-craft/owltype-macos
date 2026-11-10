@@ -55,7 +55,7 @@ struct OwlPolishStyleBar: View {
           )
           .foregroundColor(isSelected ? palette.accent : palette.ink)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(.owlPlain)
         .disabled(isDisabled)
         .help(style.subtitle)
       }

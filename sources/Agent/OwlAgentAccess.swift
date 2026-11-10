@@ -41,7 +41,7 @@ final class OwlAgentAccess: NSObject, OwlAgentBridgeService {
   }
   /// The active dictionary resource generation; called on the bridge queue.
   var resourceGeneration: () -> String = {
-    (try? OwlRustResourceEnvironment.production().activeState()?.current.generationId) ?? "bundled"
+    (try? OwlRustResourceEnvironment.production().activeGeneration().contentID) ?? "bundled"
   }
   /// The template library, read on the bridge queue; a library not yet migrated reads as empty.
   var loadLibrary: () throws -> OwlTemplateLibrary = {

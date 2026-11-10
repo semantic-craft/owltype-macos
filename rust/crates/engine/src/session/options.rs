@@ -9,8 +9,8 @@ use crate::types::{
     CandidateSource, CommandTableEntry, EnglishInputOptions, FrequencyAdjustmentOptions,
     FuzzyPinyinOptions, LocalInputMode, LocalModeOptions, MentionEntry, MixedExpressiveOptions,
     PluginCommand, QuickPhraseEntry, SchemeSet, SchemeType, SentenceAssociationOptions,
-    ShuangpinCustomTable, ShuangpinHelpcodeModes, ShuangpinProfileKind, WordItem, WubiInputOptions,
-    DEFAULT_FIRST_PAGE_ROWS,
+    ShuangpinCustomTable, ShuangpinHelpcodeModes, ShuangpinProfileKind, TextConversion, WordItem,
+    WubiInputOptions, DEFAULT_FIRST_PAGE_ROWS,
 };
 use crate::vietnamese::{InputMethod as VietnameseInputMethod, ToneStyle as VietnameseToneStyle};
 
@@ -26,6 +26,8 @@ pub struct SessionOptions {
     pub shuangpin_custom_profile: Option<ShuangpinCustomTable>,
     /// Shuangpin preedit shows the typed keys rather than the decoded quanpin.
     pub shuangpin_preedit_uses_raw: bool,
+    /// 双拼预编辑显示原始按键（`shuangpin_preedit_uses_raw` 为真）时，按音节在按键之间插 `'`（自然码 `nimf` 显示为 `ni'mf`），不展开成全拼。`shuangpin_preedit_uses_raw` 为假时不读它。
+    pub shuangpin_preedit_separated: bool,
     /// How the Vietnamese scheme spells marks: Telex letters or VNI digits.
     pub vietnamese_input_method: VietnameseInputMethod,
     /// Where the Vietnamese scheme puts the tone on `oa`, `oe` and `uy`.
@@ -34,6 +36,10 @@ pub struct SessionOptions {
     pub korean_layout: crate::KoreanLayout,
     /// Where `msime-cantonese.db` is; empty when the host has none. Read only when Cantonese is activated, which fails without it.
     pub cantonese_dictionary: PathBuf,
+    /// 独立粤语双拼入口强制按两键码解释，普通粤拼入口仍按现有规则自动识别。
+    pub force_cantonese_shuangpin: bool,
+    /// 粤拼候选上屏前经过的转换；`None` 照词库原样输出（繁体）。宿主在用户选了粤拼输出简体时传入繁转简，转换后同一读音段里字面相同的候选只留第一条。
+    pub cantonese_output_conversion: Option<TextConversion>,
     /// Where `msime-zhuyin.db` is; empty when the host has none. Read only when Zhuyin is activated, which fails without it.
     pub zhuyin_dictionary: PathBuf,
     /// Where `msime-stroke.db` is; empty when the host has none. Read only when Stroke is activated, which fails without it.
@@ -47,11 +53,17 @@ pub struct SessionOptions {
     pub helpcode_table: Option<SharedKeymap>,
     /// 内置辅助码表缺失时使用的随包资源根目录。
     pub helpcode_fallback_resources: Option<PathBuf>,
+    /// 用户自己的辅助码表所在的根目录（宿主的状态根）：`custom/<stem>` 先读这里的 `helpcodes/custom`，没有时再读资源目录里的。只认绝对路径。
+    pub custom_helpcode_root: Option<PathBuf>,
     /// `autocorrect_type` bits; 0 keeps the user's spelling. Either of transposition and neighbor also enables missing and extra letters, and on inputs of three or more complete syllables offers a sentence that reads one syllable as a typo. Committing the raw letters while a correction is offered turns correction off for that exact input.
     pub autocorrect_types: u32,
     pub helpcode: bool,
+    /// 一码辅助码严格筛选，默认关闭以保持原有重排行为。
+    pub strict_quanpin_helpcode: bool,
     /// 双拼辅助码的触发方式（Windows `[helpcode]` 组的双拼专属键）；只在双拼方案下生效。
     pub shuangpin_helpcode_modes: ShuangpinHelpcodeModes,
+    /// 十四／十八键组码后可以放下分隔符输入辅助码（[`crate::Session::grid_helpcode`]），默认关；还要 `helpcode` 开着、码表非空。
+    pub grid_helpcode: bool,
     pub chinese_punctuation: bool,
     pub paired_punctuation: bool,
     /// 0 follows the mode, 1 forces Chinese, 2 forces ASCII.
@@ -59,14 +71,18 @@ pub struct SessionOptions {
     /// 中文标点下引号键和方头括号键出哪一组字，缺省是弯引号、实心括号。
     pub punctuation_marks: PunctuationMarks,
     pub learning: bool,
-    /// 回车上屏英文拼写时是否把它学进英文词库（Windows `input.enter_learns_english_word`，出厂为开）。
+    /// 回车（`Command::CommitRaw`）原样上屏时学英文词的总开关，缺省开。只开它时只学专用英文里打的词（参照实现的会话行为）；还要学别的原样上屏，再开 `learn_typed_spellings_on_enter`。方案集合不要求 `msime-english.db`（`SchemeSet::requires_english_dictionary`）、代次里也没有它时什么也不学。
     pub learn_english_on_enter: bool,
+    /// 回车原样上屏时，专用英文之外也把上屏的字母学成英文词（msime 产品的策略，Windows `input.enter_learns_english_word`）：临时模式里原样上屏的字母（去掉入口字母；临时日文的词前面加 `R`），以及全拼、双拼里拼不成完整音节的拼音。九宫格组字（九键是数字，14 键是首选）、整句改字、生成文本的本地模式（计算、指令、名单）和网址都不学。要 `learn_english_on_enter` 也开着才生效。学不进去时上屏照旧，结果带 `ENGLISH_WORD_NOT_LEARNED` 诊断。缺省关：引擎库的回车只在专用英文里学词，msime 自己的宿主打开它。`Command::CommitRawWithoutLearning` 不受它影响。
+    pub learn_typed_spellings_on_enter: bool,
     /// Hand back every whole-sentence reading instead of only the best. A host that sets this must reorder and crop them itself.
     pub sentence_alternatives: bool,
     /// 宿主的每页候选数（`candidate_page_size`）：全长组的精确同音词够这么多行就不再并入更长的补全词。0 到请求里会归一成 1。
     pub first_page_rows: usize,
     /// 只出单字：中文方案的候选去掉含汉字的词和整句、只留单个汉字（见 [`SchemeType::filters_to_single_characters`]），选一个字后剩下的拼写接着组字。
     pub single_character_only: bool,
+    /// 移动光标后编辑光标后的部分（默认关）：全拼、双拼的组字光标停在中间时，光标前的原文固定为它当前的最佳转换，候选是光标后那段原文的候选，首选前面接上固定的部分；选中一条只消耗它的音节，固定部分和已选部分一起留到组字结束。规则见 `session/caret_edit.rs`。
+    pub caret_edit_suffix: bool,
     pub fuzzy_pinyin: FuzzyPinyinOptions,
     pub frequency: FrequencyAdjustmentOptions,
     pub local_modes: LocalModeOptions,
@@ -105,7 +121,9 @@ pub struct SessionOptions {
 }
 
 impl SessionOptions {
-    /// The reference defaults (session.h:12-54) on the given paths.
+    /// 引擎库唯一的一套默认值，建在给定路径上。大部分沿用参照实现（session.h:12-54）：全拼、小鹤、学习开、个人上下文开、中文标点和成对标点开、频率按 `FrequencyAdjustmentOptions::default()`，回车只在专用英文里学英文词（`learn_typed_spellings_on_enter` 关）。与参照实现不同的只有辅助码：默认关，表名默认 `wubi86`。随仓库的七张辅助码表里只有 `wubi86` 写明了来源与许可（`resources/helpcodes/NOTICE-wubi86.md`），参照实现默认的 `lantian` 和产品默认的 `ziranma` 都没有再分发授权（`resources/helpcodes/NOTICE.md`），引擎库默认不读它们；要辅助码的嵌入方自己打开并选表。
+    ///
+    /// 产品不靠这套默认值：host 门面（`host::options::session_options`）逐字段给出产品取值，golden 基准在 `tests/golden_support` 里按参照实现补回辅助码。
     pub fn new(paths: RuntimePaths) -> Self {
         Self {
             paths,
@@ -114,29 +132,37 @@ impl SessionOptions {
             shuangpin_profile: ShuangpinProfileKind::Xiaohe,
             shuangpin_custom_profile: None,
             shuangpin_preedit_uses_raw: true,
+            shuangpin_preedit_separated: false,
             vietnamese_input_method: VietnameseInputMethod::Telex,
             vietnamese_tone_style: VietnameseToneStyle::Modern,
             korean_layout: crate::KoreanLayout::Dubeolsik,
             cantonese_dictionary: PathBuf::new(),
+            force_cantonese_shuangpin: false,
+            cantonese_output_conversion: None,
             zhuyin_dictionary: PathBuf::new(),
             stroke_dictionary: PathBuf::new(),
             japanese_dictionary: PathBuf::new(),
-            helpcode_schema: "lantian".to_owned(),
+            helpcode_schema: "wubi86".to_owned(),
             helpcode_trigger_key: None,
             helpcode_table: None,
             helpcode_fallback_resources: None,
+            custom_helpcode_root: None,
             autocorrect_types: 0,
-            helpcode: true,
+            helpcode: false,
+            strict_quanpin_helpcode: false,
             shuangpin_helpcode_modes: ShuangpinHelpcodeModes::default(),
+            grid_helpcode: false,
             chinese_punctuation: true,
             paired_punctuation: true,
             punctuation_lock: 0,
             punctuation_marks: PunctuationMarks::default(),
             learning: true,
             learn_english_on_enter: true,
+            learn_typed_spellings_on_enter: false,
             sentence_alternatives: false,
             first_page_rows: DEFAULT_FIRST_PAGE_ROWS,
             single_character_only: false,
+            caret_edit_suffix: false,
             fuzzy_pinyin: FuzzyPinyinOptions::default(),
             frequency: FrequencyAdjustmentOptions::default(),
             local_modes: LocalModeOptions::default(),
@@ -162,6 +188,15 @@ impl SessionOptions {
     }
 }
 
+/// 显式辅助码前导键（`SessionOptions::helpcode_trigger_key`）在组字里的显示位置。前导键只是会话里的状态，不进 `editing_text`，宿主画按键原文时按这里把它插回去，用户才看得见自己已经进了辅助码（#10731）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
+pub struct HelpcodeTrigger {
+    /// 前导键本身，ASCII 标点。
+    pub key: char,
+    /// 插在 `editing_text` 的第几个字节之前；后面是已经输入的辅助码（0 或 1 位）。
+    pub position: usize,
+}
+
 /// A value copy of the composition; safe to hand to another thread. `candidate_sources`, `candidate_annotations` and `candidate_answers_key` are aligned with `candidates`.
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct SessionSnapshot {
@@ -179,6 +214,8 @@ pub struct SessionSnapshot {
     /// The ASCII source text; `caret_position` is a byte offset into it.
     pub editing_text: String,
     pub caret_position: usize,
+    /// 前导键在等辅助码（还没输或只输了一位）时它在 `editing_text` 里的位置，否则为 `None`。显示快照的 `preedit` 已经把它紧挨着插在辅助码前面（`ni;`、全拼 `ni';F`），只插不删；`editing_text` 和光标不含它，前导键只在光标位于末尾时生效，所以光标总在它后面。
+    pub helpcode_trigger: Option<HelpcodeTrigger>,
     pub nine_key_spellings: Vec<String>,
     /// 九键组字时的读音行：首选候选覆盖的数字显示成它的拼音，其余数字按 `preedit` 原样显示（`xi'an`、`yi'c`、`ni'hao'9`）；首选不是拼音候选时为空。只用于显示，`preedit` 仍是数字。
     pub nine_key_reading: String,
@@ -186,6 +223,12 @@ pub struct SessionSnapshot {
     pub nine_key_single_character: bool,
     /// 九宫格候选按笔画筛选时所选的笔顺前缀（`hspnz`），否则为空。
     pub nine_key_strokes: String,
+    /// 这次组字能用网格辅助码（[`crate::Session::grid_helpcode`]）：十四／十八键拼音组码、开关和码表都在。
+    pub grid_helpcode_available: bool,
+    /// 放下分隔符后宿主画在读音后面的辅助码，如 `|Q[ER]`；没有分隔符时为空。不进预编辑，不上屏。
+    pub grid_helpcode_display: String,
+    /// 至少有一槽辅助码、候选是筛过的：宿主和 runtime 不能再跨行重排。只有分隔符时为假。
+    pub grid_helpcode_constrained: bool,
     /// The candidates came from the wubi mixed-pinyin fallback, not the wubi table.
     pub answered_by_pinyin_fallback: bool,
     pub wubi_unique_four_code: bool,
@@ -197,10 +240,16 @@ pub struct SessionSnapshot {
     pub candidate_annotations: Vec<String>,
     /// Whether each candidate answers the whole key rather than a prefix of it or a completion past it.
     pub candidate_answers_key: Vec<bool>,
+    /// 与 `candidates` 同序：九宫格标出的窄裁决点（`ordering::CONTEST_*`），runtime 的键盘模型只在首行带标记时于同种标记的行之间改首选。一行都没有标记时为空。
+    pub candidate_contest: Vec<u8>,
     /// The scheme's openable candidate list is showing (the Korean Hanja list). Hosts read this instead of inferring it from the scheme and a non-empty list.
     pub candidate_list_open: bool,
     /// 整句改字时改好的整句，否则为空。宿主在它非空时把它画在行内代替拼音。
     pub conversion: String,
     /// 整句改字的光标和光标处那一段，按 `conversion` 的字（Unicode 标量）计：光标在第 `.0` 个字之前，`.0..1` 是候选所替换的那一段；光标在句末时两者都等于字数。不在改字时为 `(0, 0)`。
     pub conversion_focus: (usize, usize),
+    /// 光标后编辑（`SessionOptions::caret_edit_suffix`）正在生效：候选是光标后那段的，首选前面接着 `caret_edit_prefix`。宿主据此显示模式提示。
+    pub caret_edit_suffix: bool,
+    /// 光标后编辑里首选前面固定的那段文字（已经交出去的部分加上光标前那段的最佳转换）。`candidates` 仍是光标后那段的行，首选显示为这段文字接上 `candidates[0].word`，宿主可以把这几个字画淡；选中首选时上屏的是光标前那段的转换接上这一行。模式不生效时为空。
+    pub caret_edit_prefix: String,
 }

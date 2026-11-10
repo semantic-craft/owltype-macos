@@ -15,7 +15,7 @@
 //  did, with the same arguments.
 //
 //  This is NOT a state machine — it carries no conversion state; it is a 1:1 description of the
-//  side effect to perform. The engine still owns all conversion state (`EngineComposition` via `EngineSeam`).
+//  side effect to perform. The engine still owns all conversion state (`EngineComposition` via `InputEngine`).
 //
 
 import InputMethodKit

@@ -7,6 +7,10 @@ use rusqlite::Connection;
 use super::glosses::{candidate_gloss_display, candidate_gloss_key};
 use super::*;
 use crate::types::{CandidateSource, SchemeType, WordItem};
+use crate::{
+    CommandTableEntry, DictionaryStateRecord, HelpcodeKeymap, MentionEntry, QuickPhraseEntry,
+    SentenceAssociationOptions,
+};
 
 fn options(root: &Path) -> EngineOptions {
     let path = |name| {
@@ -25,7 +29,11 @@ fn options(root: &Path) -> EngineOptions {
         shuangpin_profile: 0,
         shuangpin_custom_profile: None,
         shuangpin_preedit_uses_raw: true,
+        shuangpin_preedit_separated: false,
+        force_cantonese_shuangpin: false,
+        cantonese_output_conversion: None,
         single_character_only: false,
+        caret_edit_suffix: false,
         learning: false,
         learn_english_on_enter: true,
         next_word_prediction: false,
@@ -34,10 +42,13 @@ fn options(root: &Path) -> EngineOptions {
         fuzzy_pinyin_rules: 0,
         wubi_mixed_pinyin: false,
         wubi_z_wildcard: false,
+        wubi_reverse_code: true,
         wubi_profile: 0,
         helpcode: false,
+        strict_quanpin_helpcode: false,
         show_helpcode: true,
         shuangpin_helpcode_modes: crate::types::ShuangpinHelpcodeModes::default(),
+        grid_helpcode: false,
         helpcode_schema: "ziranma".into(),
         helpcode_trigger_key: None,
         chinese_punctuation: true,
@@ -67,6 +78,7 @@ fn options(root: &Path) -> EngineOptions {
         local_emoji: true,
         local_kaomoji: true,
         local_super_jianpin: true,
+        local_super_jianpin_slash: true,
         local_temporary_english: true,
         local_temporary_japanese: true,
         local_expression: false,
@@ -85,6 +97,7 @@ fn options(root: &Path) -> EngineOptions {
         quick_phrase_frequency: true,
         helpcode_table: None,
         helpcode_fallback_resources: None,
+        custom_helpcode_root: None,
         sentence_association: SentenceAssociationOptions {
             word_lattice: true,
             neural_keyboard: false,
@@ -385,6 +398,141 @@ fn hand_written_glosses_apply_without_a_learned_store() {
     );
 }
 
+/// 释义来源在查询线程里按路径加文件身份缓存，省掉每个按键重新打开词库；同一线程上改写自定义译文、删掉学到的释义库、换掉发布词库，下一次查询都要看到新文件，结果与每次重新打开相同。替换的文件都比原来长，免得粗粒度的修改时间和复用的 inode 让新旧文件看起来一样。
+#[test]
+fn cached_glosses_follow_replaced_and_removed_files() {
+    let resources = tempfile::tempdir().unwrap();
+    let user = tempfile::tempdir().unwrap();
+    let packaged = resources.path().join("msime-english.db");
+    Connection::open(&packaged)
+        .unwrap()
+        .execute_batch(&format!(
+            "{ENGLISH_SCHEMA} INSERT INTO zh_en_glosses VALUES('测试','packaged gloss');"
+        ))
+        .unwrap();
+    let resources_path = resources.path().to_str().unwrap();
+    let user_path = user.path().to_str().unwrap();
+    let candidates = vec![("测试".into(), 0)];
+    let glosses = || candidate_glosses_with_user(resources_path, user_path, &candidates).unwrap();
+    assert_eq!(glosses(), vec!["packaged gloss"]);
+    assert_eq!(glosses(), vec!["packaged gloss"]);
+
+    let custom = user.path().join("custom_translations.txt");
+    std::fs::write(&custom, "测试\thand written gloss\n").unwrap();
+    assert_eq!(glosses(), vec!["hand written gloss"]);
+    std::fs::write(
+        &custom,
+        "# edited in Settings\n测试\tedited hand written gloss\n",
+    )
+    .unwrap();
+    assert_eq!(glosses(), vec!["edited hand written gloss"]);
+    std::fs::remove_file(&custom).unwrap();
+    assert_eq!(glosses(), vec!["packaged gloss"]);
+
+    assert!(save_candidate_gloss(
+        user_path,
+        true,
+        "测试",
+        "learned gloss"
+    ));
+    assert_eq!(glosses(), vec!["learned gloss"]);
+    assert!(save_candidate_gloss(
+        user_path,
+        true,
+        "测试",
+        "relearned gloss"
+    ));
+    assert_eq!(glosses(), vec!["relearned gloss"]);
+    std::fs::remove_file(user.path().join("translation-glosses.db")).unwrap();
+    assert_eq!(glosses(), vec!["packaged gloss"]);
+
+    std::fs::remove_file(&packaged).unwrap();
+    Connection::open(&packaged)
+        .unwrap()
+        .execute_batch(&format!(
+            "{ENGLISH_SCHEMA} INSERT INTO zh_en_glosses VALUES('测试','replaced gloss');
+             CREATE TABLE padding(value BLOB); INSERT INTO padding VALUES(zeroblob(65536));"
+        ))
+        .unwrap();
+    assert_eq!(glosses(), vec!["replaced gloss"]);
+    assert_eq!(
+        candidate_glosses(resources_path, &candidates).unwrap(),
+        vec!["replaced gloss"]
+    );
+    std::fs::remove_file(&packaged).unwrap();
+    assert!(candidate_glosses(resources_path, &candidates).is_err());
+}
+
+/// 离线释义库的连接同样按文件身份缓存：换成另一种语言的文件、再删掉，下一次查询给出和重新打开一样的结果。
+#[test]
+fn cached_offline_target_glosses_follow_replaced_and_removed_files() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("zh-fr.db");
+    offline_gloss_database(&path, "fr", 1);
+    let candidates = vec![("猫".into(), 0)];
+    let glosses = || candidate_target_glosses(path.to_str().unwrap(), "fr", &candidates);
+    assert_eq!(glosses().unwrap(), vec!["chat, chatte; félin"]);
+    assert_eq!(glosses().unwrap(), vec!["chat, chatte; félin"]);
+
+    std::fs::remove_file(&path).unwrap();
+    offline_gloss_database(&path, "ja", 1);
+    Connection::open(&path)
+        .unwrap()
+        .execute_batch(
+            "CREATE TABLE padding(value BLOB); INSERT INTO padding VALUES(zeroblob(65536));",
+        )
+        .unwrap();
+    assert_eq!(
+        glosses().unwrap_err().to_string(),
+        "Offline gloss dictionary language mismatch"
+    );
+    assert_eq!(
+        candidate_target_glosses(path.to_str().unwrap(), "ja", &candidates).unwrap(),
+        vec!["chat, chatte; félin"]
+    );
+
+    std::fs::remove_file(&path).unwrap();
+    assert_eq!(
+        glosses().unwrap_err().to_string(),
+        "Offline gloss dictionary unavailable"
+    );
+    assert!(!path.exists(), "a read-only open must not create the file");
+}
+
+/// 键盘收起、内存吃紧时宿主释放调用线程的释义缓存；之后的查询重新打开词库、重新读自定义译文，结果与释放前相同，没打开过任何缓存时释放也不出错。
+#[test]
+fn released_gloss_caches_reopen_on_the_next_query() {
+    release_gloss_caches();
+    let resources = tempfile::tempdir().unwrap();
+    let user = tempfile::tempdir().unwrap();
+    Connection::open(resources.path().join("msime-english.db"))
+        .unwrap()
+        .execute_batch(&format!(
+            "{ENGLISH_SCHEMA} INSERT INTO zh_en_glosses VALUES('测试','packaged gloss');"
+        ))
+        .unwrap();
+    std::fs::write(
+        user.path().join("custom_translations.txt"),
+        "你好\thand written gloss\n",
+    )
+    .unwrap();
+    let target = resources.path().join("zh-fr.db");
+    offline_gloss_database(&target, "fr", 1);
+    let resources_path = resources.path().to_str().unwrap();
+    let user_path = user.path().to_str().unwrap();
+    let candidates = vec![("测试".into(), 0), ("你好".into(), 0)];
+    let glosses = || candidate_glosses_with_user(resources_path, user_path, &candidates).unwrap();
+    let target_candidates = vec![("猫".into(), 0)];
+    let target_glosses =
+        || candidate_target_glosses(target.to_str().unwrap(), "fr", &target_candidates).unwrap();
+    assert_eq!(glosses(), vec!["packaged gloss", "hand written gloss"]);
+    assert_eq!(target_glosses(), vec!["chat, chatte; félin"]);
+
+    release_gloss_caches();
+    assert_eq!(glosses(), vec!["packaged gloss", "hand written gloss"]);
+    assert_eq!(target_glosses(), vec!["chat, chatte; félin"]);
+}
+
 #[cfg(unix)]
 #[test]
 fn learned_glosses_reject_a_symlinked_database() {
@@ -601,6 +749,39 @@ fn english_phonetics_refuse_another_kind_version_or_a_missing_file() {
         !missing.exists(),
         "a read-only open must not create the file"
     );
+}
+
+#[test]
+fn target_phonetics_read_their_own_language_table_only() {
+    let directory = tempfile::tempdir().unwrap();
+    let french = directory.path().join("fr-phonetic.db");
+    Connection::open(&french)
+        .unwrap()
+        .execute_batch(
+            "CREATE TABLE fr_phonetics(word TEXT PRIMARY KEY, phonetic TEXT NOT NULL) WITHOUT ROWID;
+             CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT NOT NULL) WITHOUT ROWID;
+             INSERT INTO meta VALUES('kind', 'fr_phonetic');
+             INSERT INTO fr_phonetics VALUES('chat', '/ʃa/');
+             INSERT INTO fr_phonetics VALUES('pomme de terre', '/pɔm də tɛʁ/');
+             PRAGMA user_version = 1;",
+        )
+        .unwrap();
+    let path = french.to_str().unwrap();
+    let words = vec![
+        "pomme de terre".to_owned(),
+        "chien".to_owned(),
+        "chat".to_owned(),
+    ];
+    assert_eq!(
+        phonetics(path, "fr", &words).unwrap(),
+        vec!["/pɔm də tɛʁ/", "", "/ʃa/"]
+    );
+    // 法语表被当成西语或英文表来查时拒绝，而不是照读。
+    assert!(phonetics(path, "es", &words).is_err());
+    assert!(english_phonetics(path, &words).is_err());
+    // 表名由语言拼出，所以只接受已知的语言代码。
+    assert!(phonetics(path, "fr_phonetics; --", &words).is_err());
+    assert!(phonetics(path, "", &words).is_err());
 }
 
 #[cfg(unix)]
@@ -848,6 +1029,41 @@ fn helpcode_settings_reach_the_real_engine() {
     assert!(Session::new(&value).is_err());
 }
 
+// #10731：宿主快照带着前导键，`preedit` 里已经插好，光标落在 `preedit` 末尾；`editing_text` 和 `caret_position` 仍是按键原文。
+#[test]
+fn helpcode_trigger_reaches_the_host_snapshot() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut value = options(dir.path());
+    value.helpcode = true;
+    value.helpcode_trigger_key = Some(b';');
+    let mut session = Session::new(&value).unwrap();
+    type_text(&mut session, b"ni");
+    assert_eq!(session.snapshot().unwrap().helpcode_trigger, None);
+    assert!(session.character(b';', false).unwrap().handled);
+    let snapshot = session.snapshot().unwrap();
+    assert_eq!(snapshot.preedit, "ni;");
+    assert_eq!(snapshot.preedit_caret, 3);
+    assert_eq!(snapshot.editing_text, "ni");
+    assert_eq!(snapshot.caret_position, 2);
+    assert_eq!(
+        snapshot.helpcode_trigger,
+        Some(crate::HelpcodeTrigger {
+            key: ';',
+            position: 2
+        })
+    );
+    type_text(&mut session, b"f");
+    let snapshot = session.snapshot().unwrap();
+    assert_eq!(snapshot.preedit, "ni';F");
+    assert_eq!(snapshot.preedit_caret, 5);
+    assert_eq!(snapshot.editing_text, "niF");
+    type_text(&mut session, b"r");
+    let snapshot = session.snapshot().unwrap();
+    assert_eq!(snapshot.preedit, "ni'FR");
+    assert_eq!(snapshot.preedit_caret, 5);
+    assert_eq!(snapshot.helpcode_trigger, None);
+}
+
 #[test]
 fn custom_helpcode_table_is_loaded_by_the_engine_session() {
     let dir = tempfile::tempdir().unwrap();
@@ -924,7 +1140,7 @@ fn invalid_options_return_errors_instead_of_unwinding_into_rust() {
     value.shuangpin_profile = 255;
     assert_eq!(message(&value), "Unsupported shuangpin profile");
     value.shuangpin_profile = 0;
-    value.wubi_profile = 2;
+    value.wubi_profile = 3;
     assert_eq!(message(&value), "Unsupported wubi profile");
     value.wubi_profile = 1;
     value.frequency_mode = "sometimes".into();
@@ -1019,6 +1235,104 @@ fn custom_table() -> crate::types::ShuangpinCustomTable {
             ("ou", "oz"),
         ]),
     }
+}
+
+/// #10632：双拼选了「拼音分词」时 `preedit` 是展开的全拼，组字光标要按音节落在 `preedit` 里，而不是拿原文的偏移去数 `preedit` 的字母（那样 `uiui` 打完光标落在 `shi's|hi`）。
+#[test]
+fn expanded_shuangpin_preedit_carries_the_caret_by_syllable() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut options = options(dir.path());
+    options.scheme = SchemeType::Shuangpin as u8;
+    options.shuangpin_preedit_uses_raw = false;
+    let mut session = Session::new(&options).unwrap();
+    type_text(&mut session, b"uiui");
+    let snapshot = session.snapshot().unwrap();
+    assert_eq!(snapshot.preedit, "shi'shi");
+    assert_eq!(snapshot.caret_position, 4);
+    assert_eq!(snapshot.preedit_caret, 7);
+    // 左移一个字母进到第二个单位中间，按单位起点算：第一个音节后面、隔音符前面。
+    session.command(Command::MoveLeft).unwrap();
+    let snapshot = session.snapshot().unwrap();
+    assert_eq!(snapshot.caret_position, 3);
+    assert_eq!(snapshot.preedit_caret, 3);
+    session.command(Command::MoveLeft).unwrap();
+    assert_eq!(session.snapshot().unwrap().preedit_caret, 3);
+    session.command(Command::MoveHome).unwrap();
+    assert_eq!(session.snapshot().unwrap().preedit_caret, 0);
+
+    // 「原始按键」时 `preedit` 就是按键，光标照搬。
+    options.shuangpin_preedit_uses_raw = true;
+    let mut session = Session::new(&options).unwrap();
+    type_text(&mut session, b"uiui");
+    session.command(Command::MoveLeft).unwrap();
+    let snapshot = session.snapshot().unwrap();
+    assert_eq!(snapshot.preedit, "uiui");
+    assert_eq!(snapshot.preedit_caret, snapshot.caret_position);
+}
+
+/// #10717：「双拼分隔」画按音节切开的原始按键（自然码 `nimf` → `ni'mf`），按键原文和提交仍是 `nimf`；光标按字母数越过插入的隔音符，落在音节边界时停在隔音符前面。
+#[test]
+fn separated_shuangpin_preedit_keeps_the_keys_and_carries_the_caret() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut options = options(dir.path());
+    options.scheme = SchemeType::Shuangpin as u8;
+    options.shuangpin_profile = 1;
+    options.shuangpin_preedit_uses_raw = true;
+    options.shuangpin_preedit_separated = true;
+    let mut session = Session::new(&options).unwrap();
+    type_text(&mut session, b"nimf");
+    let snapshot = session.snapshot().unwrap();
+    assert_eq!(snapshot.preedit, "ni'mf");
+    assert_eq!(snapshot.editing_text, "nimf");
+    assert_eq!(snapshot.caret_position, 4);
+    assert_eq!(snapshot.preedit_caret, 5);
+    // 左移进第二个音节中间：三个字母之后，越过插入的隔音符。
+    session.command(Command::MoveLeft).unwrap();
+    let snapshot = session.snapshot().unwrap();
+    assert_eq!(snapshot.caret_position, 3);
+    assert_eq!(snapshot.preedit_caret, 4);
+    // 音节边界：停在隔音符前面。
+    session.command(Command::MoveLeft).unwrap();
+    let snapshot = session.snapshot().unwrap();
+    assert_eq!(snapshot.caret_position, 2);
+    assert_eq!(snapshot.preedit_caret, 2);
+    session.command(Command::MoveHome).unwrap();
+    assert_eq!(session.snapshot().unwrap().preedit_caret, 0);
+    drop(session);
+
+    // 打到一半的音节和用户自己打的隔音符都照原样留着；字面输入（句中大写）与拼音分词一样画按键原文，不切。
+    for (typed, expected) in [
+        (&b"wom"[..], "wo'm"),
+        (b"woMf", "woMf"),
+        (b"wo'mf", "wo'mf"),
+        (b"womf'", "wo'mf'"),
+    ] {
+        let mut session = Session::new(&options).unwrap();
+        for byte in typed {
+            session.character(*byte, byte.is_ascii_uppercase()).unwrap();
+        }
+        let snapshot = session.snapshot().unwrap();
+        assert_eq!(
+            snapshot.preedit,
+            expected,
+            "{}",
+            String::from_utf8_lossy(typed)
+        );
+        assert_eq!(snapshot.preedit_caret, expected.chars().count());
+    }
+
+    // 拼音分词时不读这一项：仍画展开的全拼。
+    options.shuangpin_preedit_uses_raw = false;
+    let mut session = Session::new(&options).unwrap();
+    type_text(&mut session, b"nimf");
+    assert_eq!(session.snapshot().unwrap().preedit, "ni'men");
+
+    // 缺省（不分隔）仍是原始按键。
+    options.shuangpin_preedit_uses_raw = true;
+    options.shuangpin_preedit_separated = false;
+    let mut session = Session::new(&options).unwrap();
+    type_text(&mut session, b"nimf");
+    assert_eq!(session.snapshot().unwrap().preedit, "nimf");
 }
 
 #[test]
@@ -1172,6 +1486,77 @@ fn shuangpin_key_hints_reject_an_unknown_profile() {
     assert!(shuangpin_key_hints("").is_empty());
     assert!(shuangpin_key_hints("xiaohe-v2").is_empty());
     assert!(shuangpin_key_hints("quanpin").is_empty());
+    assert!(shuangpin_key_hints("Cantonese").is_empty());
+    assert!(shuangpin_key_hints("cantonese_shuangpin").is_empty());
+}
+
+/// 粤语双拼没有普通话双拼的方案名，宿主用保留名取它的键面；这个名字不会被当成普通话方案。
+#[test]
+fn shuangpin_key_hints_answer_for_cantonese_shuangpin_by_its_reserved_name() {
+    let hints: std::collections::HashMap<String, String> =
+        shuangpin_key_hints(super::CANTONESE_SHUANGPIN_HINTS)
+            .into_iter()
+            .map(|entry| (entry.key, entry.hint))
+            .collect();
+    assert_eq!(hints.len(), 27);
+    assert_eq!(hints.get("I").map(String::as_str), Some("gw / i"));
+    assert_eq!(hints.get(";").map(String::as_str), Some("ik ing"));
+    assert!(shuangpin_zero_initials(super::CANTONESE_SHUANGPIN_HINTS).is_empty());
+    assert_eq!(
+        shuangpin_uses_semicolon(super::CANTONESE_SHUANGPIN_HINTS),
+        None
+    );
+}
+
+/// 评测工具靠它把全拼用例编成双拼按键：按名字取内置方案，`custom` 和不认识的名字没有表可编。
+#[test]
+fn encode_shuangpin_uses_the_named_builtin_profile() {
+    assert_eq!(
+        encode_shuangpin("ni'hao", "xiaohe").as_deref(),
+        Some("ni'hc")
+    );
+    assert_eq!(
+        encode_shuangpin("a'ming", "microsoft").as_deref(),
+        Some("oa'm;")
+    );
+    for profile in ["custom", "", "quanpin", "xiaohe-v2"] {
+        assert_eq!(encode_shuangpin("ni'hao", profile), None, "{profile}");
+    }
+    assert_eq!(encode_shuangpin("ni'bad", "xiaohe"), None);
+}
+
+/// 音节表与方案无关：首道双拼编不出 `den`（`en` 和 `ia` 同在 `k` 上，解回 `dia`），`den` 仍是音节。
+#[test]
+fn shuangpin_syllables_do_not_depend_on_the_profile() {
+    for syllable in ["de", "den", "a", "na", "zhuang", "yo"] {
+        assert!(is_shuangpin_syllable(syllable), "{syllable}");
+    }
+    for piece in ["", "d", "zhei", "ni'hao", "xyz"] {
+        assert!(!is_shuangpin_syllable(piece), "{piece}");
+    }
+    assert_eq!(encode_shuangpin("den", "shoudao"), None);
+    assert_eq!(encode_shuangpin("den", "xiaohe").as_deref(), Some("df"));
+}
+
+/// 内置方案里只有微软双拼用 `;` 键；`custom` 和不认识的名字没有表，答不了。
+#[test]
+fn shuangpin_uses_semicolon_follows_the_builtin_table() {
+    for (profile, expected) in [
+        ("xiaohe", false),
+        ("ziranma", false),
+        ("shoudao", false),
+        ("microsoft", true),
+        ("smart_abc", false),
+    ] {
+        assert_eq!(
+            shuangpin_uses_semicolon(profile),
+            Some(expected),
+            "{profile}"
+        );
+    }
+    for profile in ["custom", "", "quanpin"] {
+        assert_eq!(shuangpin_uses_semicolon(profile), None, "{profile}");
+    }
 }
 
 #[test]
@@ -1243,6 +1628,36 @@ fn real_engine_handles_unicode_mode_without_a_dictionary_bundle() {
     assert_eq!(session.snapshot().unwrap().local_mode, "none");
 }
 
+/// 换上的本地墙钟就是日期时间模式读的那一个：评测靠它钉住行内日期时间行，同一份输入在哪天跑都打出同样的候选。
+#[test]
+fn a_replaced_clock_is_what_the_date_time_mode_reads() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut session = Session::new(&options(dir.path())).unwrap();
+    session.set_clock(crate::Clock {
+        steady: Box::new(std::time::Instant::now),
+        local: std::sync::Arc::new(|| crate::LocalDateTime {
+            year: 2026,
+            month: 1,
+            day: 5,
+            weekday: 1,
+            hour: 10,
+            minute: 0,
+            second: 0,
+        }),
+    });
+    assert!(session.character(b'T', true).unwrap().handled);
+    type_text(&mut session, b"sj");
+    let snapshot = session.snapshot().unwrap();
+    assert!(
+        snapshot
+            .candidates
+            .iter()
+            .any(|candidate| candidate == "2026-01-05 10:00:00"),
+        "{:?}",
+        snapshot.candidates
+    );
+}
+
 #[test]
 fn real_engine_exposes_nine_key_mode_and_spelling_choices() {
     let dir = tempfile::tempdir().unwrap();
@@ -1297,6 +1712,26 @@ fn real_engine_reports_the_fourteen_key_grid_apart_from_nine_key() {
     let snapshot = session.snapshot().unwrap();
     assert!(!snapshot.nine_key);
     assert_eq!(snapshot.key_grid, None);
+}
+
+/// 宿主拿 `shuangpin_profile` 画键面、算键盘外观的缓存键，九宫格组字途中它也得是会话跑的方案名；核心快照这时留空，门面不能照抄。
+#[test]
+fn snapshot_names_the_shuangpin_profile_while_a_grid_composes() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut options = options(dir.path());
+    options.scheme = 1;
+    options.shuangpin_profile = crate::ShuangpinProfileKind::Ziranma as u8;
+    let mut session = Session::new(&options).unwrap();
+    let table =
+        crate::resolve_fourteen_key_shuangpin(crate::ShuangpinProfileKind::Ziranma, None).unwrap();
+    session
+        .set_key_grid(Some(crate::KeyGrid::FourteenKeyShuangpin(table)))
+        .unwrap();
+    assert_eq!(session.snapshot().unwrap().shuangpin_profile, "ziranma");
+    assert!(session.grid_key(b'n').unwrap().handled);
+    let snapshot = session.snapshot().unwrap();
+    assert!(snapshot.grid_composing);
+    assert_eq!(snapshot.shuangpin_profile, "ziranma");
 }
 
 #[test]
@@ -1697,7 +2132,7 @@ fn commit_raw_applies_windows_english_learning_policy() {
     assert_eq!(learned, "hello");
 }
 
-// 随包的 msime-english.db 按 Google unigram 计数给权重，拼音词库用的是自己的尺度，英文权重说明不了中文权重的高低（#1040、#1063 两次按权重提英文都撤回了）。所以输入能切成完整音节时（这里的 `ni`），混输从不让英文领先拼音的首选：不凭随包权重，不因为上屏过，也不因为置顶过；置顶只在英文词之间调顺序。英文只在拼音拆不开、英文完全匹配整段输入，或者用户把它固定在第一位时才领先，那条规则不比较权重，见 `CandidateQueries::mixed`。
+// 随包的 msime-english.db 按 Google unigram 计数给权重（这里的两个词都常见到能坐首选之后的优先位置，见 `english::takes_priority_slot`），拼音词库用的是自己的尺度，英文权重说明不了中文权重的高低（#1040、#1063 两次按权重提英文都撤回了）。所以输入能切成完整音节时（这里的 `ni`），混输从不让英文领先拼音的首选：不凭随包权重，不因为上屏过，也不因为置顶过；置顶只在英文词之间调顺序。英文只在拼音拆不开、英文完全匹配整段输入，或者用户把它固定在第一位时才领先，那条规则不比较权重，见 `CandidateQueries::mixed`。
 #[test]
 fn mixed_english_never_outranks_chinese_on_complete_pinyin() {
     const ENGLISH: u8 = 4;
@@ -1721,8 +2156,8 @@ fn mixed_english_never_outranks_chinese_on_complete_pinyin() {
             .unwrap()
             .execute_batch(&format!(
                 "{ENGLISH_SCHEMA}
-                 INSERT INTO english_words VALUES('nimbus','Nimbus',50000);
-                 INSERT INTO english_words VALUES('ninja','Ninja',30000);"
+                 INSERT INTO english_words VALUES('nimbus','Nimbus',5000000);
+                 INSERT INTO english_words VALUES('ninja','Ninja',3000000);"
             ))
             .unwrap();
     }
@@ -2046,6 +2481,7 @@ fn session_options_map_every_host_field() {
     value.fuzzy_pinyin_rules = u32::MAX;
     value.wubi_mixed_pinyin = true;
     value.helpcode = true;
+    value.strict_quanpin_helpcode = true;
     value.helpcode_schema = "xiaohe".into();
     value.chinese_punctuation = false;
     value.paired_punctuation = false;
@@ -2088,6 +2524,7 @@ fn session_options_map_every_host_field() {
     assert_eq!(mapped.fuzzy_pinyin.rules, crate::fuzzy_rule::ALL);
     assert!(mapped.wubi.mixed_pinyin);
     assert!(mapped.helpcode);
+    assert!(mapped.strict_quanpin_helpcode);
     assert_eq!(mapped.helpcode_schema, "xiaohe");
     assert!(!mapped.chinese_punctuation);
     assert!(!mapped.paired_punctuation);
@@ -2110,6 +2547,26 @@ fn session_options_map_every_host_field() {
     assert!(!mapped.sentence_alternatives);
     assert!(mapped.personal_context);
     assert_eq!(mapped.enabled_schemes, crate::SchemeSet::ALL);
+}
+
+/// 引擎库只有一套默认值（`SessionOptions::new`：辅助码关、表名 `wubi86`、学习开），门面不从它继承：宿主给的辅助码、学习开关原样交给会话，个人上下文按产品一直的取值打开。
+#[test]
+fn session_options_do_not_inherit_the_library_defaults() {
+    let library = crate::SessionOptions::new(crate::RuntimePaths::default());
+    assert!(!library.helpcode);
+    assert_eq!(library.helpcode_schema, "wubi86");
+    assert!(library.learning && library.personal_context);
+
+    let dir = tempfile::tempdir().unwrap();
+    let mut value = options(dir.path());
+    value.helpcode = true;
+    value.helpcode_schema = "ziranma".into();
+    value.learning = false;
+    let mapped = super::options::session_options(&value).unwrap();
+    assert!(mapped.helpcode);
+    assert_eq!(mapped.helpcode_schema, "ziranma");
+    assert!(!mapped.learning);
+    assert!(mapped.personal_context);
 }
 
 /// `enabled_schemes` 原样交给会话。双拼不在其中时双拼键位不校验，不合法的值按小鹤处理；双拼在其中时照旧报错。
@@ -2634,6 +3091,124 @@ fn wubi_reverse_codes_are_shown_only_in_the_wubi_scheme() {
     assert!(view.candidate_annotations[index].contains("wqvb"));
 }
 
+/// #10790：「候选显示剩余编码」关掉后，宿主在没有剩余编码时退回显示引擎注释，引擎不能再给五笔原生候选附完整五笔码；候选的 `code` 字段不受影响。混输拼音的候选照旧附码，那是用拼音查五笔码。
+#[test]
+fn wubi_reverse_codes_are_left_out_when_the_code_hint_is_off() {
+    let extra = "INSERT INTO wubi86 VALUES('wqvb','你好',300);";
+
+    let native_root = tempfile::tempdir().unwrap();
+    let mut native = helpcode_fixture(native_root.path(), extra, "");
+    native.scheme = SchemeType::Wubi as u8;
+    native.wubi_reverse_code = false;
+    let mut session = Session::new(&native).unwrap();
+    type_text(&mut session, b"wq");
+    let view = session.snapshot().unwrap();
+    let index = view
+        .candidates
+        .iter()
+        .position(|word| word == "你好")
+        .unwrap();
+    assert!(
+        !view.candidate_annotations[index].contains("wqvb"),
+        "{:?}",
+        view.candidate_annotations
+    );
+    // 宿主打开开关时还要靠它算剩余编码。
+    assert_eq!(view.candidate_codes[index], "wqvb");
+
+    // 混输拼音的候选照旧附：混输打开时没有 `z` 反查，打拼音看编码是打字时唯一的查码路径（#6789）。
+    let mixed_root = tempfile::tempdir().unwrap();
+    let mut mixed = helpcode_fixture(mixed_root.path(), extra, "");
+    mixed.scheme = SchemeType::Wubi as u8;
+    mixed.wubi_mixed_pinyin = true;
+    mixed.wubi_reverse_code = false;
+    let mut session = Session::new(&mixed).unwrap();
+    type_text(&mut session, b"nihao");
+    let view = session.snapshot().unwrap();
+    let index = view
+        .candidates
+        .iter()
+        .position(|word| word == "你好")
+        .unwrap();
+    assert_ne!(view.candidate_codes[index], "wqvb", "应是拼音候选");
+    assert!(
+        view.candidate_annotations[index].contains("wqvb"),
+        "{:?}",
+        view.candidate_annotations
+    );
+}
+
+/// 混输的同一页里既有五笔原生候选也有拼音候选时，开关关掉只去掉前者的编码。
+#[test]
+fn the_code_hint_off_strips_only_native_wubi_codes_on_a_mixed_page() {
+    let root = tempfile::tempdir().unwrap();
+    let extra = format!("{PINYIN_LOOKUP_SQL} INSERT INTO wubi86 VALUES('nigg','恒',100);");
+    let mut options = helpcode_fixture(root.path(), &extra, "");
+    options.scheme = SchemeType::Wubi as u8;
+    options.wubi_mixed_pinyin = true;
+    options.show_helpcode = false;
+    options.wubi_reverse_code = false;
+    let mut session = Session::new(&options).unwrap();
+    type_text(&mut session, b"ni");
+    let view = session.snapshot().unwrap();
+    assert!(!view.answered_by_pinyin_fallback);
+    let native = annotation_of(&view, "恒");
+    assert!(!native.contains("nigg"), "{native}");
+    let pinyin = annotation_of(&view, "你");
+    assert!(pinyin.contains("wqiy"), "{pinyin}");
+
+    // 开关打开时两种候选都附，出厂行为不变。
+    let on_root = tempfile::tempdir().unwrap();
+    let mut on = helpcode_fixture(on_root.path(), &extra, "");
+    on.scheme = SchemeType::Wubi as u8;
+    on.wubi_mixed_pinyin = true;
+    on.show_helpcode = false;
+    let mut session = Session::new(&on).unwrap();
+    type_text(&mut session, b"ni");
+    let view = session.snapshot().unwrap();
+    assert!(annotation_of(&view, "恒").contains("nigg"));
+    assert!(annotation_of(&view, "你").contains("wqiy"));
+}
+
+/// `z` 通配查出的五笔候选照旧附完整码：用户不知道 `z` 那一位才用通配，完整码就是答案；码里没有 `z` 时照常不附。
+#[test]
+fn the_wubi_wildcard_keeps_codes_when_the_code_hint_is_off() {
+    let root = tempfile::tempdir().unwrap();
+    let mut options = pinyin_lookup_options(root.path());
+    options.wubi_z_wildcard = true;
+    options.wubi_reverse_code = false;
+    let mut session = Session::new(&options).unwrap();
+    type_text(&mut session, b"wqzb");
+    let view = session.snapshot().unwrap();
+    assert!(!view.answered_by_pinyin_fallback);
+    let annotation = annotation_of(&view, "你好");
+    assert!(annotation.contains("wqvb"), "{annotation}");
+
+    let plain_root = tempfile::tempdir().unwrap();
+    let mut plain = pinyin_lookup_options(plain_root.path());
+    plain.wubi_z_wildcard = true;
+    plain.wubi_reverse_code = false;
+    let mut session = Session::new(&plain).unwrap();
+    type_text(&mut session, b"wqv");
+    let view = session.snapshot().unwrap();
+    let annotation = annotation_of(&view, "你好");
+    assert!(!annotation.contains("wqvb"), "{annotation}");
+}
+
+/// `z` 临时拼音反查是用户主动要看编码，「候选显示剩余编码」关掉也照旧附上。
+#[test]
+fn the_pinyin_lookup_keeps_wubi_codes_when_the_code_hint_is_off() {
+    let root = tempfile::tempdir().unwrap();
+    let mut options = pinyin_lookup_options(root.path());
+    options.wubi_reverse_code = false;
+    let mut session = Session::new(&options).unwrap();
+    type_text(&mut session, b"znihao");
+    let view = session.snapshot().unwrap();
+    assert!(view.answered_by_pinyin_fallback);
+    let annotation = annotation_of(&view, "你好");
+    assert!(annotation.contains("wqvb"), "{annotation}");
+}
+
 #[test]
 fn wubi_reverse_codes_follow_the_selected_profile() {
     let root = tempfile::tempdir().unwrap();
@@ -2996,7 +3571,7 @@ fn local_mode_reads_follow_a_dictionary_replaced_after_the_sessions_are_gone() {
 /// user_dictionary_journal.cpp:445-452: the reference opened msime's journal per call, so no thread kept it open. A one-shot call releases its thread's cached journal on return, a dropped session releases it too, and a live session keeps it for the keystroke path.
 #[test]
 fn journal_handles_are_released_when_a_thread_is_done_with_them() {
-    use crate::user_dictionary::journal::thread_holds_journal;
+    use crate::user_dictionary::journal::{cache_generation, thread_holds_journal};
     let dir = tempfile::tempdir().unwrap();
     let mut value = options(dir.path());
     value.learning = true;
@@ -3028,6 +3603,7 @@ fn journal_handles_are_released_when_a_thread_is_done_with_them() {
     .unwrap();
 
     let mut session = Session::new(&value).unwrap();
+    let generation = cache_generation();
     type_text(&mut session, b"nihao");
     let snapshot = session.snapshot().unwrap();
     let index = snapshot
@@ -3036,7 +3612,8 @@ fn journal_handles_are_released_when_a_thread_is_done_with_them() {
         .position(|word| word == "拟好")
         .unwrap();
     session.select(index).unwrap();
-    assert!(thread_holds_journal());
+    // Another test closing every journal meanwhile takes the parked connection away.
+    assert!(thread_holds_journal() || cache_generation() != generation);
     drop(session);
     assert!(!thread_holds_journal());
 }
@@ -3044,7 +3621,7 @@ fn journal_handles_are_released_when_a_thread_is_done_with_them() {
 /// Hosts keep their sessions in a thread-local map, so a session can be dropped while its thread exits, after that thread's cached journal is already destroyed. Its drop still flushes and releases without touching the destroyed cache; it used to abort the process (`cannot access a Thread Local Storage value during or after destruction`).
 #[test]
 fn a_session_dropped_while_its_thread_exits_does_not_abort() {
-    use crate::user_dictionary::journal::thread_holds_journal;
+    use crate::user_dictionary::journal::{cache_generation, thread_holds_journal};
     thread_local! {
         static HELD: std::cell::RefCell<Option<Session>> = const { std::cell::RefCell::new(None) };
     }
@@ -3062,6 +3639,7 @@ fn a_session_dropped_while_its_thread_exits_does_not_abort() {
     }
     let journal = Path::new(&value.user_data).join("msime_user.db");
     std::thread::spawn(move || {
+        let generation = cache_generation();
         // The map is registered before the journal cache, so thread exit destroys the cache first.
         HELD.with(|held| {
             *held.borrow_mut() = Some(Session::new(&value).unwrap());
@@ -3077,7 +3655,8 @@ fn a_session_dropped_while_its_thread_exits_does_not_abort() {
                 .unwrap();
             session.select(index).unwrap();
         });
-        assert!(thread_holds_journal());
+        // Another test closing every journal meanwhile takes the parked connection away.
+        assert!(thread_holds_journal() || cache_generation() != generation);
     })
     .join()
     .unwrap();
@@ -3889,4 +4468,22 @@ fn host_multilingual_snapshot_keeps_the_raw_identity_and_language_ranges() {
         .unwrap()
         .multilingual_conversion
         .is_none());
+}
+
+/// The iOS keyboard destroys its session whenever it goes away and builds one on the next appearance; the personal context model survives that only if the session records the journal as it lets go. Not on Windows, where a store that only read the journal records nothing rather than keep a probe connection open.
+#[cfg(not(windows))]
+#[test]
+fn dropping_a_session_records_its_journal_for_the_next_one() {
+    let root = tempfile::tempdir().unwrap();
+    let options = helpcode_fixture(root.path(), "", "");
+    let journal = super::options::runtime_paths(&options).user(crate::assets::USER_JOURNAL);
+    let connection = Connection::open(&journal).unwrap();
+    crate::user_dictionary::journal::ensure_schema(&connection).unwrap();
+    connection
+        .execute_batch("INSERT INTO personal_bigram(previous,word,count) VALUES('你','好',2);")
+        .unwrap();
+    drop(connection);
+    let store = crate::user_dictionary::ngram_store::PersonalNgramStore::for_journal(&journal);
+    drop(Session::new(&options).unwrap());
+    assert!(store.settled_for_tests());
 }

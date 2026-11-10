@@ -9,25 +9,11 @@
 //  The primary button is a small state machine (开始 / 去启用→继续 /
 //  应用配置→应用中→下一步 / 开始使用).
 //
-//  Owltype's steps are 完整词库 + 启用输入法 + 选方案/应用配置 + 小贴士 — NOT microphone /
-//  voice. The enabled status comes from a real `isOwltypeEnabled` query (TIS); 应用配置 calls
+//  Owltype's steps are 启用输入法 + 选方案/应用配置 + 小贴士.
+//  The enabled status comes from a real `isOwltypeEnabled` query (TIS); 应用配置 calls
 //  the real `onSelectSchema` (which selects + deploys, routed through the same
-//  pref-write + patch + fast-apply pipeline the 键盘输入 settings page uses — see
+//  pref-write + fast-apply pipeline the 键盘输入 settings page uses — see
 //  `OwlApplicationDelegate.applyOnboardingScheme`).
-//
-//  The 词库 step comes SECOND, and that ordering is load-bearing rather than cosmetic:
-//    - it is this flow's INFORMED-CONSENT surface. Since the 知情同意 change the dict pack
-//      is never fetched silently (`OwlDictPackPreferences.autoFetch` defaults false); the
-//      step carries the same copyright rationale as `OwlDictPackPrompt.presentAlert` and
-//      writes the same `promptShown` flag, and `promptOrFetchIfNeeded` stands down while
-//      onboarding is pending so the user is asked exactly once, inline, with no modal
-//      stealing focus.
-//    - consenting here starts the ~90 MB download BEFORE the two slowest steps (the trip to
-//      System Settings to enable, then picking a scheme), so those steps mask it. By the
-//      final step it is usually done.
-//    - 选方案 offers 五笔/双拼, whose schema files SHIP IN THE DICT PACK. Asking afterwards
-//      would mean picking 五笔 lands on the absent-schema path (a second consent alert).
-//  Live state comes from `OwlDictPackCenter` (@Observable). No Rime / disk IO in the view.
 //
 //  The final step verifies real Owltype composition in a local NSTextView; skipping remains available.
 //
@@ -86,8 +72,6 @@ struct OwlOnboardingView: View {
   @State private var deployed = false
   @State private var deployProgress: CGFloat = 0
   @State private var doneCheckTrim: CGFloat = 0
-  /// 用户是否已在词库步骤作出过选择（同意 / 以后再说）—— 决定这一步还问不问。
-  @State private var dictDecided = OwlDictPackPreferences.promptShown
 
   private let stepCount = 5
   private let stepNames = ["欢迎", "词库", "启用", "选方案", "试打"]
@@ -237,7 +221,7 @@ struct OwlOnboardingView: View {
           .foregroundStyle(owlEnabled ? palette.ink : palette.ink3)
         Spacer(minLength: 8)
         Button("重新检查") { owlEnabled = isOwltypeEnabled() }
-          .buttonStyle(.plain)
+          .buttonStyle(.owlPlain)
           .font(.system(size: 12, weight: .medium))
           .foregroundStyle(palette.accent)
       }
@@ -282,7 +266,7 @@ struct OwlOnboardingView: View {
           .font(.system(size: 12.5, weight: .medium))
           .foregroundStyle(palette.ink3)
       }
-      .buttonStyle(.plain)
+      .buttonStyle(.owlPlain)
     }
   }
 
@@ -320,161 +304,29 @@ struct OwlOnboardingView: View {
     .accessibilityLabel("\(item.name) \(item.code)\(item.recommended ? " 推荐" : "")")
   }
 
-  // MARK: Step 1 — 完整词库 / 知情同意 (this flow's consent surface; see the file header for
-  // why it sits here. OwlDictPackCenter is @Observable so the body re-renders on progress.)
+  // MARK: Step 1 — 随包 SQLite 词库资源
 
   private var dictContent: some View {
     VStack(alignment: .leading, spacing: 14) {
-      dictStatusRow
-        .padding(.horizontal, 15)
-        .padding(.vertical, 13)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background { RoundedRectangle(cornerRadius: 11, style: .continuous).fill(palette.card2) }
-      Text(dictExplanation)
+      HStack(spacing: 10) {
+        Image(systemName: "checkmark.circle.fill")
+          .font(.system(size: 16))
+          .foregroundStyle(Color.green)
+        Text("完整词库已随包预置（v\(OwlRustCompatibleResources.packageVersion)）")
+          .font(.system(size: 13))
+          .foregroundStyle(palette.ink)
+        Spacer(minLength: 8)
+      }
+      .padding(.horizontal, 15)
+      .padding(.vertical, 13)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background { RoundedRectangle(cornerRadius: 11, style: .continuous).fill(palette.card2) }
+      Text("拼音、双拼、五笔与英文词库及语言模型均已作为预编译 SQLite 资源随包内置，启动即可直接使用。")
         .font(.system(size: 12))
         .foregroundStyle(palette.ink3)
         .lineSpacing(2)
         .fixedSize(horizontal: false, vertical: true)
     }
-  }
-
-  private var dictExplanation: String {
-    if OwlDictPackCenter.shared.preparedCandidate != nil {
-      return "资源候选已完成版本、摘要、许可证和 SQLite 校验。核对上面的生成统计后点「启用」，新输入会话才会使用它；旧资源代次会保留，可随时回退。整个切换不改写学习库，也不依赖 Rime 部署。"
-    }
-    if needsDictConsent {
-      return "同意后，猫头鹰会从这些项目的官方仓库按固定版本获取（约 90 MB）并逐文件校验，然后生成待确认的 Rust 资源。下载在后台进行，你可以继续下面的步骤。选「以后再说」也不影响使用，之后随时能在「设置 → 键盘输入 → 完整词库」里下载。"
-    }
-    return "词库按固定版本从上游原仓库（雾凇拼音 / 极点五笔 / 八股文语法模型）下载并逐文件校验，中途退出或注销会自动续传。生成完成后需要你确认才会启用，等待期间可以先看下一步。"
-  }
-
-  /// 仍需征求同意：词库没装，且本次没在这一步作出过选择。
-  private var needsDictConsent: Bool {
-    if case .notInstalled = OwlDictPackCenter.shared.status { return !dictDecided }
-    return false
-  }
-
-  /// 「同意并下载」——与 `OwlDictPackPrompt.presentAlert` 的 .download 分支等价：先记已处置
-  /// 再执行。这里用 `prepare()` 而非 `acceptAndPrepare()`，后者会把用户甩进设置窗、打断向导。
-  private func acceptDictDownload() {
-    dictDecided = true
-    OwlDictPackPreferences.promptShown = true
-    OwlDictPackCenter.shared.prepare()
-  }
-
-  /// 「以后再说」——等价于弹窗的 .later：同样记已处置（问过了就别再问），不下载。
-  private func deferDictDownload() {
-    dictDecided = true
-    OwlDictPackPreferences.promptShown = true
-    step = 2
-  }
-
-  @ViewBuilder
-  private var dictStatusRow: some View {
-    let center = OwlDictPackCenter.shared
-    VStack(alignment: .leading, spacing: 8) {
-      HStack(spacing: 10) {
-        switch center.status {
-        case .notInstalled:
-          Image(systemName: "arrow.down.circle")
-            .font(.system(size: 16))
-            .foregroundStyle(palette.ink3)
-          Text(dictDecided
-            ? "未启用 —— 当前使用随包精简资源"
-            : "当前为精简词库 —— 五笔 / 简体拼音 / 小鹤双拼 等方案需要它才能使用（约 90 MB）")
-            .font(.system(size: 13))
-            .foregroundStyle(palette.ink2)
-            .fixedSize(horizontal: false, vertical: true)
-          Spacer(minLength: 8)
-          if dictDecided {
-            // 已问过（含从「关于」页重开引导的回访者）：主按钮不再是同意键，这里补一个入口，
-            // 否则这一步只剩一句「未下载」而无从下手。
-            Button("现在下载") { acceptDictDownload() }
-              .buttonStyle(.plain)
-              .font(.system(size: 12, weight: .medium))
-              .foregroundStyle(palette.accent)
-          }
-        case .preparing(let progress):
-          dictProgressBar(progress)
-          Text("下载、校验并生成资源 \(Int(progress * 100))%")
-            .font(.system(size: 12.5)).monospacedDigit()
-            .foregroundStyle(palette.ink2)
-        case .prepared(let version):
-          Image(systemName: "checkmark.seal")
-            .font(.system(size: 16))
-            .foregroundStyle(palette.accent)
-          Text("候选 v\(version) 已生成，等待启用")
-            .font(.system(size: 13))
-            .foregroundStyle(palette.ink)
-          Spacer(minLength: 8)
-          Button("启用") { center.activate() }
-            .buttonStyle(.plain)
-            .font(.system(size: 12, weight: .medium))
-            .foregroundStyle(palette.accent)
-        case .activating:
-          ProgressView()
-            .controlSize(.small)
-          Text("正在校验并启用资源…")
-            .font(.system(size: 13))
-            .foregroundStyle(palette.ink2)
-          Spacer(minLength: 8)
-        case .rollingBack:
-          ProgressView()
-            .controlSize(.small)
-          Text("正在校验并回退资源…")
-            .font(.system(size: 13))
-            .foregroundStyle(palette.ink2)
-          Spacer(minLength: 8)
-        case .installed(let version):
-          Image(systemName: "checkmark.circle.fill")
-            .font(.system(size: 16))
-            .foregroundStyle(Color.green)
-          Text(center.isAwaitingLiveSessionRefresh
-            ? "完整词库 v\(version) 已启用；当前输入完成后自动生效"
-            : "完整词库已就绪")
-            .font(.system(size: 13))
-            .foregroundStyle(palette.ink)
-          Spacer(minLength: 8)
-        case .failed(let message):
-          Image(systemName: "exclamationmark.triangle.fill")
-            .font(.system(size: 15))
-            .foregroundStyle(.orange)
-          Text(message)
-            .font(.system(size: 12.5))
-            .foregroundStyle(palette.ink2)
-            .lineLimit(2)
-          Spacer(minLength: 8)
-          Button("重试") { center.retryFailedOperation() }
-            .buttonStyle(.plain)
-            .font(.system(size: 12, weight: .medium))
-            .foregroundStyle(palette.accent)
-        }
-      }
-      if let candidate = center.preparedCandidate {
-        Text(
-          "拼音 \(candidate.pinyinEntries.formatted()) · "
-            + "五笔 \(candidate.wubiEntries.formatted()) · "
-            + "英文 \(candidate.englishEntries.formatted()) · "
-            + "拒绝 \(candidate.rejectedEntries.formatted())"
-        )
-        .font(.system(size: 11.5, design: .monospaced))
-        .foregroundStyle(palette.ink3)
-        Text("许可证：\(candidate.licenseIdentifiers.joined(separator: "、"))")
-          .font(.system(size: 11.5))
-          .foregroundStyle(palette.ink3)
-      }
-    }
-  }
-
-  private func dictProgressBar(_ progress: Double) -> some View {
-    GeometryReader { geo in
-      ZStack(alignment: .leading) {
-        Capsule().fill(palette.card)
-        Capsule().fill(palette.accent)
-          .frame(width: geo.size.width * progress)
-      }
-    }
-    .frame(height: 5)
   }
 
   // MARK: Step 4 — actual marked-text and commit verification
@@ -499,7 +351,7 @@ struct OwlOnboardingView: View {
         practiceGeneration += 1
         practiceComplete = false
         practiceHint = nil
-      }.buttonStyle(.plain).foregroundStyle(palette.accent)
+      }.buttonStyle(.owlPlain).foregroundStyle(palette.accent)
     }
     .onAppear { refreshPracticeSource() }
     .onReceive(Timer.publish(every: 0.5, on: .main, in: .common).autoconnect()) { _ in refreshPracticeSource() }
@@ -516,28 +368,21 @@ struct OwlOnboardingView: View {
       primaryButton
       if step > 0 {
         Button("上一步") { step -= 1 }
-          .buttonStyle(.plain)
-          .font(.system(size: 13))
-          .foregroundStyle(palette.ink3)
-      }
-      if step == 1 && needsDictConsent {
-        // 与弹窗的「稍后」等价的那一半：同意二选一必须两个都在场，否则「同意」不成其为选择。
-        Button("以后再说") { deferDictDownload() }
-          .buttonStyle(.plain)
+          .buttonStyle(.owlPlain)
           .font(.system(size: 13))
           .foregroundStyle(palette.ink3)
       }
       Spacer(minLength: 0)
       if step < stepCount - 1 {
         Button("跳过", action: onFinish)
-          .buttonStyle(.plain)
+          .buttonStyle(.owlPlain)
           .font(.system(size: 13))
           .foregroundStyle(palette.ink3)
       } else if primaryInfo.disabled {
         // 软阻塞的出口：词库还在准备或启用时不扣留用户 —— 下载在 App 级继续，
         // 引导关掉也不中断。
         Button("稍后再试", action: onFinish)
-          .buttonStyle(.plain)
+          .buttonStyle(.owlPlain)
           .font(.system(size: 13))
           .foregroundStyle(palette.ink3)
       }
@@ -560,7 +405,7 @@ struct OwlOnboardingView: View {
         .background { RoundedRectangle(cornerRadius: 11, style: .continuous).fill(palette.accent) }
         .shadow(color: palette.accent.opacity(0.32), radius: 8, y: 4)
     }
-    .buttonStyle(.plain)
+    .buttonStyle(.owlPlain)
     .disabled(info.disabled)
     .opacity(info.disabled ? 0.55 : 1)
     .accessibilityLabel(info.label)
@@ -572,13 +417,6 @@ struct OwlOnboardingView: View {
     case 0:
       return ("开始", { step = 1 }, false)
     case 1:
-      // 知情同意：没装且没问过 → 主按钮就是「同意并下载」（配对的「以后再说」在 footer）。
-      // 同意后停在本步显示进度作为确认，但不扣留——按钮立刻变「下一步」。
-      // 按钮只留动作，体积写在状态行 —— footer 这一行还要容下「上一步 / 以后再说 / 跳过」，
-      // 带上「（约 90 MB）」会把主按钮挤成两行（2026-07-27 快照实见）。
-      if needsDictConsent {
-        return ("同意并下载", { acceptDictDownload() }, false)
-      }
       return ("下一步", { step = 2 }, false)
     case 2:
       if owlEnabled { return ("继续", { step = 3 }, false) }
@@ -588,20 +426,7 @@ struct OwlOnboardingView: View {
       if deploying { return ("应用中…", {}, true) }
       return ("应用配置", { startDeploy() }, false)
     default:
-      // 完成页软阻塞：准备/启用期间置灰、按钮标签就是进度；失败或未下载不扣留
-      // （出口在 footer 的「暂不等待」/ 状态自然放行）。
-      switch OwlDictPackCenter.shared.status {
-      case .preparing(let progress):
-        return ("词库下载中 \(Int(progress * 100))%…", {}, true)
-      case .prepared:
-        return ("启用词库", { OwlDictPackCenter.shared.activate() }, false)
-      case .activating:
-        return ("词库启用中…", {}, true)
-      case .rollingBack:
-        return ("词库回退中…", {}, true)
-      default:
-        return ("开始使用", onFinish, !practiceComplete)
-      }
+      return ("开始使用", onFinish, !practiceComplete)
     }
   }
 

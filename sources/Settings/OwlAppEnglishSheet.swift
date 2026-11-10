@@ -153,7 +153,7 @@ struct OwlAppEnglishSheet: View {
           .font(.system(size: 16))
           .foregroundStyle(palette.ink3)
       }
-      .buttonStyle(.plain)
+      .buttonStyle(.owlPlain)
       .accessibilityLabel("移除")
     }
     .padding(.horizontal, 12)
@@ -174,7 +174,7 @@ struct OwlAppEnglishSheet: View {
               .strokeBorder(palette.accent.opacity(0.6), lineWidth: 1)
           }
       }
-      .buttonStyle(.plain)
+      .buttonStyle(.owlPlain)
       .accessibilityLabel("添加…")
 
       Button(action: { dismiss() }) {
@@ -188,7 +188,7 @@ struct OwlAppEnglishSheet: View {
               .fill(palette.accent)
           }
       }
-      .buttonStyle(.plain)
+      .buttonStyle(.owlPlain)
       .accessibilityLabel("完成")
     }
   }

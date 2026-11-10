@@ -1,7 +1,8 @@
 # App business boundary
 
 The fixed Metasequoia crates own ordinary input semantics. `owl-app-core` owns
-Owltype business rules; `owl-app-ffi` exposes them to the native application.
+Owltype business rules; `owl-msime-ffi` exposes both the engine runtime and
+app-core ABI to the native application.
 Swift owns UI, macOS fact capture and system-effect execution. A class called
 ViewModel or Adapter is not exempt from this boundary.
 
@@ -15,7 +16,7 @@ Split entries retain only their native parts.
 
 - Version 1 requests are bounded UTF-8 JSON; input is borrowed for the synchronous
   call only. A returned NUL-terminated JSON buffer is Rust-owned and must be freed
-  once with `owl_app_string_free`. A null free is permitted. Never free Swift bytes
+  once with `owl_msime_string_free`. A null free is permitted. Never free Swift bytes
   through Rust, pass an interior pointer or retain a borrowed request.
 - Responses are `{ok:true,value:...}` or `{ok:false,error:...}`. Errors contain stable
   codes and no request content. Unsupported ABI versions fail before reading input.
@@ -59,12 +60,6 @@ The separate `selectSchema` effect interface remains immediate for explicit host
 this is not a claim that every schema switch is deferred. The per-key schema backoff decision
 uses `owl_app_keyboard_schema_idle_action` (0 already active, 1 attempt, 2 known failure).
 
-[`keyboard_export.rs`](../../rust/crates/owl-app-core/src/keyboard_export.rs) owns the
-retained YAML preview/export strings, complete file plan and managed-block rendering.
-This does not reintroduce YAML into normal settings activation. Shared write/backup/rollback
-transactions live in `config_writer` and the template storage modules below. Input commit
-transforms remain assigned to lifecycle/input closeout.
-
 ## Behavior and data baselines
 
 Use existing synthetic fixtures and the real Swift/FFI seam; do not copy personal data.
@@ -73,10 +68,10 @@ Use existing synthetic fixtures and the real Swift/FFI seam; do not copy persona
 | --- | --- | --- |
 | Input/configuration | `tests/OwlRustEngineTests.swift`, `tests/OwlKeyboardSettingsCatalogTests.swift`, parity fixture baseline | Effective settings, candidate identity/order, composition preserved across live preference changes |
 | Templates | `tests/OwlTemplateEngineTests.swift`, `tests/OwlTemplateClipboardTests.swift`, `tests/OwlTemplateCursorTests.swift` | Standard/legacy grammar, frozen context, UTF-16 diagnostics, no recursive expansion |
-| Template storage | `sources/Settings/OwlTemplateStore.swift`, `sources/Settings/OwlTemplateBackup.swift`, `sources/Settings/OwlTemplateMigration.swift` and their tests | Existing Codable keys, IDs, paths, backup/restore versions, pending recovery and rollback |
+| Template storage | `sources/Settings/OwlTemplateStore.swift` and `tests/OwlTemplateStoreTests.swift` | Existing Codable keys, IDs, paths, atomic save and expected-library compare-and-swap |
 | Automatic expansion | `tests/OwlDynamicAutomaticTests.swift` and automatic-expansion suites | Prefix conflict rules, delimiter keep/drop, Esc/interrupt restoration, no per-key parsing |
 | AI | `tests/OwlLLMGatewayTests.swift`, `tests/OwlLLMStreamingRecordingTests.swift`, `tests/OwlAIConversationModelTests.swift` | Provider payloads, stream splitting, history, cancellation, explicit-action privacy |
-| Resources | `tests/OwlRustResourceTransactionTests.swift`, `tests/OwlUserMigrationTests.swift` | Generation format/activation/rollback, journal replay, original snapshot and pinsExternalOnly |
+| Resources | `tests/OwlRustResourceTransactionTests.swift`, `tests/OwlUserDictResetTests.swift` | Generation format/activation/rollback, journal replay, and atomic user dictionary reset |
 | Agent/host | `tests/OwlAgentDeliveryTests.swift`, `tests/OwlAgentBridgeContractTests.swift` | Wire compatibility, one write, replay, cancellation, secure-input refusal |
 
 Inspect the owning implementation before each migration for exact serialized versions
@@ -119,8 +114,8 @@ can cross back without serializing it. Domain validation still returns user-faci
 No callback/context is retained or sent to a worker thread. These storage operations preserve
 the existing callers' scheduling; ordinary keys do not invoke filesystem effects.
 
-`template_library`, `template_editor`, `picker`, `template_import`, `template_backup`,
-`prompt_store` and `quick_send` own their models and decisions. UI projections remain Codable
+`template_library`, `template_editor`, `picker`, and `template_import`
+own their models and decisions. UI projections remain Codable
 DTOs. Foundation supplies title ranks, case comparison and localized substring facts; Rust
 chooses pin priority, deduplication representatives and ordering. `foundation_text` preserves
 Foundation whitespaces/newlines (including U+200B) without normalizing authored content.
@@ -131,11 +126,8 @@ consumes immutable native-decoded nodes via the session ABI below.
 without creating files. Writes also hold the original nonblocking per-directory flock.
 The native call tracks acquired canonical keys and both recursive lock depths and releases
 unbalanced acquisitions after an ABI-caught panic. Pure template queries take neither lock.
-Expected-library checks fence editor commits; state is written last. Ordinary saves retain
-thrown-failure restoration, while migration/restore/delete persist snapshots and expected
-writes before mutation. Restart recovery verifies transaction identity and exact bytes,
-refuses external changes, and distinguishes a landed rename from bookkeeping failure.
-Only a fully settled library publishes the existing native commit notification.
+Expected-library checks fence editor commits, and saves write atomically via a temporary file
+and rename before publishing the native commit notification.
 
 
 ## Automatic recognition and invocation sessions

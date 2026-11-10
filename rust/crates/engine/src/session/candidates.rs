@@ -12,6 +12,9 @@ use crate::ime::queries::{
 use crate::ime::MixedJapaneseConversion;
 use crate::local::date_time::{inline_date_time_keyword, insert_inline_date_time, LocalDateTime};
 use crate::local::jianpin::jianpin_ranking_context;
+use crate::offensive_placement::{
+    evict_after_positions, keep_off_first_page, spells_whole_input, typed_demotion,
+};
 use crate::pinyin::segment::{cut_pinyin_by_mode, join_segments, CutMode};
 use crate::text::{count_utf8_chars, is_han_phrase};
 use crate::types::{
@@ -57,6 +60,8 @@ pub(super) fn clone_candidate_rows(source: &[WordItem], destination: &mut Vec<Wo
         target.corrected_from.clone_from(&item.corrected_from);
         target.sentence_association = item.sentence_association;
         target.sentence_words.clone_from(&item.sentence_words);
+        target.touch_supported = item.touch_supported;
+        target.confident_correction = item.confident_correction;
     }
     if destination.len() > source.len() {
         destination.truncate(source.len());
@@ -100,6 +105,7 @@ impl InputSession {
             && !self.dedicated_english
             && self.local_mode == LocalInputMode::None
             && self.quick_phrase_candidates
+            && !self.caret_edit.active
             && self.mixed_candidates_enabled
             && self.local_mode_options.quick_phrase
             && !self.wubi_grid_composing()
@@ -122,6 +128,19 @@ impl InputSession {
     }
 
     pub(super) fn update_mixed_candidates(&mut self) {
+        if !self.has_composition() {
+            self.glide_selection_pending = false;
+        }
+        if let Some((spelling, _)) = &self.glide_candidates {
+            if self.local_mode == LocalInputMode::None
+                && !self.dedicated_english
+                && self.raw_with_cases() == spelling
+                && self.caret_position() == spelling.len()
+            {
+                return;
+            }
+        }
+        self.glide_candidates = None;
         self.multilingual_conversion = None;
         if self.update_literal_candidates() {
             return;
@@ -153,6 +172,7 @@ impl InputSession {
                     &model,
                     self.chain.earlier.as_deref(),
                     previous,
+                    self.scheme(),
                     &mut |leader: &str| {
                         is_pinned_candidate(journal, &context, leader)
                             || (self.frequency.mode != FrequencyAdjustmentMode::Disabled
@@ -219,7 +239,21 @@ impl InputSession {
             self.engine.candidates(),
         );
         let mut candidates = result.candidates;
+        // 超级简拼查出来的是共享词库的行，和 26 键的简拼一样：粗俗词不进首屏（`offensive_placement`）。简拼不是完整拼写，所以没有「只让出首选」的情形。
+        let jianpin_vulgar = (self.local_mode == LocalInputMode::SuperJianpin)
+            .then(|| self.engine.offensive_words());
+        let page = self.engine.request().first_page_rows.get();
+        if let Some(vulgar) = &jianpin_vulgar {
+            keep_off_first_page(&mut candidates, page, |item| {
+                typed_demotion(item, vulgar, |_| false)
+            });
+        }
         self.apply_candidate_positions(&mut candidates);
+        if let Some(vulgar) = &jianpin_vulgar {
+            evict_after_positions(&mut candidates, page, |item| {
+                typed_demotion(item, vulgar, |_| false)
+            });
+        }
         self.local_candidates = candidates;
         self.insert_cached_plugin_rows();
         // After the positions, so the synthetic row is never moved.
@@ -253,11 +287,12 @@ impl InputSession {
     }
 
     pub(super) fn add_local_fallback_candidate(&mut self) {
-        // An incomplete or unmatched special-mode input shows its raw text, prefix letter included, so Space commits it through the ordinary selection path (overlays.md §8.1).
+        // 未完成或未匹配的特殊模式把原文作为候选，让空格仍走普通选词路径（overlays.md §8.1）。手动进入时保留前导字母；组字后按 `/` 转出的超级简拼不带 `J`，因为它不是用户输入的字符（`local_raw_text`）。
         if self.local_candidates.is_empty() && !self.local_preedit.is_empty() {
+            let text = self.local_raw_text().to_owned();
             self.local_candidates.push(WordItem::new(
-                self.local_preedit.clone(),
-                self.local_preedit.clone(),
+                text.clone(),
+                text,
                 1,
                 CandidateSource::Fallback,
                 "",
@@ -607,6 +642,7 @@ impl InputSession {
             || self.local_mode != LocalInputMode::None
             || self.dedicated_english
             || self.prefix_active
+            || self.caret_edit.active
             || self.has_active_helpcode()
         {
             return None;
@@ -649,6 +685,7 @@ impl InputSession {
             || self.local_mode != LocalInputMode::None
             || self.dedicated_english
             || self.prefix_active
+            || self.caret_edit.active
             || self.has_active_helpcode()
             || self.single_character_only
         {
@@ -700,15 +737,39 @@ impl InputSession {
         );
     }
 
+    /// 判断粗俗词是不是打全了拼写时对照的输入：光标前缀解码时是光标前那段，否则是整段组字。
+    fn placement_input(&self) -> &str {
+        if self.prefix_active {
+            self.prefix_query_input.as_str()
+        } else {
+            self.engine.request().raw_input.as_str()
+        }
+    }
+
     /// 对一份解码结果混排并应用固定位置。
     fn mixed_from(
         &mut self,
-        decoded: Vec<WordItem>,
+        mut decoded: Vec<WordItem>,
         japanese: Option<&MixedJapaneseConversion>,
     ) -> Vec<WordItem> {
+        // 粗俗词不当首选，前缀、部分候选和简拼查出来的不进首屏（`offensive_placement`）。在混入英文、日文和固定位置之前挪：混入的行坐的是首选之后的位置，挪动不能把它们推上首选；用户固定的位置照旧生效。英文粗俗词由 `CandidateQueries::mixed` 接在末尾。
+        let scheme = self.scheme();
+        let page = self.engine.request().first_page_rows.get();
+        let vulgar = (scheme.is_pinyin() && self.local_mode == LocalInputMode::None)
+            .then(|| self.engine.offensive_words());
+        if let Some(vulgar) = &vulgar {
+            let (input, profile) = (self.placement_input(), self.profile);
+            keep_off_first_page(&mut decoded, page, |item| {
+                typed_demotion(item, vulgar, |item| {
+                    spells_whole_input(item, input, scheme, profile)
+                })
+            });
+        }
         let japanese = japanese.map(|conversion| self.mixed_japanese_row(&decoded, conversion));
         // 拼音拆不开时完全匹配的英文可以占首位，但有两种情况不行：光标前缀解码时选英文会扔掉光标后的输入（`commit_selection` 整段结束组字）；辅助码激活时大写的辅助码被转成小写拼进了查英文的输入，那串字母不是用户要的英文词。
         let english_may_lead = !self.prefix_active && !self.has_active_helpcode();
+        // 光标后编辑里选中英文、emoji、颜文字、符号这些混排行会结束整段组字，扔掉光标前固定的那段或光标后剩下的拼写，所以一概不混入。
+        let mixed_enabled = self.mixed_candidates_enabled && !self.caret_edit.active;
         // 符号行要整段组字正好是符号的名称，条件和上面相同但语义不同：光标前缀解码时查的是光标前那段，辅助码激活时输入里混着辅助码字母，两种情况下整段都不是用户打的名称。
         let symbols_allowed = !self.prefix_active && !self.has_active_helpcode();
         let association_input = if self.prefix_active {
@@ -716,7 +777,6 @@ impl InputSession {
         } else {
             self.engine.request().raw_input.as_str()
         };
-        let scheme = self.scheme();
         let mut mixed = self.queries.mixed(
             decoded,
             association_input,
@@ -729,10 +789,18 @@ impl InputSession {
             symbols_allowed,
             japanese,
             self.engine.request().first_page_rows.get(),
-            self.mixed_candidates_enabled,
+            mixed_enabled,
         );
         self.insert_inline_date_time(&mut mixed);
         self.apply_candidate_positions(&mut mixed);
+        if let Some(vulgar) = &vulgar {
+            let (input, profile) = (self.placement_input(), self.profile);
+            evict_after_positions(&mut mixed, page, |item| {
+                typed_demotion(item, vulgar, |item| {
+                    spells_whole_input(item, input, scheme, profile)
+                })
+            });
+        }
         // 云候选异步到达；先在它的固定席位放一个云图标，回包时原位替换，避免本地候选整体后移。
         if self.cloud_candidates_enabled
             && self
@@ -765,11 +833,14 @@ impl InputSession {
         if self.local_mode == LocalInputMode::None {
             keep_expressive_rows_off_the_lead(&mut mixed);
         }
-        // 放在最后：网址补全不参与固定位置，也不被挪开。
-        self.insert_url_scheme_completions(&mut mixed);
+        // 放在最后：网址补全不参与固定位置，也不被挪开。光标后编辑里选中网址补全会进入网址模式，同样不加。
+        if !self.caret_edit.active {
+            self.insert_url_scheme_completions(&mut mixed);
+        }
         // 联系人优先级高于固定位置和云候选；两行相邻，不能让云占位插进姓名与组合文本之间。
         // 光标前缀只解码局部，联系人选择却会结束整段组字，因此只在完整普通拼音组字中加入。
         if !self.prefix_active
+            && !self.caret_edit.active
             && !self.dedicated_english
             && self.local_mode == LocalInputMode::None
             && !self.has_active_helpcode()
@@ -795,6 +866,7 @@ impl InputSession {
         if !self.local_mode_options.date_time_inline
             || !self.mixed_candidates_enabled
             || self.prefix_active
+            || self.caret_edit.active
             || self.single_character_only
             || self.dedicated_english
             || self.local_mode != LocalInputMode::None
@@ -881,6 +953,8 @@ mod tests {
             corrected_from: "lihao".into(),
             sentence_association: true,
             sentence_words: vec!["合".to_owned(), "成词".to_owned()],
+            touch_supported: true,
+            confident_correction: true,
         };
         let plain = WordItem::new("ni", "你", 1, CandidateSource::Database, "ni");
         let mut destination = vec![marked.clone(), marked.clone(), marked.clone()];

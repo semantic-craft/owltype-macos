@@ -15,12 +15,12 @@ struct OwlKeyboardSettingsApplication {
     var errorDescription: String? { "快捷片段恢复尚未完成，请先完成恢复再应用配置。" }
   }
 
-  let engine: InputEngine
+  let engine: OwlRustEngine
   let directory: URL
   let refresh: () -> Void
 
   init(
-    engine: InputEngine,
+    engine: OwlRustEngine,
     directory: URL,
     refresh: @escaping () -> Void
   ) {
@@ -30,12 +30,11 @@ struct OwlKeyboardSettingsApplication {
   }
 
   /// The engine reads keyboard preferences from defaults, so applying writes no Rime files:
-  /// `written` is always empty and `snapshot` is not read.
-  func apply(_ snapshot: OwlKeyboardSnapshot, mode: Mode) throws -> Outcome {
-    // Do not overwrite migration inputs while their rollback journal is unresolved.
+  /// `written` is always empty.
+  func apply(mode: Mode) throws -> Outcome {
     let plan: OwlAppCore.KeyboardApplication = OwlAppCore.required([
       "operation": "keyboard_application", "mode": mode == .config ? "config" : "fuzzy",
-      "recovery_pending": OwlTemplateMigration.hasPendingRecovery(dataDir: directory)])
+      "recovery_pending": false])
     guard !plan.blocked else {
       throw Failure.recoveryPending
     }

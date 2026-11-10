@@ -43,11 +43,7 @@ def components(pin=None) -> tuple:
         ("Owltype", None, "GPL-3.0-only", "https://responsay.com/owltype/"),
         ("Squirrel-derived frontend", "4db2c85ac639c229e14fd9424f79c3c4f97ce478", "GPL-3.0-only", "https://github.com/rime/squirrel"),
         ("Sparkle", "41847a58cdef7506b257591fcca6f9495df591d4", "MIT", "https://github.com/sparkle-project/Sparkle"),
-        ("rime-ice configuration", "b681a34f788795034b3b288830f4861980bc8b0d", "GPL-3.0-only", "https://github.com/iDvel/rime-ice"),
         ("rime-wubi86-jidian", "a194fb8b3ec41ef9dcf079d3a67876fa75f79135", "Apache-2.0", "https://github.com/KyleBing/rime-wubi86-jidian"),
-        ("jieba", "v0.42.1", "MIT", "https://github.com/fxsjy/jieba"),
-        ("phrase-pinyin-data", "cee0ed6e6e4898580cafd2bd5e3723e20b214aa0", "MIT", "https://github.com/mozillazg/phrase-pinyin-data"),
-        ("Unicode Unihan", "16.0.0", "Unicode-3.0", "https://www.unicode.org/Public/16.0.0/ucd/Unihan.zip"),
         ("OpenCC data", "556ed22496d650bd0b13b6c163be9814637970ae", "Apache-2.0", "https://github.com/BYVoid/OpenCC"),
         ("Metasequoia IME (msime)", pin.engine_revision, "GPL-3.0-only", "https://github.com/metasequoiaime/msime"),
         ("msime-dictionary pinyin, Wubi86/98, English and context resources", pin.release, "GPL-3.0-only AND GPL-3.0-or-later AND MIT AND CC-BY-SA-4.0 AND Apache-2.0 AND Unlicense AND WTFPL AND LicenseRef-SCOWL", tag_url),
@@ -102,7 +98,7 @@ def artifact_sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def validate_app_executable(app: Path) -> None:
+def validate_app_executable(app: Path) -> Path:
     try:
         app_mode = app.lstat().st_mode
     except OSError as error:
@@ -118,6 +114,7 @@ def validate_app_executable(app: Path) -> None:
         raise ValueError("release App executable is not a regular file")
     if stat.S_IMODE(executable_mode) & 0o111 == 0:
         raise ValueError("release App executable is not executable")
+    return executable
 
 
 def unreadable_by_others(root: Path) -> list[str]:

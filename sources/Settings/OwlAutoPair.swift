@@ -57,6 +57,26 @@ enum OwlAutoPair {
     "{": "}"
   ]
 
+  static let chinesePairs: [String: String] = [
+    "（": "）",
+    "【": "】",
+    "《": "》",
+    "“": "”",
+    "‘": "’",
+    "〈": "〉",
+    "「": "」",
+    "『": "』",
+    "〔": "〕",
+    "〖": "〗"
+  ]
+
+  static let reopenings: [String: String] = [
+    "”": "“",
+    "’": "‘",
+    "」": "「",
+    "』": "『"
+  ]
+
   /// All closing chars (the skip-over candidates).
   static let closers: Set<Character> = Set(pairs.values)
 

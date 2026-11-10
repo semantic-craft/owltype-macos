@@ -57,8 +57,8 @@ struct OwlRaycastImport {
   }
   let dataDir: URL
   func preview(data: Data) throws -> Preview { try OwlStorageHost(dataDir: dataDir).call("import_preview", ["bytes": Array(data)]) }
-  func commit(_ preview: Preview, checkpoint: @escaping (String) throws -> Void = { _ in }) throws -> OwlTemplateBackup.Outcome {
-    let result: OwlTemplateBackup.Outcome = try OwlStorageHost(dataDir: dataDir, checkpoint: checkpoint, writerCheckpoint: checkpoint).call("import_commit", ["preview": OwlAppCore.payload(preview)])
+  func commit(_ preview: Preview, checkpoint: @escaping (String) throws -> Void = { _ in }) throws -> OwlTemplateLibrary {
+    let result: OwlTemplateLibrary = try OwlStorageHost(dataDir: dataDir, checkpoint: checkpoint).call("import_commit", ["preview": OwlAppCore.payload(preview)])
     OwlTemplateStore.notifyCommittedLibrary(dataDir: dataDir)
     return result
   }

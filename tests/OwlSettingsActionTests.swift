@@ -57,6 +57,31 @@ final class OwlSettingsActionTests: XCTestCase {
     super.tearDown()
   }
 
+  @MainActor
+  func testLoadingTemplatesLeavesAnInProgressDraftUntouched() async {
+    let model = OwlTemplateEditorModel()
+    let started = expectation(description: "Library read started off the main thread")
+    let releaseRead = DispatchSemaphore(value: 0)
+    let saved = OwlTemplateEntry(title: "Saved", body: "Old body")
+    let load = Task {
+      await model.loadLibraryForEditing { _ in
+        XCTAssertFalse(Thread.isMainThread)
+        started.fulfill()
+        guard releaseRead.wait(timeout: .now() + 3) == .success else {
+          XCTFail("Main thread could not edit while the library read was pending")
+          return OwlTemplateLibrary()
+        }
+        return OwlTemplateLibrary(entries: [saved])
+      }
+    }
+    await fulfillment(of: [started], timeout: 2)
+    model.draft.title = "Still typing"
+    releaseRead.signal()
+    await load.value
+    XCTAssertEqual(model.library.entries, [saved])
+    XCTAssertEqual(model.draft.title, "Still typing")
+  }
+
   func testClickablePreferenceActionsUpdateStateAndPreferenceHomes() {
     let state = OwlSettingsState()
     var selectedSchemas: [String] = []
@@ -134,15 +159,6 @@ final class OwlSettingsActionTests: XCTestCase {
     XCTAssertTrue(OwlSelectionMenuPreferences.translationEnabled)
     XCTAssertTrue(OwlSelectionMenuPreferences.promptOptimizeEnabled)
     XCTAssertTrue(OwlSelectionMenuPreferences.goalBriefEnabled)
-  }
-
-  func testJEVReplyIsOptInAndHonorsCloudGate() {
-    OwlSelectionMenuPreferences.resetForTesting()
-    defer { OwlSelectionMenuPreferences.resetForTesting() }
-    XCTAssertFalse(OwlSelectionMenuAction.enabledActions(cloudEnabled: true).contains(.jevReply))
-    OwlSelectionMenuPreferences.jevReplyEnabled = true
-    XCTAssertTrue(OwlSelectionMenuAction.enabledActions(cloudEnabled: true).contains(.jevReply))
-    XCTAssertFalse(OwlSelectionMenuAction.enabledActions(cloudEnabled: false).contains(.jevReply))
   }
 
   func testSelectionMenuActionsFollowEnabledSkillPreferences() {
@@ -248,46 +264,6 @@ final class OwlSettingsActionTests: XCTestCase {
   }
 
   func testStoreBackedButtonActionsReachStoresAndStatuses() throws {
-    let entry = try OwlQuickSendStore.entry(text: "判决摘要", code: "pjzy")
-    var persistedQuickSend: [OwlQuickSendEntry] = []
-    var redeploys = 0
-    let save = try OwlSettingsActions.saveQuickSendEntry(
-      phrase: "判决摘要",
-      code: "pjzy",
-      editingCode: nil,
-      entries: [],
-      persist: { next in
-        persistedQuickSend = next
-        redeploys += 1
-        return (next, false)
-      }
-    )
-    XCTAssertEqual(persistedQuickSend, [entry])
-    XCTAssertEqual(save.entries, [entry])
-    XCTAssertEqual(save.phrase, "")
-    XCTAssertEqual(save.code, "")
-    XCTAssertNil(save.editingCode)
-    XCTAssertEqual(save.status, "已保存；应用配置失败，请查看诊断日志。")
-    XCTAssertEqual(redeploys, 1)
-
-    let delete = try OwlSettingsActions.deleteQuickSendEntry(
-      entry,
-      editingCode: entry.code,
-      entries: [entry],
-      persist: { next in
-        persistedQuickSend = next
-        redeploys += 1
-        return (next, true)
-      }
-    )
-    XCTAssertTrue(persistedQuickSend.isEmpty)
-    XCTAssertTrue(delete.entries.isEmpty)
-    XCTAssertEqual(delete.phrase, "")
-    XCTAssertEqual(delete.code, "")
-    XCTAssertNil(delete.editingCode)
-    XCTAssertEqual(delete.status, "已删除并应用配置改动。")
-    XCTAssertEqual(redeploys, 2)
-
     var clipboardEnabled = false
     let enableStatus = OwlSettingsActions.setClipboardEnabled(true) { clipboardEnabled = $0 }
     XCTAssertTrue(clipboardEnabled)
@@ -366,90 +342,6 @@ final class OwlSettingsActionTests: XCTestCase {
       selectedSchemas.append($0)
     })
     XCTAssertEqual(selectedSchemas, ["rime_ice"])
-
-    var copied = ""
-    OwlSettingsActions.copyPreviewText("patch:\n") { copied = $0 }
-    XCTAssertEqual(copied, "patch:\n")
-
-    let file = OwlManagedPatchFile(
-      fileName: "default.custom.yaml",
-      block: ManagedPatchBlock(
-        marker: "TEST",
-        yamlLinesIndentedUnderPatch: ["  \"menu/page_size\": 5"]
-      )
-    )
-
-    var applied: [String] = []
-    var redeploys = 0
-    let blockedApply = OwlSettingsActions.applyWritePreview(
-      confirmed: false,
-      files: [file],
-      timestamp: "ts",
-      apply: { file, timestamp in applied.append("\(file.fileName)@\(timestamp)") },
-      redeploy: {
-        redeploys += 1
-        return true
-      }
-    )
-    XCTAssertNil(blockedApply)
-    XCTAssertTrue(applied.isEmpty)
-    XCTAssertEqual(redeploys, 0)
-
-    let appliedStatus = OwlSettingsActions.applyWritePreview(
-      confirmed: true,
-      files: [file],
-      timestamp: "ts",
-      apply: { file, timestamp in applied.append("\(file.fileName)@\(timestamp)") },
-      redeploy: {
-        redeploys += 1
-        return true
-      }
-    )
-    XCTAssertEqual(applied, ["default.custom.yaml@ts"])
-    XCTAssertEqual(redeploys, 1)
-    XCTAssertEqual(appliedStatus, "已写入并应用配置 default.custom.yaml（备份+manifest 已记录，可回滚）。")
-
-    let refused = OwlSettingsActions.applyWritePreview(
-      confirmed: true,
-      files: [file],
-      timestamp: "ts",
-      apply: { _, _ in throw OwlConfigWriteError.refusedNeverTouch("user.yaml") },
-      redeploy: {
-        XCTFail("failed apply must not redeploy")
-        return true
-      }
-    )
-    XCTAssertEqual(refused, "已拒绝写入受保护文件：user.yaml。")
-
-    var rollbacks = 0
-    let blockedRollback = OwlSettingsActions.rollbackWritePreview(
-      confirmed: false,
-      rollback: { rollbacks += 1 },
-      redeploy: {
-        XCTFail("blocked rollback must not redeploy")
-        return true
-      }
-    )
-    XCTAssertNil(blockedRollback)
-    XCTAssertEqual(rollbacks, 0)
-
-    let rollbackStatus = OwlSettingsActions.rollbackWritePreview(
-      confirmed: true,
-      rollback: { rollbacks += 1 },
-      redeploy: { false }
-    )
-    XCTAssertEqual(rollbacks, 1)
-    XCTAssertEqual(rollbackStatus, "已按 manifest 回滚最近一次写入；应用配置失败，请查看诊断日志。")
-
-    let rollbackFailure = OwlSettingsActions.rollbackWritePreview(
-      confirmed: true,
-      rollback: { throw NSError(domain: "test", code: 4) },
-      redeploy: {
-        XCTFail("failed rollback must not redeploy")
-        return true
-      }
-    )
-    XCTAssertTrue(rollbackFailure?.contains("回滚失败") == true)
   }
 
   // MARK: - PR2 Track 1: Owltype-side prefs are live + must NOT trigger a Rime deploy/apply
@@ -506,8 +398,7 @@ final class OwlSettingsActionTests: XCTestCase {
     XCTAssertEqual(
       OwlKeyboardPage.autoApplyStatusMessage(
         written: [],
-        deploySucceeded: true,
-        writesConfigPatches: false
+        deploySucceeded: true
       ),
       "配置已生效。"
     )
@@ -522,8 +413,7 @@ final class OwlSettingsActionTests: XCTestCase {
     XCTAssertEqual(
       OwlSettingsView.candidatePageSizeApplyStatusMessage(
         written: [],
-        deploySucceeded: true,
-        writesConfigPatches: false
+        deploySucceeded: true
       ),
       "候选个数已生效。"
     )
@@ -577,17 +467,13 @@ final class OwlSettingsActionTests: XCTestCase {
     XCTAssertFalse(engine.lifecycleTrace.contains("startMaintenance"))
   }
 
-  /// #121 companion gap: rime's detect_modifications does not track owltype.custom.yaml, so a
-  /// owltype-domain-only change leaves `start_maintenance` with "nothing to do" (false). startEngine
-  /// used to gate the owltype.yaml deploy on that flag — even a full 重新部署 then skipped it and
-  /// the managed-block write stayed inert. The deploy must run regardless of the flag.
   func testStartRimeDeploysOwltypeConfigEvenWhenMaintenanceIdle() throws {
     let engine = FakeInputEngine(startMaintenanceResult: false)
     let runtime = EngineRuntime(engine: engine, userDirectory: try applicationDirectory())
 
     _ = runtime.start(fullCheck: true)
-    XCTAssertTrue(engine.deployedConfigFiles.contains("owltype.yaml"),
-                  "owltype.yaml deploy must not be gated on start_maintenance having work to do")
+    XCTAssertEqual(engine.lifecycleTrace, ["startMaintenance"])
+    XCTAssertTrue(engine.deployedConfigFiles.isEmpty)
   }
 
   private func applicationDirectory() throws -> URL {

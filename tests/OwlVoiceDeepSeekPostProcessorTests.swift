@@ -52,7 +52,7 @@ final class OwlVoiceDeepSeekPostProcessorTests: XCTestCase {
       return (Data(responseJSON.utf8), response)
     }
 
-    let polisher = OwlVoiceDeepSeekPolisher(
+    let polisher = OwlVoicePolisher(
       transport: stubTransport,
       apiKeyProvider: { "mock-key" }
     )
@@ -78,7 +78,7 @@ final class OwlVoiceDeepSeekPostProcessorTests: XCTestCase {
       return (Data(responseJSON.utf8), response)
     }
 
-    let polisher = OwlVoiceDeepSeekPolisher(
+    let polisher = OwlVoicePolisher(
       transport: stubTransport,
       apiKeyProvider: { "mock-key" }
     )
@@ -92,7 +92,7 @@ final class OwlVoiceDeepSeekPostProcessorTests: XCTestCase {
   }
 
   func testPromptAssemblyWithEmptyContextAndHotwords() async throws {
-    let userPrompt = OwlVoiceDeepSeekPolisher.buildUserPrompt(
+    let userPrompt = OwlVoicePolisher.buildUserPrompt(
       rawTranscript: "测试文本",
       hotwords: [],
       preContext: nil
@@ -103,7 +103,7 @@ final class OwlVoiceDeepSeekPostProcessorTests: XCTestCase {
   }
 
   func testSystemPromptInstructionsContainGuardrails() {
-    let prompt = OwlVoiceDeepSeekPolisher.defaultSystemPrompt
+    let prompt = OwlVoicePolisher.defaultSystemPrompt
     XCTAssertTrue(prompt.contains("去除无意义口水词"))
     XCTAssertTrue(prompt.contains("<personal_hotwords>"))
     XCTAssertTrue(prompt.contains("<preceding_context>"))
@@ -124,7 +124,7 @@ final class OwlVoiceDeepSeekPostProcessorTests: XCTestCase {
       return (Data(responseJSON.utf8), response)
     }
 
-    let polisher = OwlVoiceDeepSeekPolisher(
+    let polisher = OwlVoicePolisher(
       transport: stubTransport,
       requestTimeout: 0.05, // 50ms timeout
       apiKeyProvider: { "mock-key" }
@@ -145,7 +145,7 @@ final class OwlVoiceDeepSeekPostProcessorTests: XCTestCase {
       throw OwlVoiceError.networkTimeout
     }
 
-    let polisher = OwlVoiceDeepSeekPolisher(
+    let polisher = OwlVoicePolisher(
       transport: stubTransport,
       requestTimeout: 0.05,
       apiKeyProvider: { "mock-key" }
@@ -159,7 +159,7 @@ final class OwlVoiceDeepSeekPostProcessorTests: XCTestCase {
 
   func testDegradationCondition1DisabledSettings() async throws {
     let stubTransport = OwlStubVoiceTransport()
-    let polisher = OwlVoiceDeepSeekPolisher(
+    let polisher = OwlVoicePolisher(
       transport: stubTransport,
       apiKeyProvider: { "mock-key" },
       isEnabledChecker: { false } // Disabled in settings
@@ -172,7 +172,7 @@ final class OwlVoiceDeepSeekPostProcessorTests: XCTestCase {
 
   func testDegradationCondition2AMissingAPIKey() async throws {
     let stubTransport = OwlStubVoiceTransport()
-    let polisher = OwlVoiceDeepSeekPolisher(
+    let polisher = OwlVoicePolisher(
       transport: stubTransport,
       apiKeyProvider: { nil } // No key configured
     )
@@ -189,7 +189,7 @@ final class OwlVoiceDeepSeekPostProcessorTests: XCTestCase {
       return (Data(errorBody.utf8), response)
     }
 
-    let polisher = OwlVoiceDeepSeekPolisher(
+    let polisher = OwlVoicePolisher(
       transport: stubTransport,
       apiKeyProvider: { "invalid-token" }
     )
@@ -205,7 +205,7 @@ final class OwlVoiceDeepSeekPostProcessorTests: XCTestCase {
       return (Data(htmlBody.utf8), response)
     }
 
-    let polisher = OwlVoiceDeepSeekPolisher(
+    let polisher = OwlVoicePolisher(
       transport: stubTransport,
       apiKeyProvider: { "mock-key" }
     )
@@ -221,7 +221,7 @@ final class OwlVoiceDeepSeekPostProcessorTests: XCTestCase {
       return (Data(json.utf8), response)
     }
 
-    let polisher = OwlVoiceDeepSeekPolisher(
+    let polisher = OwlVoicePolisher(
       transport: stubTransport,
       apiKeyProvider: { "mock-key" }
     )
@@ -237,7 +237,7 @@ final class OwlVoiceDeepSeekPostProcessorTests: XCTestCase {
       return (Data(json.utf8), response)
     }
 
-    let polisher = OwlVoiceDeepSeekPolisher(
+    let polisher = OwlVoicePolisher(
       transport: stubTransport,
       apiKeyProvider: { "mock-key" }
     )
@@ -251,7 +251,7 @@ final class OwlVoiceDeepSeekPostProcessorTests: XCTestCase {
       throw URLError(.notConnectedToInternet)
     }
 
-    let polisher = OwlVoiceDeepSeekPolisher(
+    let polisher = OwlVoicePolisher(
       transport: stubTransport,
       apiKeyProvider: { "mock-key" }
     )
@@ -265,7 +265,7 @@ final class OwlVoiceDeepSeekPostProcessorTests: XCTestCase {
       throw URLError(.networkConnectionLost)
     }
 
-    let polisher = OwlVoiceDeepSeekPolisher(
+    let polisher = OwlVoicePolisher(
       transport: stubTransport,
       apiKeyProvider: { "mock-key" }
     )
@@ -283,7 +283,7 @@ final class OwlVoiceDeepSeekPostProcessorTests: XCTestCase {
       return (Data(json.utf8), response)
     }
 
-    let polisher = OwlVoiceDeepSeekPolisher(
+    let polisher = OwlVoicePolisher(
       transport: stubTransport,
       apiKeyProvider: { "mock-key" }
     )
@@ -301,7 +301,7 @@ final class OwlVoiceDeepSeekPostProcessorTests: XCTestCase {
       return (Data(json.utf8), response)
     }
 
-    let polisher = OwlVoiceDeepSeekPolisher(
+    let polisher = OwlVoicePolisher(
       transport: stubTransport,
       apiKeyProvider: { "mock-key" }
     )
@@ -314,34 +314,34 @@ final class OwlVoiceDeepSeekPostProcessorTests: XCTestCase {
     // Formula: max(raw.count * 2 + 15, 30)
 
     // L_raw = 1 ("啊"): max(17, 30) = 30
-    XCTAssertTrue(OwlVoiceDeepSeekPolisher.validate(raw: "啊", polished: String(repeating: "字", count: 30)))
-    XCTAssertFalse(OwlVoiceDeepSeekPolisher.validate(raw: "啊", polished: String(repeating: "字", count: 31)))
+    XCTAssertTrue(OwlVoicePolisher.validate(raw: "啊", polished: String(repeating: "字", count: 30)))
+    XCTAssertFalse(OwlVoicePolisher.validate(raw: "啊", polished: String(repeating: "字", count: 31)))
 
     // L_raw = 7: max(29, 30) = 30
-    XCTAssertTrue(OwlVoiceDeepSeekPolisher.validate(raw: "今天下午开会吗", polished: String(repeating: "字", count: 30)))
-    XCTAssertFalse(OwlVoiceDeepSeekPolisher.validate(raw: "今天下午开会吗", polished: String(repeating: "字", count: 31)))
+    XCTAssertTrue(OwlVoicePolisher.validate(raw: "今天下午开会吗", polished: String(repeating: "字", count: 30)))
+    XCTAssertFalse(OwlVoicePolisher.validate(raw: "今天下午开会吗", polished: String(repeating: "字", count: 31)))
 
     // L_raw = 8: max(31, 30) = 31
-    XCTAssertTrue(OwlVoiceDeepSeekPolisher.validate(raw: "今天下午去开会吗", polished: String(repeating: "字", count: 31)))
-    XCTAssertFalse(OwlVoiceDeepSeekPolisher.validate(raw: "今天下午去开会吗", polished: String(repeating: "字", count: 32)))
+    XCTAssertTrue(OwlVoicePolisher.validate(raw: "今天下午去开会吗", polished: String(repeating: "字", count: 31)))
+    XCTAssertFalse(OwlVoicePolisher.validate(raw: "今天下午去开会吗", polished: String(repeating: "字", count: 32)))
 
     // L_raw = 10: max(35, 30) = 35
-    XCTAssertTrue(OwlVoiceDeepSeekPolisher.validate(raw: "那个就是今天天气很好", polished: String(repeating: "字", count: 35)))
-    XCTAssertFalse(OwlVoiceDeepSeekPolisher.validate(raw: "那个就是今天天气很好", polished: String(repeating: "字", count: 36)))
+    XCTAssertTrue(OwlVoicePolisher.validate(raw: "那个就是今天天气很好", polished: String(repeating: "字", count: 35)))
+    XCTAssertFalse(OwlVoicePolisher.validate(raw: "那个就是今天天气很好", polished: String(repeating: "字", count: 36)))
   }
 
   func testSanitizationStripsXMLWrapperTagsAndPreamble() {
     // XML Tag strip
     let tagEcho = "<asr_transcript>今天天气很好。</asr_transcript>"
-    XCTAssertEqual(OwlVoiceDeepSeekPolisher.sanitize(polished: tagEcho), "今天天气很好。")
+    XCTAssertEqual(OwlVoicePolisher.sanitize(polished: tagEcho), "今天天气很好。")
 
     // Preamble strip
     let preambleEcho = "润色结果：今天天气很好。"
-    XCTAssertEqual(OwlVoiceDeepSeekPolisher.sanitize(polished: preambleEcho), "今天天气很好。")
+    XCTAssertEqual(OwlVoicePolisher.sanitize(polished: preambleEcho), "今天天气很好。")
 
     // Code fence strip
     let fencedEcho = "```\n今天天气很好。\n```"
-    XCTAssertEqual(OwlVoiceDeepSeekPolisher.sanitize(polished: fencedEcho), "今天天气很好。")
+    XCTAssertEqual(OwlVoicePolisher.sanitize(polished: fencedEcho), "今天天气很好。")
   }
 
   // MARK: - 5. Cancellation Behavior (Esc Key)
@@ -354,7 +354,7 @@ final class OwlVoiceDeepSeekPostProcessorTests: XCTestCase {
       return (Data(json.utf8), resp)
     }
 
-    let polisher = OwlVoiceDeepSeekPolisher(
+    let polisher = OwlVoicePolisher(
       transport: stubTransport,
       apiKeyProvider: { "mock-key" }
     )
@@ -384,7 +384,7 @@ final class OwlVoiceDeepSeekPostProcessorTests: XCTestCase {
       return (Data("{\"error\": \"Unauthorized\"}".utf8), response)
     }
 
-    let polisher = OwlVoiceDeepSeekPolisher(
+    let polisher = OwlVoicePolisher(
       transport: stubTransport,
       apiKeyProvider: { "bad-key" }
     )
@@ -401,7 +401,7 @@ final class OwlVoiceDeepSeekPostProcessorTests: XCTestCase {
     }
 
     // Missing key
-    let noKeyPolisher = OwlVoiceDeepSeekPolisher(
+    let noKeyPolisher = OwlVoicePolisher(
       transport: stubTransport,
       apiKeyProvider: { nil }
     )
@@ -418,7 +418,7 @@ final class OwlVoiceDeepSeekPostProcessorTests: XCTestCase {
       let response = HTTPURLResponse(url: req.url!, statusCode: 401, httpVersion: nil, headerFields: nil)!
       return (Data("{\"error\": {\"message\": \"Invalid credential \(echoedValue)\"}}".utf8), response)
     }
-    let echoingPolisher = OwlVoiceDeepSeekPolisher(
+    let echoingPolisher = OwlVoicePolisher(
       transport: echoingTransport,
       apiKeyProvider: { echoedValue }
     )
@@ -439,7 +439,7 @@ final class OwlVoiceDeepSeekPostProcessorTests: XCTestCase {
 
   func testStressTimeoutRace4SecondsWith10SecondDelayTransport() async throws {
     let transport = AsyncDelayedVoiceTransport(delaySecs: 10.0)
-    let polisher = OwlVoiceDeepSeekPolisher(
+    let polisher = OwlVoicePolisher(
       transport: transport,
       requestTimeout: 4.0,
       apiKeyProvider: { "mock-key" }
@@ -462,7 +462,7 @@ final class OwlVoiceDeepSeekPostProcessorTests: XCTestCase {
 
   func testStressTimeoutRaceFastCancellation() async throws {
     let transport = AsyncDelayedVoiceTransport(delaySecs: 5.0)
-    let polisher = OwlVoiceDeepSeekPolisher(
+    let polisher = OwlVoicePolisher(
       transport: transport,
       requestTimeout: 0.05, // 50ms fast timeout
       apiKeyProvider: { "mock-key" }
@@ -484,7 +484,7 @@ final class OwlVoiceDeepSeekPostProcessorTests: XCTestCase {
       return (Data("{\"error\": {\"message\": \"Forbidden\"}}".utf8), response)
     }
 
-    let polisher = OwlVoiceDeepSeekPolisher(
+    let polisher = OwlVoicePolisher(
       transport: stubTransport,
       apiKeyProvider: { "forbidden-key" }
     )
@@ -500,7 +500,7 @@ final class OwlVoiceDeepSeekPostProcessorTests: XCTestCase {
       return (Data("Internal Server Error 500".utf8), response)
     }
 
-    let polisher = OwlVoiceDeepSeekPolisher(
+    let polisher = OwlVoicePolisher(
       transport: stubTransport,
       apiKeyProvider: { "mock-key" }
     )
@@ -515,7 +515,7 @@ final class OwlVoiceDeepSeekPostProcessorTests: XCTestCase {
       return (Data(), response)
     }
 
-    let polisher = OwlVoiceDeepSeekPolisher(
+    let polisher = OwlVoicePolisher(
       transport: stubTransport,
       apiKeyProvider: { "mock-key" }
     )
@@ -530,7 +530,7 @@ final class OwlVoiceDeepSeekPostProcessorTests: XCTestCase {
       return (Data([0x00, 0xFF, 0xFE, 0x12, 0x89, 0xAB]), response)
     }
 
-    let polisher = OwlVoiceDeepSeekPolisher(
+    let polisher = OwlVoicePolisher(
       transport: stubTransport,
       apiKeyProvider: { "mock-key" }
     )
@@ -543,7 +543,7 @@ final class OwlVoiceDeepSeekPostProcessorTests: XCTestCase {
     let dnsFailTransport = OwlStubVoiceTransport { _ in
       throw URLError(.cannotFindHost)
     }
-    let polisher1 = OwlVoiceDeepSeekPolisher(
+    let polisher1 = OwlVoicePolisher(
       transport: dnsFailTransport,
       apiKeyProvider: { "mock-key" }
     )
@@ -553,7 +553,7 @@ final class OwlVoiceDeepSeekPostProcessorTests: XCTestCase {
     let timeoutTransport = OwlStubVoiceTransport { _ in
       throw URLError(.timedOut)
     }
-    let polisher2 = OwlVoiceDeepSeekPolisher(
+    let polisher2 = OwlVoicePolisher(
       transport: timeoutTransport,
       apiKeyProvider: { "mock-key" }
     )
@@ -568,7 +568,7 @@ final class OwlVoiceDeepSeekPostProcessorTests: XCTestCase {
       return (Data(json.utf8), response)
     }
 
-    let polisher = OwlVoiceDeepSeekPolisher(
+    let polisher = OwlVoicePolisher(
       transport: stubTransport,
       apiKeyProvider: { "mock-key" }
     )
@@ -580,16 +580,16 @@ final class OwlVoiceDeepSeekPostProcessorTests: XCTestCase {
   func testStressAntiHallucinationExactBoundaries() {
     // Formula: B = max(2 * L_raw + 15, 30)
     // 1. L_raw = 1 ("啊"): 2(1) + 15 = 17 <= 30 => B = 30
-    XCTAssertTrue(OwlVoiceDeepSeekPolisher.validate(raw: "啊", polished: String(repeating: "字", count: 30)))
-    XCTAssertFalse(OwlVoiceDeepSeekPolisher.validate(raw: "啊", polished: String(repeating: "字", count: 31)))
+    XCTAssertTrue(OwlVoicePolisher.validate(raw: "啊", polished: String(repeating: "字", count: 30)))
+    XCTAssertFalse(OwlVoicePolisher.validate(raw: "啊", polished: String(repeating: "字", count: 31)))
 
     // 2. L_raw = 7 ("今天下午开会吗"): 2(7) + 15 = 29 <= 30 => B = 30
-    XCTAssertTrue(OwlVoiceDeepSeekPolisher.validate(raw: "今天下午开会吗", polished: String(repeating: "字", count: 30)))
-    XCTAssertFalse(OwlVoiceDeepSeekPolisher.validate(raw: "今天下午开会吗", polished: String(repeating: "字", count: 31)))
+    XCTAssertTrue(OwlVoicePolisher.validate(raw: "今天下午开会吗", polished: String(repeating: "字", count: 30)))
+    XCTAssertFalse(OwlVoicePolisher.validate(raw: "今天下午开会吗", polished: String(repeating: "字", count: 31)))
 
     // 3. L_raw = 10 ("那个就是今天天气很好"): 2(10) + 15 = 35 >= 30 => B = 35
-    XCTAssertTrue(OwlVoiceDeepSeekPolisher.validate(raw: "那个就是今天天气很好", polished: String(repeating: "字", count: 35)))
-    XCTAssertFalse(OwlVoiceDeepSeekPolisher.validate(raw: "那个就是今天天气很好", polished: String(repeating: "字", count: 36)))
+    XCTAssertTrue(OwlVoicePolisher.validate(raw: "那个就是今天天气很好", polished: String(repeating: "字", count: 35)))
+    XCTAssertFalse(OwlVoicePolisher.validate(raw: "那个就是今天天气很好", polished: String(repeating: "字", count: 36)))
   }
 
   func testStressConversationalExpansionAttack() async throws {
@@ -601,7 +601,7 @@ final class OwlVoiceDeepSeekPostProcessorTests: XCTestCase {
       return (Data(json.utf8), response)
     }
 
-    let polisher = OwlVoiceDeepSeekPolisher(
+    let polisher = OwlVoicePolisher(
       transport: stubTransport,
       apiKeyProvider: { "mock-key" }
     )
@@ -617,7 +617,7 @@ final class OwlVoiceDeepSeekPostProcessorTests: XCTestCase {
       return (Data(json.utf8), response)
     }
 
-    let polisher = OwlVoiceDeepSeekPolisher(
+    let polisher = OwlVoicePolisher(
       transport: stubTransport,
       apiKeyProvider: { "mock-key" }
     )
@@ -627,8 +627,8 @@ final class OwlVoiceDeepSeekPostProcessorTests: XCTestCase {
   }
 
   func testStressXMLTagLeakingRawTranscriptProbe() async throws {
-    let sanitized = OwlVoiceDeepSeekPolisher.sanitize(polished: "<raw_transcript>你好</raw_transcript>")
-    let asrSanitized = OwlVoiceDeepSeekPolisher.sanitize(polished: "<asr_transcript>你好</asr_transcript>")
+    let sanitized = OwlVoicePolisher.sanitize(polished: "<raw_transcript>你好</raw_transcript>")
+    let asrSanitized = OwlVoicePolisher.sanitize(polished: "<asr_transcript>你好</asr_transcript>")
     XCTAssertEqual(asrSanitized, "你好", "<asr_transcript> is stripped")
     XCTAssertEqual(sanitized, "你好", "<raw_transcript> must be stripped")
   }
@@ -641,7 +641,7 @@ final class OwlVoiceDeepSeekPostProcessorTests: XCTestCase {
       return (Data(json.utf8), response)
     }
 
-    let polisher = OwlVoiceDeepSeekPolisher(
+    let polisher = OwlVoicePolisher(
       transport: stubTransport,
       apiKeyProvider: { "mock-key" }
     )

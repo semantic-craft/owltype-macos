@@ -1,9 +1,157 @@
+import AppKit
 import SwiftUI
+
+struct OwlPickerRow: Identifiable, Equatable, Codable {
+  let id: String
+  let display: String
+  let searchText: String
+
+  init(id: String, display: String, searchText: String? = nil) {
+    self.id = id
+    self.display = display
+    self.searchText = searchText ?? display
+  }
+}
 
 extension OwlPickerRow {
   static func template(_ entry: OwlTemplateEntry) -> OwlPickerRow {
     OwlPickerRow(id: entry.id.uuidString, display: entry.title,
                  searchText: OwlTemplateStore.searchText(entry))
+  }
+}
+
+enum OwlPickerSegment: String, CaseIterable {
+  case phrase
+  case prompt
+
+  var label: String { self == .phrase ? "短语" : "提示词" }
+}
+
+struct OwlPickerPanelModel: Equatable, Codable {
+  private(set) var rows: [OwlPickerRow]
+  private(set) var query: String
+  private(set) var selection: Int
+
+  init(rows: [OwlPickerRow], query: String = "") {
+    self.rows = rows
+    self.query = query
+    self.selection = rows.isEmpty ? -1 : 0
+  }
+
+  var visible: [OwlPickerRow] {
+    OwlTemplateStore.core("picker_visible", ["model": OwlAppCore.payload(self)])
+  }
+  var isEmpty: Bool { visible.isEmpty }
+  private struct Selection: Decodable { let row: OwlPickerRow? }
+  var selectedRow: OwlPickerRow? {
+    let value: Selection = OwlTemplateStore.core("picker_selected", ["model": OwlAppCore.payload(self)]); return value.row
+  }
+  func isSelected(_ index: Int) -> Bool { index == selection }
+  private mutating func update(_ action: String, _ values: [String: Any]) {
+    var args = values; args["action"] = action; args["model"] = OwlAppCore.payload(self)
+    self = OwlTemplateStore.core("picker_update", args)
+  }
+  mutating func moveSelection(by delta: Int) { update("move", ["delta": delta]) }
+  mutating func select(_ index: Int) { update("select", ["index": index]) }
+  func row(forNumber number: Int) -> OwlPickerRow? {
+    let value: Selection = OwlTemplateStore.core("picker_number", ["model": OwlAppCore.payload(self), "number": number]); return value.row
+  }
+  mutating func setQuery(_ newQuery: String) { update("query", ["query": newQuery]) }
+}
+
+final class OwlTemplatePickerPanel: NSPanel {
+  var invocationHandler: ((OwlTemplateInvocation.Content, OwlPanelInsertionBroker, OwlTemplateInvocation.Intent) -> Void)?
+  private var didPick = false
+  private let broker = OwlPanelInsertionBroker()
+
+  init() {
+    super.init(
+      contentRect: NSRect(x: 0, y: 0, width: 650, height: 450),
+      styleMask: [.nonactivatingPanel, .titled, .closable, .fullSizeContentView],
+      backing: .buffered,
+      defer: false
+    )
+
+    isReleasedWhenClosed = false
+    isFloatingPanel = true
+    level = .floating
+    hidesOnDeactivate = false
+    becomesKeyOnlyIfNeeded = true
+    titleVisibility = .hidden
+    titlebarAppearsTransparent = true
+    isMovableByWindowBackground = false
+    hasShadow = true
+    isOpaque = false
+    backgroundColor = .clear
+    standardWindowButton(.miniaturizeButton)?.isHidden = true
+    standardWindowButton(.zoomButton)?.isHidden = true
+    standardWindowButton(.closeButton)?.isHidden = true
+    collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+
+    installContentView()
+  }
+
+  func showPanel(initialSegment: OwlPickerSegment = .phrase) {
+    didPick = false
+    broker.capture()
+    installContentView(initialSegment: initialSegment)
+    positionPanel()
+    makeKeyAndOrderFront(nil)
+  }
+
+  func hidePanel() {
+    broker.restoreFocus()
+    orderOut(nil)
+  }
+
+  private func installContentView(initialSegment: OwlPickerSegment = .phrase) {
+    let mode = OwlTemplateStore.mode()
+    let entries = (try? OwlTemplateStore.load())?.entries ?? []
+    let error: String?
+    if case .unavailable(let message) = mode { error = message } else { error = nil }
+    setContentSize(NSSize(width: 650, height: 450))
+    contentView = NSHostingView(rootView: OwlTemplatePickerView(
+      entries: error == nil ? entries : [], promptOnly: initialSegment == .prompt, error: error,
+      onPick: { [weak self] in self?.invoke(.template($0)) },
+      onPreview: { [weak self] in self?.invoke(.template($0), intent: .resultPreview) },
+      onClose: { [weak self] in self?.hidePanel() }))
+  }
+
+  private func invoke(_ content: OwlTemplateInvocation.Content, intent: OwlTemplateInvocation.Intent = .insert) {
+    guard !didPick else { return }
+    didPick = true
+    let captured = broker.transferCapture()
+    orderOut(nil)
+    if let invocationHandler {
+      invocationHandler(content, captured, intent)
+    } else {
+      let invocation = OwlTemplateInvocation(content: content, broker: captured, deliver: nil, intent: intent)
+      MainActor.assumeIsolated { OwlPromptFillSheet.shared.begin(invocation: invocation) }
+    }
+  }
+
+  private func positionPanel() {
+    let size = frame.size
+    let anchor = NSApp.owlAppDelegate.currentHostCaretAnchor
+    if anchor != .zero {
+      setFrame(clampedFrame(anchor: anchor, size: size), display: false)
+    } else {
+      positionCenteredUnderMouse(size: size)
+    }
+  }
+
+  private func clampedFrame(anchor: NSRect, size: NSSize) -> NSRect {
+    OwlFloatingPanelPositioner.belowCaret(
+      anchor: anchor, size: size,
+      screens: NSScreen.screens.map { .init(frame: $0.frame, visibleFrame: $0.visibleFrame) },
+      useVisibleFrame: false)
+  }
+
+  private func positionCenteredUnderMouse(size: NSSize) {
+    guard let placed = OwlFloatingPanelPositioner.centeredUnder(
+      point: NSEvent.mouseLocation, size: size,
+      screens: NSScreen.screens.map { .init(frame: $0.frame, visibleFrame: $0.visibleFrame) }) else { return }
+    setFrameOrigin(placed.origin)
   }
 }
 
@@ -70,7 +218,7 @@ struct OwlTemplatePickerView: View {
                   }
                 }.frame(maxWidth: .infinity, alignment: .leading).padding(8)
                   .background(model.isSelected(index) ? Color.accentColor.opacity(0.16) : .clear)
-              }.buttonStyle(.plain)
+              }.buttonStyle(.owlPlain)
             }
           }
         }.frame(width: 240)

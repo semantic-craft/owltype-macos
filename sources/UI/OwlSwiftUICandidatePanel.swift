@@ -226,7 +226,7 @@ enum OwlScrollRowsPlan {
   }
 }
 
-final class OwlSwiftUICandidatePanel: NSPanel {
+final class OwlSwiftUICandidatePanel: OwlFloatingPanel {
   private let panelState = CandidatePanelState()
   private var lastEngineVertical = false
   private var lastSchemaID = ""
@@ -262,26 +262,11 @@ final class OwlSwiftUICandidatePanel: NSPanel {
   init() {
     super.init(
       contentRect: NSRect(x: 0, y: 0, width: 320, height: 120),
-      styleMask: [.nonactivatingPanel, .borderless],
-      backing: .buffered,
-      defer: false
+      collectionBehavior: [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
     )
-
-    isReleasedWhenClosed = false
-    hidesOnDeactivate = false
-    isFloatingPanel = true
     level = .popUpMenu
-    // 窗口投影交给 AppKit（与 emoji / 快捷短语 / 划词菜单四个面板一致）。此前是
-    // `false` + 视图层 `.shadow(radius:16, y:8)`，但 SwiftUI 的 shadow 不撑布局，而窗口
-    // 尺寸严格等于 `contentView.fittingSize`——16pt 的模糊没有落点，整个面板其实一直没有
-    // 投影，屏幕上唯一“浮起来”的东西反而是选中胶囊自己的投影。改由系统按内容 alpha 画，
-    // 改由系统按内容 alpha 画，尺寸变化时经 `setFrameAndShadow` 重算形状。
-    hasShadow = true
-    isOpaque = false
-    backgroundColor = .clear
-    collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .ignoresCycle]
 
-    contentView = NSHostingView(
+    contentView = OwlFirstClickHostingView(
       rootView: OwlCandidatePanelView(
         state: panelState,
         onSelect: { [weak self] index in self?.onSelect?(index) },
@@ -308,9 +293,6 @@ final class OwlSwiftUICandidatePanel: NSPanel {
   /// The caret anchor from the most recent `update(...)`, so an in-view expand toggle
   /// can re-fit the panel relative to the same anchor.
   private var lastAnchor: NSRect = .zero
-
-  override var canBecomeKey: Bool { false }
-  override var canBecomeMain: Bool { false }
 
   @discardableResult
   func update(

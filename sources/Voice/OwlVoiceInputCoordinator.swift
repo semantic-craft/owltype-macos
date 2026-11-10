@@ -73,7 +73,7 @@ final class OwlVoiceInputCoordinator {
   var audioRecorder: OwlAudioRecordingProtocol = OwlVoiceAudioRecorder.shared
   var asrClient: OwlVoiceASRServiceProtocol = OwlVoiceGrokASRClient.shared
   var hotwordsExtractor: OwlVoiceHotwordsExtracting = OwlVoiceHotwordsExtractor.shared
-  var postProcessor: OwlVoicePolishServiceProtocol? = OwlVoiceDeepSeekPolisher.shared
+  var postProcessor: OwlVoicePolishServiceProtocol? = OwlVoicePolisher.shared
   var hudPanel: OwlVoiceCapsulePanel = OwlVoiceCapsulePanel.shared
 
   var targetSnapshotProvider: (() -> OwlVoiceTargetSnapshot)?
@@ -483,22 +483,11 @@ final class OwlVoiceInputCoordinator {
     hudPanel.updateState(.completed(finalText: text), anchor: anchor)
     scheduleDismiss(after: 1.2)
 
-    // Insertion Ladder:
-    // Tier 1: Direct IMK client insert
-    if let client = targetSnapshot?.client {
-      client.insertText(text, replacementRange: .empty)
-      return
-    }
-
-    // Tier 2: Simulated ⌘V paste ladder
-    if let app = targetSnapshot?.frontmostApp, !app.isActive {
-      app.activate()
-    }
-    let pasted = OwlPasteInserter.paste(text)
-    if !pasted {
-      // Tier 3: Copy only
-      OwlPasteInserter.copyOnly(text)
-    }
+    _ = OwlTemplateHostDelivery.insertCaretOrFallback(
+      text,
+      client: targetSnapshot?.client,
+      frontmostApp: targetSnapshot?.frontmostApp
+    )
   }
 
   // MARK: - Private Helpers

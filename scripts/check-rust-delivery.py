@@ -6,11 +6,14 @@ from __future__ import annotations
 import argparse
 import importlib.util
 import os
+import plistlib
 import re
 import sqlite3
 import subprocess
 import sys
 from pathlib import Path
+
+from owl_bundle import validate_app_executable
 
 
 # Reuse the audited acquisition contract instead of maintaining a second table
@@ -36,9 +39,8 @@ MACHO_MAGICS = {
 }
 REQUIRED_RUST_SYMBOLS = {
     "owl_app_call",
-    "owl_app_string_free",
     "owl_msime_engine_finalize",
-    "owl_msime_session_create_with_generation",
+    "owl_msime_session_create_with_auxiliary_resources",
     "owl_msime_session_handle_action_json",
     "owl_msime_string_free",
 }
@@ -168,11 +170,8 @@ def defined_symbols(binary: Path) -> set[str]:
     return symbols
 
 
-def verify_rust_symbols(binaries: list[Path]) -> None:
-    found: set[str] = set()
-    for binary in binaries:
-        found.update(defined_symbols(binary))
-    missing = sorted(REQUIRED_RUST_SYMBOLS - found)
+def verify_rust_symbols(executable: Path) -> None:
+    missing = sorted(REQUIRED_RUST_SYMBOLS - defined_symbols(executable))
     if missing:
         raise DeliveryError(
             "Rust FFI symbols are missing from the App: " + ", ".join(missing)
@@ -258,14 +257,20 @@ def verify_mcp_helper(app: Path) -> None:
 
 def validate_app(app: Path) -> tuple[int, int]:
     app = app.resolve()
-    if not (app / "Contents/Info.plist").is_file():
-        raise DeliveryError(f"not an Owltype App bundle: {app}")
+    try:
+        with (app / "Contents/Info.plist").open("rb") as handle:
+            info = plistlib.load(handle)
+        executable = validate_app_executable(app)
+    except (OSError, ValueError, plistlib.InvalidFileException) as error:
+        raise DeliveryError(f"invalid Owltype App bundle: {error}") from error
+    if not isinstance(info, dict) or info.get("CFBundleExecutable") != executable.name:
+        raise DeliveryError(f"CFBundleExecutable must name {executable.name}")
     verify_no_legacy_files(app)
+    if not is_macho(executable):
+        raise DeliveryError("App executable is not Mach-O")
     binaries = macho_files(app)
-    if not binaries:
-        raise DeliveryError("App contains no Mach-O files")
     verify_no_legacy_dependencies(app, binaries)
-    verify_rust_symbols(binaries)
+    verify_rust_symbols(executable)
     verify_mcp_helper(app)
     verify_resources(app)
     return len(binaries), len(REQUIRED_RESOURCES)
@@ -283,7 +288,7 @@ def main() -> None:
         print(f"FAIL: {error}", file=sys.stderr)
         raise SystemExit(1) from error
     print("PASS: no legacy Rime runtime files or dynamic dependencies")
-    print("PASS: required Rust FFI symbols are linked into the App")
+    print("PASS: required Rust FFI symbols are linked into the App executable")
     print(f"PASS: universal MCP helper at {MCP_HELPER}")
     print(f"PASS: {resource_count} Rust SQLite resources are complete")
     print(f"PASS: Rust delivery verified across {binary_count} Mach-O files")

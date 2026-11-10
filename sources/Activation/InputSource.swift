@@ -643,10 +643,12 @@ enum OwlTISDiagnostics {
   /// Assemble the full read-only report (TIS six layers + install identity + data-root existence).
   /// The only IO: TIS read, filesystem stat, installed Info.plist read. No mutation.
   static func buildReport() -> OwlTISReport {
+    buildReport(sources: OwlInstaller().owlSourceStates(), currentID: OwlInstaller.currentInputSourceID())
+  }
+
+  static func buildReport(sources: [TISSourceState], currentID: String?) -> OwlTISReport {
     let expected = [OwlInstaller.InputMode.hans.rawValue, OwlInstaller.InputMode.hant.rawValue]
     let primary = OwlInstaller.InputMode.primary.rawValue
-    let sources = OwlInstaller().owlSourceStates()
-    let currentID = OwlInstaller.currentInputSourceID()
     let diag = classify(sources: sources, currentSourceID: currentID, expectedIDs: expected, primaryID: primary)
 
     let canonicalPath = "/Library/Input Methods/Owltype.app"

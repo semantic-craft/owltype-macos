@@ -189,8 +189,10 @@ impl InputSession {
         if self.dedicated_english || self.local_mode == LocalInputMode::TemporaryEnglish {
             return self.english_online_query();
         }
+        // 光标后编辑：云端和 AI 只能回答整段原文，回答不了「固定的前半段 + 光标后那段」，本模式里不发查询。
         if self.online_requests.exhausted
             || self.local_mode != LocalInputMode::None
+            || self.caret_edit.active
             || !self.has_composition()
         {
             return None;
@@ -316,6 +318,24 @@ impl InputSession {
             .any(|item| item.word == word && item.source == source)
     }
 
+    /// 把在线行照原样放回当前请求的候选：每种来源一批，插进词典给的完整列表（`ImeSession::apply_dynamic_candidates`）。不核对查询：调用方刚在同一组字上换过整句打分器重解（runtime 的停顿重解），引擎换打分器时清掉了缓存里的在线行，而宿主不会为同一个查询再取一次。
+    pub(super) fn restore_online_rows(&mut self, rows: &[(String, CandidateSource)]) {
+        for source in [
+            CandidateSource::CloudSuggestion,
+            CandidateSource::AiSuggestion,
+        ] {
+            let words: Vec<String> = rows
+                .iter()
+                .filter(|(_, row)| *row == source)
+                .map(|(word, _)| word.clone())
+                .collect();
+            if !words.is_empty() {
+                self.engine.apply_dynamic_candidates(&words, source);
+            }
+        }
+        self.update_mixed_candidates();
+    }
+
     pub(super) fn apply_online_candidates(
         &mut self,
         query: &OnlineQuery,
@@ -374,9 +394,11 @@ impl InputSession {
                     ai_eligible: true,
                 });
         }
+        // 进入光标后编辑之前发出的查询，回包也不接：它回答的是整段原文。
         if self.dedicated_english
             || self.online_requests.exhausted
             || self.local_mode != LocalInputMode::None
+            || self.caret_edit.active
             || !self.has_composition()
         {
             return None;

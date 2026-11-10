@@ -107,7 +107,7 @@ pub enum SchemeType {
     JapaneseRomaji = 3,
     /// 韩语两套式或罗马字布局：音节在预编辑中组合，稳定前缀逐步上屏；`Command::ConvertHanja` 打开当前音节的汉字候选。
     Korean = 4,
-    /// Cantonese in toneless Jyutping read against `msime-cantonese.db`: candidates are Traditional as stored, a candidate covering the leading syllables commits at once and leaves the rest composing, and nothing is learned.
+    /// Cantonese in toneless Jyutping read against `msime-cantonese.db`: candidates are Traditional as stored, a candidate covering the leading syllables commits at once and leaves the rest composing. Selections learn into the user journal under the pinyin learning switches (`cantonese::learning`), never into a main dictionary.
     Cantonese = 5,
     /// Zhuyin (bopomofo) on the Dachen layout read against `msime-zhuyin.db`: keys compose syllables that convert to Traditional text as typed, a list the user opens pins a span's text without committing, Enter or any key outside the layout commits the conversion, and nothing is learned.
     Zhuyin = 6,
@@ -575,7 +575,7 @@ pub struct SchemeSet(u16);
 impl SchemeSet {
     /// 序号最大的方案。加方案时改这里，`scheme_set_all_covers_every_scheme` 会在漏改时失败。
     const LAST: SchemeType = SchemeType::Stroke;
-    /// 全部方案：序号 0 到 [`Self::LAST`] 的每一位。
+    /// 全部方案：序号 0 到 `Self::LAST` 的每一位。
     pub const ALL: Self = Self((1 << (Self::LAST as u16 + 1)) - 1);
     pub const EMPTY: Self = Self(0);
 
@@ -597,6 +597,13 @@ impl SchemeSet {
 
     /// 集合里是否有读 `msime-pinyin.db` 的方案：全拼、双拼和五笔的候选、学习和用户词都在它里面（五笔混拼的拼音行也是）。没有这三个方案的集合（例如只有日文、越南文或藏文的版本）随包不带 `msime-pinyin.db`：代次里没有它的工作副本，用户词库只剩英文词。
     pub const fn reads_main_dictionary(self) -> bool {
+        self.contains(SchemeType::Quanpin)
+            || self.contains(SchemeType::Shuangpin)
+            || self.contains(SchemeType::Wubi)
+    }
+
+    /// 集合里是否有离不开 `msime-english.db` 的方案：全拼、双拼的英文混输、九键英文和回车学英文词，全拼、双拼、五笔的临时英文（Shift+Y）都读它，所以有这三个方案时准备代次要求资源目录里有它。其余方案（日文、韩语、越南语、藏文、粤语、注音、笔画）自己不读它，只有宿主打开专用英文（`Session::set_dedicated_english`）时才查英文补全、学回车上屏的词：这样的集合不要求它，资源目录里带了就照样复制进代次，没带时代次里没有它，专用英文只出键入的字母、回车不学词，个人词典的英文词也无处可存（编辑以 `NO_ENGLISH_DICTIONARY` 失败）。读 `msime-pinyin.db` 的集合（[`Self::reads_main_dictionary`]）一定要求它。
+    pub const fn requires_english_dictionary(self) -> bool {
         self.contains(SchemeType::Quanpin)
             || self.contains(SchemeType::Shuangpin)
             || self.contains(SchemeType::Wubi)
@@ -734,13 +741,19 @@ pub enum WubiProfileKind {
     #[default]
     Wubi86 = 0,
     Wubi98 = 1,
+    /// 新世纪五笔，码表 `wubixsj`。序号追加在末尾，已有的值不变。
+    WubiXsj = 2,
 }
 
 impl WubiProfileKind {
+    /// 全部版本，按序号排列。
+    pub const ALL: [Self; 3] = [Self::Wubi86, Self::Wubi98, Self::WubiXsj];
+
     pub fn from_u8(value: u8) -> Option<Self> {
         Some(match value {
             0 => Self::Wubi86,
             1 => Self::Wubi98,
+            2 => Self::WubiXsj,
             _ => return None,
         })
     }
@@ -749,6 +762,7 @@ impl WubiProfileKind {
         Some(match name {
             "wubi86" => Self::Wubi86,
             "wubi98" => Self::Wubi98,
+            "wubixsj" => Self::WubiXsj,
             _ => return None,
         })
     }
@@ -757,6 +771,7 @@ impl WubiProfileKind {
         match self {
             Self::Wubi86 => "wubi86",
             Self::Wubi98 => "wubi98",
+            Self::WubiXsj => "wubixsj",
         }
     }
 
@@ -770,6 +785,7 @@ impl WubiProfileKind {
         match self {
             Self::Wubi86 => PersonalDictionaryKind::Wubi,
             Self::Wubi98 => PersonalDictionaryKind::Wubi98,
+            Self::WubiXsj => PersonalDictionaryKind::WubiXsj,
         }
     }
 }
@@ -798,10 +814,15 @@ pub struct WordItem {
     pub sentence_association: bool,
     /// Word boundaries of a decoded sentence, for personal context learning.
     pub sentence_words: Vec<String>,
+    /// 26 键双拼按触点计价的纠错整句，而且落点支持把它留在引擎给的座位上（分数不比字面整句低出 `TouchTuning::show_margin`）：runtime 不把它当整句的次选读法挪到表尾。其余行永远为假。
+    pub touch_supported: bool,
+    /// 26 键双拼按触点计价的纠错整句，触点支持而且明显比字面整句好，按首选规则（`shuangpin::dictionary` 的 `confident_correction`）坐了第一位。宿主据此给首选画强调色、读屏念「已纠正」（视图里的 `confident_correction`）。带它的行同时 `touch_supported`；其余行永远为假。
+    pub confident_correction: bool,
 }
 
 impl WordItem {
-    /// 只把真实词网格整句的分交给独立模型；字典权重和其它来源没有同一计分单位。
+    /// 只把真实词网格整句的分交给独立模型；字典权重和其它来源没有同一计分单位。产品门面 `ordering` 的输入，和它一样不进文档。
+    #[doc(hidden)]
     pub fn static_evidence(&self) -> Option<crate::ordering::StaticEvidence> {
         if !self.sentence_association
             || !matches!(
@@ -918,6 +939,7 @@ impl PartialEq for LoadedKeyboardModel {
 #[derive(Debug, Clone, PartialEq)]
 pub struct SentenceAssociationOptions {
     pub word_lattice: bool,
+    /// The Engine's own keyboard-model rerank: nine-key reranks once across its segmentations, the quanpin and shuangpin dictionaries rerank inside the lattice, and the model's pick becomes a `NeuralKeyboard` row after the lattice best. Hosts leave it off: 整句联想「增强」 (the `neural_keyboard` preference) mounts the input runtime's per-keystroke reranker instead (host-api `keyboard_reranker_enabled`). It stays for evals and experiments that build the options directly (`convert_eval --keyboard-neural`).
     pub neural_keyboard: bool,
     /// Optional host-loaded weights; absent keeps the upstream bundle loader.
     pub keyboard_model: Option<LoadedKeyboardModel>,
@@ -1054,12 +1076,18 @@ pub struct QueryRequest {
     /// 双拼辅助码的触发方式；`enable_shuangpin_helpcode` 为真时才读。
     pub shuangpin_helpcode_modes: ShuangpinHelpcodeModes,
     pub enable_quanpin_helpcode: bool,
+    /// 一码辅助码是否严格排除未命中的候选；默认关闭以保持历史排序。
+    pub strict_quanpin_helpcode: bool,
     /// 会话的「拼音纠错」开关。名字带 quanpin 是历史原因：双拼也按它决定是否给纠错整句。
     pub enable_quanpin_autocorrect_transposition: bool,
     pub enable_quanpin_autocorrect_neighbor: bool,
     pub fuzzy_pinyin: FuzzyPinyinOptions,
     /// Hand back every whole-sentence reading rather than only the best.
     pub sentence_alternatives: bool,
+    /// 26 键全拼每条切分至少解出多少条整句读法交给逐键打分器比较；0 是不挂打分器时的默认条数。见 [`crate::Session::set_sentence_pool`]。
+    pub sentence_pool: usize,
+    /// 26 键全拼拼整句时给前缀打分的模型，见 [`crate::ordering::SentenceScorer`]；没挂时为空。
+    pub sentence_scorer: crate::ordering::SentenceScorerHandle,
     pub sentence_association: SentenceAssociationOptions,
     /// 首页能放下的行数：全长度组的精确同音词够这么多就不再并入更长的补全词。
     pub first_page_rows: FirstPageRows,
@@ -1071,6 +1099,12 @@ pub struct QueryRequest {
     pub wubi_z_wildcard: bool,
     /// 五笔 14 键：`normalized_input` 每一位是一组字母的代表字母（`wubi::grid`），provider 展开成这几组字母的每种组合再查码表。
     pub wubi_grid: bool,
+    /// 26 键双拼每个按键的触点，与 `raw_input` 逐字节对齐，没有触点的位置为 `None`。只要不是双拼、没有注册几何、一个触点都没有、输入里有 `'` 或句中辅助码生效，就必须是空 Vec 而不是全 `None`：桌面请求因此与没有这个字段时逐字节相同。
+    pub key_touches: Vec<Option<crate::touch::KeyTouch>>,
+    /// 触点所在的那份几何；`key_touches` 为空时为 `None`。
+    pub key_geometry: Option<std::sync::Arc<crate::touch::KeyGeometry>>,
+    /// 按触点计价的参数。只有 Rust 侧（评测示例）能改，见 [`crate::host::Session::set_touch_tuning`]。
+    pub touch_tuning: crate::touch::TouchTuning,
     /// False means no query at all.
     pub valid: bool,
 }
@@ -1092,7 +1126,7 @@ pub enum SchemeKey {
     Requery,
 }
 
-/// Engine-level composition commands (the C++ `metasequoia::Command`). The host facade adds its own `CommitRawWithoutLearning` on top.
+/// Engine-level composition commands (the C++ `metasequoia::Command`, plus `CommitRawWithoutLearning`). The host facade numbers them its own way (`host::Command`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum Command {
@@ -1116,6 +1150,8 @@ pub enum Command {
     ConversionLeft = 12,
     /// 整句改字的光标右移一个字，最远到句末；不在改字里时与 `MoveRight` 相同。
     ConversionRight = 13,
+    /// 像 `CommitRaw` 一样原样上屏，但不把上屏的字母学成英文词：专用英文里上屏预编辑原文并结束组字（`CommitRaw` 会学这个词），其余情况与 `CommitRaw` 相同，`SessionOptions::learn_typed_spellings_on_enter` 也不起作用。拼写纠错的「回车上屏原文就关掉这段输入的纠错」照常记下。由 [`crate::Session::command`] 处理，组字的各条内部路径收不到它。
+    CommitRawWithoutLearning = 14,
 }
 
 impl Command {
@@ -1135,6 +1171,7 @@ impl Command {
             11 => Self::ConvertHanja,
             12 => Self::ConversionLeft,
             13 => Self::ConversionRight,
+            14 => Self::CommitRawWithoutLearning,
             _ => return None,
         })
     }
@@ -1155,11 +1192,12 @@ impl Command {
             Self::ConvertHanja => "ConvertHanja",
             Self::ConversionLeft => "ConversionLeft",
             Self::ConversionRight => "ConversionRight",
+            Self::CommitRawWithoutLearning => "CommitRawWithoutLearning",
         }
     }
 
     pub fn from_name(name: &str) -> Option<Self> {
-        (0..=13)
+        (0..=14)
             .filter_map(Self::from_u8)
             .find(|command| command.name() == name)
     }
@@ -1196,6 +1234,13 @@ impl KeyResult {
     pub fn with_diagnostic(mut self, diagnostic: Option<String>) -> Self {
         self.diagnostic = diagnostic;
         self
+    }
+
+    /// `diagnostic` 的稳定数字码（映射表见 `diagnostics::DIAGNOSTIC_CODES`）；没有诊断时为 None。
+    pub fn diagnostic_code(&self) -> Option<crate::diagnostics::DiagnosticCode> {
+        self.diagnostic
+            .as_deref()
+            .map(crate::diagnostics::DiagnosticCode::from_message)
     }
 }
 
@@ -1387,6 +1432,8 @@ pub struct LocalModeOptions {
     pub emoji: bool,
     pub kaomoji: bool,
     pub super_jianpin: bool,
+    /// 双拼组字末尾按 `/` 把整段原文改成超级简拼（#10860）。依附 `super_jianpin`，不受 `shift_letter_entry` 管；`/` 已经是万象式辅助码结束键、辅助码前导键或顿号键时让位。
+    pub super_jianpin_slash: bool,
     pub temporary_english: bool,
     pub temporary_japanese: bool,
     pub expression: bool,
@@ -1411,6 +1458,7 @@ impl Default for LocalModeOptions {
             emoji: true,
             kaomoji: true,
             super_jianpin: true,
+            super_jianpin_slash: true,
             temporary_english: true,
             temporary_japanese: true,
             expression: false,
@@ -1442,6 +1490,8 @@ pub struct PluginCommand {
     pub trigger: String,
     /// 1..=8 个字符，由 runtime 画在插件注释格里，不进引擎的注释。
     pub title: String,
+    /// 清单里写了 `arguments = "extended"`：完整打出触发词之后，参数除了小写字母还收数字和 [`crate::local::command::EXTENDED_ARGUMENT_SYMBOLS`]，这时宿主把数字当输入、不当选词键（见 `InputSession::spelling_symbols`）。
+    pub extended: bool,
 }
 
 /// 宿主提供的一条 K 模式短语（来自已启用的短语表插件）。宿主已经校验过；Engine 仍然跳过它用不了的行，而不是照单全收。
@@ -1489,6 +1539,28 @@ pub struct MixedExpressiveOptions {
     pub kaomoji_candidates: bool,
     /// 打拼音出符号：整段组字正好拼出某个符号的名称时混入符号行（`local::symbol_candidates`）。
     pub symbol_candidates: bool,
+}
+
+/// 宿主交给引擎的一段文字转换，例如粤拼输出简体时的繁转简（`SessionOptions::cantonese_output_conversion`）。引擎不带转换数据，宿主从自己的共享层传入函数；两个转换按函数地址判断相等。
+#[derive(Clone, Copy)]
+pub struct TextConversion(pub fn(&str) -> String);
+
+impl TextConversion {
+    pub fn apply(self, text: &str) -> String {
+        (self.0)(text)
+    }
+}
+
+impl PartialEq for TextConversion {
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::fn_addr_eq(self.0, other.0)
+    }
+}
+
+impl std::fmt::Debug for TextConversion {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("TextConversion(..)")
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -1578,6 +1650,10 @@ pub enum PersonalDictionaryKind {
     English = 3,
     /// 98 五笔，写入 `wubi98` 表。序号追加在末尾，已有的值不变。
     Wubi98 = 4,
+    /// 粤语，编码是不带声调的粤拼音节，以单个空格连接（与 `msime-cantonese.db` 的 `entries.key` 同一写法）。只记在用户日志里，没有工作表：粤语方案查词时从日志读出合进候选（`cantonese::UserWords`）。
+    Cantonese = 5,
+    /// 新世纪五笔，写入 `wubixsj` 表，日志里的 `dictionary` 也是 `wubixsj`。序号追加在末尾，已有的值不变。
+    WubiXsj = 6,
 }
 
 impl PersonalDictionaryKind {
@@ -1588,13 +1664,20 @@ impl PersonalDictionaryKind {
             2 => Self::QuickPhrase,
             3 => Self::English,
             4 => Self::Wubi98,
+            5 => Self::Cantonese,
+            6 => Self::WubiXsj,
             _ => return None,
         })
     }
 
-    /// 两版五笔共用编码规则（1..=4 个 a..=y 字母）与按码排序的写法，只是表不同。
+    /// 各版五笔共用编码规则（1..=4 个 a..=y 字母）与按码排序的写法，只是表不同。
     pub fn is_wubi(self) -> bool {
-        matches!(self, Self::Wubi | Self::Wubi98)
+        matches!(self, Self::Wubi | Self::Wubi98 | Self::WubiXsj)
+    }
+
+    /// 不写 `msime-pinyin.db` 的种类：英文词写在 `msime-english.db`，粤语词只记在日志里。代次里没有主词库时只有它们能编辑、列出。
+    pub fn stored_without_main_dictionary(self) -> bool {
+        matches!(self, Self::English | Self::Cantonese)
     }
 
     /// 五笔种类对应的 `msime-pinyin.db` 码表。
@@ -1602,7 +1685,8 @@ impl PersonalDictionaryKind {
         match self {
             Self::Wubi => Some(WubiProfileKind::Wubi86.table()),
             Self::Wubi98 => Some(WubiProfileKind::Wubi98.table()),
-            Self::Pinyin | Self::QuickPhrase | Self::English => None,
+            Self::WubiXsj => Some(WubiProfileKind::WubiXsj.table()),
+            Self::Pinyin | Self::QuickPhrase | Self::English | Self::Cantonese => None,
         }
     }
 
@@ -1614,6 +1698,8 @@ impl PersonalDictionaryKind {
             Self::QuickPhrase => "quick",
             Self::English => "english",
             Self::Wubi98 => "wubi98",
+            Self::Cantonese => "cantonese",
+            Self::WubiXsj => "wubixsj",
         }
     }
 
@@ -1624,12 +1710,14 @@ impl PersonalDictionaryKind {
             "quick" => Self::QuickPhrase,
             "english" => Self::English,
             "wubi98" => Self::Wubi98,
+            "cantonese" => Self::Cantonese,
+            "wubixsj" => Self::WubiXsj,
             _ => return None,
         })
     }
 }
 
-/// A user's own dictionary entry. Pinyin keys are complete syllables joined by `'`; wubi 1..=4 letters; quick phrases 1..=32 letters or digits; English 1..=64 letters.
+/// A user's own dictionary entry. Pinyin keys are complete syllables joined by `'`; wubi 1..=4 letters; quick phrases 1..=32 letters or digits; English 1..=64 letters; 粤语是不带声调的粤拼音节，以单个空格连接。
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PersonalDictionaryEntry {
     pub kind: PersonalDictionaryKind,
@@ -2099,7 +2187,7 @@ mod tests {
         }
     }
 
-    // Cantonese is a Chinese scheme writing Traditional text as stored, with Chinese punctuation and `'` boundaries; it learns nothing, holds no phrase progress and has none of the pinyin machinery.
+    // Cantonese is a Chinese scheme writing Traditional text as stored, with Chinese punctuation and `'` boundaries; it learns only into the journal's Cantonese rows (not `learns_into_main_dictionary`), holds no phrase progress and has none of the pinyin machinery.
     #[test]
     fn cantonese_predicates() {
         let scheme = SchemeType::Cantonese;
@@ -2279,6 +2367,35 @@ mod tests {
             SchemeType::Tibetan,
         ])
         .reads_main_dictionary());
+    }
+
+    /// 只有全拼、双拼、五笔离不开 `msime-english.db`；读主库的集合一定也要求它，准备代次时据此先查英文库再查主库。
+    #[test]
+    fn only_pinyin_and_wubi_require_the_english_dictionary() {
+        assert!(SchemeSet::ALL.requires_english_dictionary());
+        assert!(!SchemeSet::EMPTY.requires_english_dictionary());
+        for value in 0..=u8::MAX {
+            let Some(scheme) = SchemeType::from_u8(value) else {
+                continue;
+            };
+            let set = SchemeSet::of(&[scheme]);
+            let requires = matches!(
+                scheme,
+                SchemeType::Quanpin | SchemeType::Shuangpin | SchemeType::Wubi
+            );
+            assert_eq!(set.requires_english_dictionary(), requires, "{scheme:?}");
+            assert!(!set.reads_main_dictionary() || set.requires_english_dictionary());
+        }
+        assert!(!SchemeSet::of(&[
+            SchemeType::JapaneseRomaji,
+            SchemeType::Korean,
+            SchemeType::Vietnamese,
+            SchemeType::Tibetan,
+            SchemeType::Cantonese,
+            SchemeType::Zhuyin,
+            SchemeType::Stroke,
+        ])
+        .requires_english_dictionary());
     }
 
     #[test]
