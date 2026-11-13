@@ -1457,7 +1457,7 @@
 				CODE_SIGN_ENTITLEMENTS = resources/Owltype.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 2.5.0;
+				CURRENT_PROJECT_VERSION = 2.6.0;
 				DEAD_CODE_STRIPPING = YES;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1483,6 +1483,7 @@
 					"$(inherited)",
 					"$(LIBRARY_SEARCH_PATHS_QUOTED_FOR_TARGET_1)",
 				);
+				ARCHS = arm64;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				OTHER_CODE_SIGN_FLAGS = "--deep";
 				OTHER_CPLUSPLUSFLAGS = (
@@ -1494,7 +1495,7 @@
 				OTHER_LDFLAGS = (
 					"-lowl_msime_ffi",
 				);
-				MARKETING_VERSION = 2.5.0;
+				MARKETING_VERSION = 2.6.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "im.owltype.inputmethod.Owltype$(OWL_SETTINGS_PREVIEW_SUFFIX)";
 				PRODUCT_NAME = Owltype;
 				SDKROOT = macosx;
@@ -1516,7 +1517,7 @@
 				CLANG_ENABLE_OBJC_ARC = YES;
 				CODE_SIGN_ENTITLEMENTS = resources/Owltype.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2.5.0;
+				CURRENT_PROJECT_VERSION = 2.6.0;
 				DEAD_CODE_STRIPPING = YES;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1541,6 +1542,7 @@
 					"$(inherited)",
 					"$(LIBRARY_SEARCH_PATHS_QUOTED_FOR_TARGET_1)",
 				);
+				ARCHS = arm64;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				OTHER_CODE_SIGN_FLAGS = "--deep";
 				OTHER_CPLUSPLUSFLAGS = (
@@ -1552,7 +1554,7 @@
 				OTHER_LDFLAGS = (
 					"-lowl_msime_ffi",
 				);
-				MARKETING_VERSION = 2.5.0;
+				MARKETING_VERSION = 2.6.0;
 				PRODUCT_BUNDLE_IDENTIFIER = im.owltype.inputmethod.Owltype;
 				PRODUCT_NAME = Owltype;
 				SDKROOT = macosx;
@@ -1610,6 +1612,7 @@
 				);
 				LIBRARY_SEARCH_PATHS = "$(SRCROOT)/lib";
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				ARCHS = arm64;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
@@ -1663,6 +1666,7 @@
 				);
 				LIBRARY_SEARCH_PATHS = "$(SRCROOT)/lib";
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				ARCHS = arm64;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
@@ -1678,7 +1682,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2.5.0;
+				CURRENT_PROJECT_VERSION = 2.6.0;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(SRCROOT)",
@@ -1690,8 +1694,9 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
+				ARCHS = arm64;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 2.5.0;
+				MARKETING_VERSION = 2.6.0;
 				PRODUCT_BUNDLE_IDENTIFIER = im.owltype.inputmethod.OwltypeTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
@@ -1706,7 +1711,7 @@
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2.5.0;
+				CURRENT_PROJECT_VERSION = 2.6.0;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(SRCROOT)",
@@ -1718,8 +1723,9 @@
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
+				ARCHS = arm64;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 2.5.0;
+				MARKETING_VERSION = 2.6.0;
 				PRODUCT_BUNDLE_IDENTIFIER = im.owltype.inputmethod.OwltypeTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
@@ -1733,15 +1739,16 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2.5.0;
+				CURRENT_PROJECT_VERSION = 2.6.0;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
+				ARCHS = arm64;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 2.5.0;
+				MARKETING_VERSION = 2.6.0;
 				PRODUCT_BUNDLE_IDENTIFIER = im.owltype.inputmethod.OwltypeUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;
@@ -1755,15 +1762,16 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2.5.0;
+				CURRENT_PROJECT_VERSION = 2.6.0;
 				GENERATE_INFOPLIST_FILE = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 					"@loader_path/../Frameworks",
 				);
+				ARCHS = arm64;
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
-				MARKETING_VERSION = 2.5.0;
+				MARKETING_VERSION = 2.6.0;
 				PRODUCT_BUNDLE_IDENTIFIER = im.owltype.inputmethod.OwltypeUITests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SDKROOT = macosx;

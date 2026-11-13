@@ -41,9 +41,9 @@ NOTARY_PROFILE='notarytool keychain profile' \
 bash scripts/release.sh --output-root build/release-<version>-<short-sha>
 ```
 
-Both the input method and the DMG installer explicitly build `arm64` and `x86_64`.
-Their build steps verify both slices before signing; the host Mac’s active architecture
-must not narrow the published artifacts.
+The input method, Rust engine, MCP helper, Sparkle components, and DMG installer
+build only `arm64`. The delivery gate rejects any other architecture before signing.
+Both PKG distributions require an Apple Silicon host. The minimum macOS version remains 14.0.
 
 The one-time 2.0.1 trust bridge must additionally set
 `SPARKLE_ED25519_ACCOUNT=ed25519`. Releases after 2.0.1 omit that override (or explicitly use

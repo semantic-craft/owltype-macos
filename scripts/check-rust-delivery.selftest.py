@@ -65,7 +65,7 @@ class RustDeliveryTests(unittest.TestCase):
         return app
 
     def write_helper(self, app: Path, version: str = "owltype-mcp 0.1.0 (bridge protocol 1)",
-                     archs: tuple[str, ...] = ("arm64", "x86_64")) -> None:
+                     archs: tuple[str, ...] = ("arm64",)) -> None:
         helper = app / CHECKER.MCP_HELPER
         helper.parent.mkdir(parents=True, exist_ok=True)
         # A file, not stdin: clang reads stdin once, for the first architecture only.
@@ -180,14 +180,25 @@ class RustDeliveryTests(unittest.TestCase):
         (app / CHECKER.MCP_HELPER).unlink()
         with self.assertRaisesRegex(CHECKER.DeliveryError, "MCP helper is missing"):
             CHECKER.validate_app(app)
-        self.write_helper(app, archs=("arm64",))
-        with self.assertRaisesRegex(CHECKER.DeliveryError, "x86_64"):
+        self.write_helper(app, archs=("arm64", "x86_64"))
+        with self.assertRaisesRegex(CHECKER.DeliveryError, "only arm64"):
             CHECKER.validate_app(app)
         self.write_helper(app, version="something else")
         with self.assertRaisesRegex(CHECKER.DeliveryError, "not owltype-mcp"):
             CHECKER.validate_app(app)
         (app / CHECKER.MCP_HELPER).chmod(0o644)
         with self.assertRaisesRegex(CHECKER.DeliveryError, "not executable"):
+            CHECKER.validate_app(app)
+
+    def test_rejects_intel_slices_in_nested_code(self) -> None:
+        app = self.make_app()
+        self.compile_fixture(app, VALID_SOURCE)
+        self.write_helper(app, archs=("arm64", "x86_64"))
+        nested = app / "Contents/Frameworks/Nested.framework/Nested"
+        nested.parent.mkdir(parents=True)
+        (app / CHECKER.MCP_HELPER).rename(nested)
+        self.write_helper(app)
+        with self.assertRaisesRegex(CHECKER.DeliveryError, "Nested.*only arm64"):
             CHECKER.validate_app(app)
 
     def test_rejects_a_misplaced_main_executable(self) -> None:

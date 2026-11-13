@@ -45,7 +45,7 @@ class BuildPermissionTests(unittest.TestCase):
             (framework / builder.RECEIPT).parent.mkdir(parents=True)
             binary.write_bytes(b"\xcf\xfa\xed\xfe")
             updater.write_bytes(b"openApplicationAtURL:configuration:completionHandler:")
-            updater_uuids = {"arm64": "UUID-ARM64", "x86_64": "UUID-X86-64"}
+            updater_uuids = {"arm64": "UUID-ARM64"}
             (framework / builder.RECEIPT).write_text(json.dumps({**builder.identity(), "updaterUUIDs": updater_uuids}))
             for path in [framework, *framework.rglob("*")]:
                 path.chmod(0o755 if path.is_dir() or path in (binary, updater) else 0o644)

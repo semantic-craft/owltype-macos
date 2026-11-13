@@ -8,12 +8,12 @@
 
 MSIME Rust Engine · Pinyin / Double Pinyin / Wubi 86 & 98 / Mixed Input · Cloud Voice ASR · AI Candidates & Jev Reranking · Prompt Snippets · 4-in-1 Installer & Repair Wizard
 
-[![Latest Release: 2.5.0](https://img.shields.io/badge/release-2.5.0-brightgreen)](https://downloads.responsay.com/owltype/releases/2.5.0/Owltype-2.5.0.dmg)
+[![Latest Release: 2.6.0](https://img.shields.io/badge/release-2.6.0-brightgreen)](https://downloads.responsay.com/owltype/releases/2.6.0/Owltype-2.6.0.dmg)
 [![macOS 14+](https://img.shields.io/badge/macOS-14%2B-black)](https://responsay.com/owltype/)
-[![Apple Silicon + Intel](https://img.shields.io/badge/Apple_Silicon_%2B_Intel-Universal-grey)](#download-and-install)
+[![Apple Silicon](https://img.shields.io/badge/Apple_Silicon-arm64-grey)](#download-and-install)
 [![License: GPL-3.0](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE.txt)
 
-### [📥 Download Owltype 2.5.0 Installer DMG (Owltype-2.5.0.dmg)](https://downloads.responsay.com/owltype/releases/2.5.0/Owltype-2.5.0.dmg)
+### [📥 Download Owltype 2.6.0 Installer DMG (Owltype-2.6.0.dmg)](https://downloads.responsay.com/owltype/releases/2.6.0/Owltype-2.6.0.dmg)
 
 [Download & Install](#download-and-install) · [AI Workflows](#built-for-ai-workflows) · [Features](#features) · [Installer & Repair](#installer-and-recovery) · [Feedback](#project-and-feedback) · [中文](README.md)
 
@@ -23,20 +23,20 @@ MSIME Rust Engine · Pinyin / Double Pinyin / Wubi 86 & 98 / Mixed Input · Clou
 
 ## Download and install
 
-> **System requirements**: macOS 14.0 (Sonoma) or later · Universal binary for Apple Silicon and Intel Macs · Signed with Apple Developer ID and notarized by Apple.
+> **System requirements**: macOS 14.0 (Sonoma) or later · Native Apple Silicon binary; Intel Macs are no longer supported · Signed with Apple Developer ID and notarized by Apple.
 
-| Package | Use case | Immutable 2.5.0 link | Stable latest alias |
+| Package | Use case | Immutable 2.6.0 link | Stable latest alias |
 | --- | --- | --- | --- |
-| **📥 Owltype Installer DMG (Recommended)** | First-time install, upgrades, repair, and full uninstall via the built-in 4-in-1 `OwltypeInstaller.app` wizard | [**Owltype-2.5.0.dmg**](https://downloads.responsay.com/owltype/releases/2.5.0/Owltype-2.5.0.dmg) | [responsay.com/owltype/Owltype.dmg](https://responsay.com/owltype/Owltype.dmg) |
-| **📦 Standard PKG Installer** | Standard macOS Installer or managed deployment | [Owltype.pkg](https://downloads.responsay.com/owltype/releases/2.5.0/Owltype.pkg) | [responsay.com/owltype/Owltype.pkg](https://responsay.com/owltype/Owltype.pkg) |
-| **🔄 In-place Update PKG** | Direct upgrade over an existing installation while preserving user dictionaries and settings | [Owltype-update.pkg](https://downloads.responsay.com/owltype/releases/2.5.0/Owltype-update.pkg) | [responsay.com/owltype/Owltype-update.pkg](https://responsay.com/owltype/Owltype-update.pkg) |
+| **📥 Owltype Installer DMG (Recommended)** | First-time install, upgrades, repair, and full uninstall via the built-in 4-in-1 `OwltypeInstaller.app` wizard | [**Owltype-2.6.0.dmg**](https://downloads.responsay.com/owltype/releases/2.6.0/Owltype-2.6.0.dmg) | [responsay.com/owltype/Owltype.dmg](https://responsay.com/owltype/Owltype.dmg) |
+| **📦 Standard PKG Installer** | Standard macOS Installer or managed deployment | [Owltype.pkg](https://downloads.responsay.com/owltype/releases/2.6.0/Owltype.pkg) | [responsay.com/owltype/Owltype.pkg](https://responsay.com/owltype/Owltype.pkg) |
+| **🔄 In-place Update PKG** | Direct upgrade over an existing installation while preserving user dictionaries and settings | [Owltype-update.pkg](https://downloads.responsay.com/owltype/releases/2.6.0/Owltype-update.pkg) | [responsay.com/owltype/Owltype-update.pkg](https://responsay.com/owltype/Owltype-update.pkg) |
 
-- **Verification and provenance**: [SHA-256 Manifest](https://downloads.responsay.com/owltype/releases/2.5.0/OWLTYPE-FILE-MANIFEST.sha256) · [SPDX SBOM](https://downloads.responsay.com/owltype/releases/2.5.0/OWLTYPE-SBOM.spdx.json) · [App Provenance](https://downloads.responsay.com/owltype/releases/2.5.0/OWLTYPE-APP-PROVENANCE.txt) · [Latest Release Metadata `latest.json`](https://downloads.responsay.com/owltype/latest.json)
+- **Verification and provenance**: [SHA-256 Manifest](https://downloads.responsay.com/owltype/releases/2.6.0/OWLTYPE-FILE-MANIFEST.sha256) · [SPDX SBOM](https://downloads.responsay.com/owltype/releases/2.6.0/OWLTYPE-SBOM.spdx.json) · [App Provenance](https://downloads.responsay.com/owltype/releases/2.6.0/OWLTYPE-APP-PROVENANCE.txt) · [Latest Release Metadata `latest.json`](https://downloads.responsay.com/owltype/latest.json)
 - **In-app updates**: Users on `2.0.10` or later can update directly from **About → Check for Updates** (Sparkle feed: `https://downloads.responsay.com/owltype/v3/appcast.xml`).
 
 ### Quick start in 3 steps
 
-1. Download and open [**Owltype-2.5.0.dmg**](https://downloads.responsay.com/owltype/releases/2.5.0/Owltype-2.5.0.dmg), launch **猫头鹰安装器** (`OwltypeInstaller.app`), and click **安装输入法** (Install). Approve the macOS administrator prompt when asked.
+1. Download and open [**Owltype-2.6.0.dmg**](https://downloads.responsay.com/owltype/releases/2.6.0/Owltype-2.6.0.dmg), launch **猫头鹰安装器** (`OwltypeInstaller.app`), and click **安装输入法** (Install). Approve the macOS administrator prompt when asked.
 2. The installer places the bundle at `/Library/Input Methods/Owltype.app` and converges your current login session without blocking. If Owltype is not yet enabled in your input menu, follow Step 2 in the wizard to enable **猫头鹰** under **System Settings → Keyboard → Input Sources**.
 3. Open Owltype Settings, select your preferred input scheme under **键盘输入** (Keyboard), and confirm local dictionary preparation. Everyday typing runs entirely on-device; configure a provider under **AI** only if you want cloud voice transcription or AI assistance.
 
@@ -111,7 +111,7 @@ The **AI** settings page is organized into three cards:
 
 ## Installer and recovery
 
-`Owltype-2.5.0.dmg` includes the standalone **OwltypeInstaller (`OwltypeInstaller.app`)** with a two-step onboarding wizard and a bottom **Maintenance & Uninstall** drawer offering four actions:
+`Owltype-2.6.0.dmg` includes the standalone **OwltypeInstaller (`OwltypeInstaller.app`)** with a two-step onboarding wizard and a bottom **Maintenance & Uninstall** drawer offering four actions:
 
 1. **Install / Update**: Installs `/Library/Input Methods/Owltype.app` with administrator privileges, converges the active IMK/TIS session without blocking, and guides you through enabling the input source.
 2. **Repair Install (Keep dictionaries & settings)**: Reinstalls the bundle and refreshes LaunchServices, InputMethodKit, and TIS registrations while keeping all user data intact.
@@ -120,9 +120,11 @@ The **AI** settings page is organized into three cards:
 
 ---
 
-## Recent updates (2.5.0)
+## Recent updates (2.6.0)
 
 See [CHANGELOG.md](CHANGELOG.md) for the full release history.
+
+- **2.6.0 (2026-11-13)**: Ship Apple Silicon-only app, Rust engine, MCP helper, updater, and installer. Retain macOS 14 and existing resources and features.
 
 - **2.5.0 (2026-11-10)**: Repinned upstream MSIME engine to `macos-v0.59.1` and SQLite dictionaries to `dict-v2.1.2`; consolidated all Rust FFI into a single universal `lib/libowl_msime_ffi.a` staticlib reading bundled `Contents/SharedSupport/msime` SQLite resources directly without legacy Rime YAML/Lua/dict seed pipelines; added `.owlPlain` full-row hit areas (enforced by SwiftLint), background loading for templates/provider status/diagnostics without resetting active drafts, minimized Settings window restoration, and shared `OwlFloatingPanel` non-activating focus policy across candidate, status, voice capsule, and Agent delivery panels.
 - **2.4.3 (2026-11-08)**: MSIME Right Option single-key hold gesture for voice input (with Space hands-free lock and `Option + key` chord yield); streamlined cloud Voice ASR routes for OpenAI (`gpt-transcribe`), Google Gemini (`gemini-3.5-transcribe`), and OpenAI Account Login (Codex CLI ChatGPT Dictation) with automatic provider profile fallback; removed Grok/xAI preset and legacy error strings.
@@ -145,8 +147,8 @@ See [PRIVACY.md](PRIVACY.md) and [SECURITY.md](SECURITY.md) for details.
 
 ## Project and feedback
 
-- **Installer downloads**: [Website & Downloads](https://responsay.com/owltype/) · [Direct DMG Download (2.5.0)](https://downloads.responsay.com/owltype/releases/2.5.0/Owltype-2.5.0.dmg) · [Direct PKG Download (2.5.0)](https://downloads.responsay.com/owltype/releases/2.5.0/Owltype.pkg)
-- **Issues & testing feedback**: [GitHub Issues](https://github.com/semantic-craft/owltype-macos/issues). When reporting an issue, please include your Owltype version (for example, `2.5.0`), macOS version, chip architecture, host application, and steps to reproduce.
+- **Installer downloads**: [Website & Downloads](https://responsay.com/owltype/) · [Direct DMG Download (2.6.0)](https://downloads.responsay.com/owltype/releases/2.6.0/Owltype-2.6.0.dmg) · [Direct PKG Download (2.6.0)](https://downloads.responsay.com/owltype/releases/2.6.0/Owltype.pkg)
+- **Issues & testing feedback**: [GitHub Issues](https://github.com/semantic-craft/owltype-macos/issues). When reporting an issue, please include your Owltype version (for example, `2.6.0`), macOS version, chip architecture, host application, and steps to reproduce.
 - **Progress page**: [Alignment & Delivery Progress](progress/index.html)
 - **Windows edition**: [semantic-craft/owltype-win](https://github.com/semantic-craft/owltype-win) (maintained independently).
 

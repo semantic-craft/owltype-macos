@@ -85,7 +85,7 @@ echo "==> 构建 OwltypeInstaller.app（${marketing_version} / ${build_version}�
         -configuration Release -derivedDataPath build \
         MARKETING_VERSION="${marketing_version}" \
         CURRENT_PROJECT_VERSION="${build_version}" \
-        ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO \
+        ARCHS=arm64 ONLY_ACTIVE_ARCH=NO \
         CODE_SIGNING_ALLOWED=NO build
 )
 
@@ -94,8 +94,10 @@ if [ ! -d "${INSTALLER_APP}" ]; then
     exit 1
 fi
 
-lipo "${INSTALLER_APP}/Contents/MacOS/OwltypeInstaller" -verify_arch arm64
-lipo "${INSTALLER_APP}/Contents/MacOS/OwltypeInstaller" -verify_arch x86_64
+[[ "$(lipo -archs "${INSTALLER_APP}/Contents/MacOS/OwltypeInstaller")" == arm64 ]] || {
+    echo >&2 "ERROR: OwltypeInstaller must contain only arm64"
+    exit 1
+}
 
 # --- 2) 内嵌已 staple 的 Owltype.app ------------------------------------------
 # **不要 re-sign** 这个内嵌的 Owltype.app——保留它已公证 + staple 的签名。Installer.swift 在

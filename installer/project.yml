@@ -9,13 +9,12 @@
 #   - 普通带窗口 App（不是 LSUIElement/agent）。
 #   - 不开 App Sandbox：NSAppleScript `do shell script ... with administrator privileges`
 #     在沙箱里不可用，提权拷贝依赖它。
-#   - deploymentTarget macOS 13.0（覆盖面广；NSAppleScript / NSWorkspace API 13+ 都在）。
 name: OwltypeInstaller
 
 options:
   bundleIdPrefix: im.owltype
   deploymentTarget:
-    macOS: "13.0"
+    macOS: "14.0"
   createIntermediateGroups: true
   generateEmptyDirectories: true
 
@@ -43,7 +42,7 @@ targets:
         # 真实版本由 package/make_dmg 构建时以 xcodebuild 参数注入（与 Owltype 版本对齐，必改 6）。
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
-        LSMinimumSystemVersion: "13.0"
+        LSMinimumSystemVersion: "14.0"
         LSApplicationCategoryType: public.app-category.utilities
         NSHumanReadableCopyright: "GPL-3.0-or-later · 猫头鹰输入法"
         NSPrincipalClass: NSApplication
@@ -57,4 +56,5 @@ targets:
         # 故意不设 CODE_SIGN_ENTITLEMENTS：不开 App Sandbox（NSAppleScript 提权依赖）。
         CODE_SIGN_STYLE: Automatic
         DEVELOPMENT_TEAM: ""
-        MACOSX_DEPLOYMENT_TARGET: "13.0"
+        ARCHS: arm64
+        MACOSX_DEPLOYMENT_TARGET: "14.0"
