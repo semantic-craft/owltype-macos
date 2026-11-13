@@ -373,20 +373,33 @@ fn wubi_learning_default_persists_native_selection() {
 fn pure_wubi_fifth_key_tops_an_ambiguous_four_code() {
     let tmp = TempDir::new().unwrap();
     let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
-    let resources = repository.join("data/owl-rime/msime");
+    let seed = repository.join("data/owl-rime/msime");
     assert!(
-        resources
-            .join(msime_engine::assets::WUBI_DICTIONARY)
-            .is_file(),
+        seed.join(msime_engine::assets::WUBI_DICTIONARY).is_file(),
         "missing official split Wubi seed at {}",
-        resources.display()
+        seed.display()
     );
+    let resources = tmp.path().join("resources");
+    let mut directories = vec![(seed, resources.clone())];
+    while let Some((source, destination)) = directories.pop() {
+        fs::create_dir_all(&destination).unwrap();
+        for entry in fs::read_dir(source).unwrap() {
+            let entry = entry.unwrap();
+            let target = destination.join(entry.file_name());
+            if entry.file_type().unwrap().is_dir() {
+                directories.push((entry.path(), target));
+            } else {
+                fs::copy(entry.path(), target).unwrap();
+            }
+        }
+    }
     let user = tmp.path().join("user");
     let cache = tmp.path().join("cache");
-    // Use production generation preparation, which assembles the official split tables.
     let (session, error) = create_with_generation(&resources, &user, &cache, "wubi-fifth");
-    assert!(session.is_null() || error.is_none(), "{error:?}");
-    assert!(!session.is_null());
+    assert!(
+        !session.is_null() && error.is_none(),
+        "session creation failed: {error:?}"
+    );
 
     let wubi_mode = call_action(session, r#"{"op":"set_input_mode","mode":"wubi"}"#);
     assert!(wubi_mode.ok, "{:?}", wubi_mode.error);
