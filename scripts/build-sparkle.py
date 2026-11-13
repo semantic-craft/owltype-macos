@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Build pinned upstream Sparkle plus the reviewed application-relaunch patch.
 
-The submodule stays untouched. A receipt binds the patch and both Updater slices;
 UUIDs survive the release pipeline's removal/replacement of code signatures.
 """
 import argparse
@@ -31,8 +30,8 @@ def run(*args, **kwargs):
 def uuids(binary):
     output = subprocess.check_output(["xcrun", "dwarfdump", "--uuid", str(binary)], text=True)
     result = dict((arch, uuid) for uuid, arch in re.findall(r"UUID: ([0-9A-F-]+) \(([^)]+)\)", output))
-    if set(result) != {"arm64", "x86_64"}:
-        raise ValueError("Sparkle Updater must contain arm64 and x86_64")
+    if set(result) != {"arm64"}:
+        raise ValueError("Sparkle Updater must contain only arm64")
     return result
 
 
@@ -99,7 +98,7 @@ def build():
         prefix_map = f"-ffile-prefix-map={source}=Sparkle"
         run("xcodebuild", "-quiet", "-project", str(source / "Sparkle.xcodeproj"),
             "-scheme", "Sparkle", "-configuration", "Release", "-derivedDataPath", str(work / "derived"),
-            "ARCHS=arm64 x86_64", "ONLY_ACTIVE_ARCH=NO", "MACOSX_DEPLOYMENT_TARGET=14.0", "CODE_SIGNING_ALLOWED=NO",
+            "ARCHS=arm64", "ONLY_ACTIVE_ARCH=NO", "MACOSX_DEPLOYMENT_TARGET=14.0", "CODE_SIGNING_ALLOWED=NO",
             "CODE_SIGNING_REQUIRED=NO", "CODE_SIGN_IDENTITY=", "DEBUG_INFORMATION_FORMAT=dwarf-with-dsym",
             "OTHER_CFLAGS=$(inherited) " + prefix_map,
             "OTHER_CPLUSPLUSFLAGS=$(inherited) " + prefix_map, "build")

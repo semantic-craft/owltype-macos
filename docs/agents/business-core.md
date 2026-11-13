@@ -79,7 +79,7 @@ and keys. Keep the existing format during the implementation switch; a format ch
 needs its own recovery design and acceptance. Chrome cursor/automatic-expansion evidence
 remains in #331; migration does not waive the current Chromium range restrictions.
 
-The build produces both static archives for native tests and universal distribution.
+The build produces one Apple Silicon static archive for native tests and distribution.
 The delivery checker requires the App ABI call/free symbols in the shipped binary.
 The full gate tests both App crates and checks ownership coverage. Unit, Swift-host,
 installed-host and published-artifact evidence remain separate.

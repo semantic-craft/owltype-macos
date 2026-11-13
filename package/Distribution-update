@@ -6,7 +6,12 @@
     <welcome file="welcome.html" mime-type="text/html"/>
     <conclusion file="conclusion-update.html" mime-type="text/html"/>
     <pkg-ref id="im.owltype.inputmethod.Owltype"/>
-    <options customize="never" require-scripts="false" rootVolumeOnly="true"/>
+    <options hostArchitectures="arm64" customize="never" require-scripts="false" rootVolumeOnly="true"/>
+    <volume-check>
+        <allowed-os-versions>
+            <os-version min="14.0"/>
+        </allowed-os-versions>
+    </volume-check>
     <choices-outline>
         <line choice="default">
             <line choice="im.owltype.inputmethod.Owltype"/>

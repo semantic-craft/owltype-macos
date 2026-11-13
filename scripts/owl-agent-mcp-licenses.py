@@ -27,19 +27,18 @@ def crates() -> list[tuple[str, str, str]]:
     # cargo tree resolves features as `cargo build -p owl-agent-mcp` does; cargo metadata would
     # unify them across the workspace and list crates the helper never compiles.
     rows: set[tuple[str, str, str]] = set()
-    for target in ("aarch64-apple-darwin", "x86_64-apple-darwin"):
-        output = subprocess.check_output(
-            ["cargo", "tree", "--locked", "--offline", "--manifest-path", str(ROOT / "rust/Cargo.toml"),
-             "-p", CRATE, "-e", "normal,build", "--target", target, "--prefix", "none",
-             "--format", "{p}|{l}"],
-            text=True,
-        )
-        for line in output.splitlines():
-            package, _, license = line.partition("|")
-            if "(/" in package:  # a workspace path crate, not crates.io
-                continue
-            name, version = package.split()[:2]
-            rows.add((name, version.removeprefix("v"), license.strip() or "UNKNOWN"))
+    output = subprocess.check_output(
+        ["cargo", "tree", "--locked", "--offline", "--manifest-path", str(ROOT / "rust/Cargo.toml"),
+         "-p", CRATE, "-e", "normal,build", "--target", "aarch64-apple-darwin", "--prefix", "none",
+         "--format", "{p}|{l}"],
+        text=True,
+    )
+    for line in output.splitlines():
+        package, _, license = line.partition("|")
+        if "(/" in package:  # a workspace path crate, not crates.io
+            continue
+        name, version = package.split()[:2]
+        rows.add((name, version.removeprefix("v"), license.strip() or "UNKNOWN"))
     return sorted(rows)
 
 

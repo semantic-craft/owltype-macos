@@ -59,7 +59,6 @@ EXACT_RESOURCE_TABLES = {
 
 
 MCP_HELPER = "Contents/Helpers/owltype-mcp"
-MCP_HELPER_ARCHS = {"arm64", "x86_64"}
 
 
 class DeliveryError(RuntimeError):
@@ -243,10 +242,6 @@ def verify_mcp_helper(app: Path) -> None:
         raise DeliveryError(f"MCP helper is missing or not a Mach-O file: {MCP_HELPER}")
     if not os.access(helper, os.X_OK):
         raise DeliveryError(f"MCP helper is not executable: {MCP_HELPER}")
-    archs = subprocess.run(["lipo", "-archs", str(helper)], text=True, capture_output=True, check=False)
-    missing = MCP_HELPER_ARCHS - set(archs.stdout.split())
-    if archs.returncode != 0 or missing:
-        raise DeliveryError(f"MCP helper lacks architectures: {', '.join(sorted(missing)) or archs.stderr.strip()}")
     try:
         version = subprocess.run([str(helper), "--version"], text=True, capture_output=True, timeout=10, check=False)
     except subprocess.TimeoutExpired as error:
@@ -269,6 +264,12 @@ def validate_app(app: Path) -> tuple[int, int]:
     if not is_macho(executable):
         raise DeliveryError("App executable is not Mach-O")
     binaries = macho_files(app)
+    for binary in binaries:
+        archs = subprocess.run(["lipo", "-archs", str(binary)], text=True, capture_output=True, check=False)
+        if archs.returncode != 0 or set(archs.stdout.split()) != {"arm64"}:
+            raise DeliveryError(
+                f"{display_path(binary, app)} must contain only arm64, got {archs.stdout.strip()!r}"
+            )
     verify_no_legacy_dependencies(app, binaries)
     verify_rust_symbols(executable)
     verify_mcp_helper(app)
@@ -289,7 +290,7 @@ def main() -> None:
         raise SystemExit(1) from error
     print("PASS: no legacy Rime runtime files or dynamic dependencies")
     print("PASS: required Rust FFI symbols are linked into the App executable")
-    print(f"PASS: universal MCP helper at {MCP_HELPER}")
+    print(f"PASS: Apple Silicon MCP helper at {MCP_HELPER}")
     print(f"PASS: {resource_count} Rust SQLite resources are complete")
     print(f"PASS: Rust delivery verified across {binary_count} Mach-O files")
 

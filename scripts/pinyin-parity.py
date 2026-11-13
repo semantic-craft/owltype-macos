@@ -275,7 +275,7 @@ def build_owl(xctestrun):
         raise ValueError('xctestrun must be in the chosen derived-data Build/Products directory')
     before = source_identity()
     commands = [
-        ['bash', 'scripts/build-rust-ffi.sh', '--native-only'],
+        ['bash', 'scripts/build-rust-ffi.sh'],
         ['xcodebuild', '-project', 'Owltype.xcodeproj', '-scheme', 'Owltype',
          '-configuration', 'Debug', '-derivedDataPath', str(xctestrun.parent.parent.parent),
          'CODE_SIGNING_ALLOWED=YES', 'CODE_SIGN_IDENTITY=-', 'build-for-testing']]

@@ -73,7 +73,7 @@ copy-owl-seed:
 release: $(DEPS_CHECK)
 	mkdir -p "$(RELEASE_OUTPUT_ROOT)"
 	xcodebuild -project Owltype.xcodeproj -configuration Release -scheme Owltype -derivedDataPath "$(RELEASE_OUTPUT_ROOT)" $(BUILD_SETTINGS) \
-		ARCHS="arm64 x86_64" ONLY_ACTIVE_ARCH=NO \
+		ARCHS=arm64 ONLY_ACTIVE_ARCH=NO \
 		CODE_SIGNING_ALLOWED=NO \
 		ENABLE_CODE_COVERAGE=NO \
 		OTHER_SWIFT_FLAGS="-file-prefix-map $(CURDIR)=." \
@@ -81,7 +81,6 @@ release: $(DEPS_CHECK)
 		OTHER_CPLUSPLUSFLAGS="-ffile-prefix-map=$(CURDIR)=." \
 		build
 	lipo "$(RELEASE_APP)/Contents/MacOS/Owltype" -verify_arch arm64
-	lipo "$(RELEASE_APP)/Contents/MacOS/Owltype" -verify_arch x86_64
 	strip -S "$(RELEASE_APP)/Contents/MacOS/Owltype"
 	$(MAKE) copy-owl-seed OWL_CONFIG=Release DERIVED_DATA_PATH="$(RELEASE_OUTPUT_ROOT)"
 	python3 scripts/finalize-release-bundle.py \

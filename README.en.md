@@ -23,7 +23,7 @@ MSIME Rust Engine · Pinyin / Double Pinyin / Wubi 86 & 98 / Mixed Input · Clou
 
 ## Download and install
 
-> **System requirements**: macOS 14.0 (Sonoma) or later · Universal binary for Apple Silicon and Intel Macs · Signed with Apple Developer ID and notarized by Apple.
+> **System requirements**: macOS 14.0 (Sonoma) or later · Native Apple Silicon binary; Intel Macs are no longer supported · Signed with Apple Developer ID and notarized by Apple.
 
 | Package | Use case | Immutable 2.5.0 link | Stable latest alias |
 | --- | --- | --- | --- |

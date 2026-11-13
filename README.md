@@ -23,7 +23,7 @@
 
 ## 立即下载与安装
 
-> **系统要求**：macOS 14.0（Sonoma）及以上 · 原生支持 Apple Silicon（M 系列）与 Intel（Universal 双架构） · 已通过 Apple Developer ID 签名与公证（Notarized）。
+> **系统要求**：macOS 14.0（Sonoma）及以上 · 仅支持 Apple Silicon（M 系列），不再支持 Intel Mac · 已通过 Apple Developer ID 签名与公证（Notarized）。
 
 | 下载项 | 适用场景 | 2.5.0 不可变直链 | 稳定最新别名 |
 | --- | --- | --- | --- |
