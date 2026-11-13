@@ -23,6 +23,24 @@ import XCTest
 @MainActor
 final class OwlSkillsLiveTests: XCTestCase {
 
+  func testDeepSeekASRTranscribesSpokenAudio() async throws {
+    let key = try OwlLiveKey.deepSeek.value()
+    let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+    try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: directory) }
+    let audio = directory.appendingPathComponent("speech.wav")
+    let synthesizer = Process()
+    synthesizer.executableURL = URL(fileURLWithPath: "/usr/bin/say")
+    synthesizer.arguments = ["-o", audio.path, "--data-format=LEI16@16000", "--channels=1",
+                            "The weather is sunny today."]
+    try synthesizer.run()
+    synthesizer.waitUntilExit()
+    XCTAssertEqual(synthesizer.terminationStatus, 0)
+    let client = OwlVoiceGrokASRClient(providerID: "deepseek", apiKeyProvider: { key })
+    let transcript = try await client.transcribe(audioWavData: Data(contentsOf: audio), prompt: nil)
+    XCTAssertTrue(transcript.lowercased().contains("sunny"), "Unexpected transcript: \(transcript)")
+  }
+
   /// `~/.owl-test-workspace` 可填 Workspace ID、完整 API Host 或 Responses URL；不把任何
   /// 个人 Workspace 写进仓库。未配置时才回退通用域名。
   private static let endpoint: URL = {

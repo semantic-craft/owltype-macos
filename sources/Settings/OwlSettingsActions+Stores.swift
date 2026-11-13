@@ -93,7 +93,8 @@ extension OwlSettingsActions {
       return VoiceASRSaveResult(input: apiKey, endpoint: endpoint, model: model, status: "端点必须是 https。")
     }
     let trimmedModel = OwlProviderCore.call("trim", ["text": model]) as String
-    let effectiveModel = trimmedModel.isEmpty ? preset.defaultModel : trimmedModel
+    let effectiveModel = preset.curatedModels.isEmpty ? preset.defaultModel
+      : (trimmedModel.isEmpty ? preset.defaultModel : trimmedModel)
     let trimmedKey = OwlProviderCore.call("trim", ["text": apiKey]) as String
 
     if trimmedKey.isEmpty && !isKeyAlreadyConfigured {
@@ -118,9 +119,10 @@ extension OwlSettingsActions {
     defaults.set(effectiveEndpoint, forKey: OwlVoiceSettings.asrEndpointKey)
     defaults.set(effectiveModel, forKey: OwlVoiceSettings.asrModelKey)
 
+    let modelLabel = effectiveModel.isEmpty ? preset.displayName : effectiveModel
     let status = trimmedKey.isEmpty
-      ? "已保存语音识别配置（\(effectiveModel)）。"
-      : "已保存 \(preset.displayName) 密钥与语音识别配置（\(effectiveModel)）。"
+      ? "已保存语音识别配置（\(modelLabel)）。"
+      : "已保存 \(preset.displayName) 密钥与语音识别配置（\(modelLabel)）。"
     return VoiceASRSaveResult(input: "", endpoint: effectiveEndpoint, model: effectiveModel, status: status)
   }
 

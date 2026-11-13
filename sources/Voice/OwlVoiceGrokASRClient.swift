@@ -16,8 +16,16 @@ public final class OwlVoiceGrokASRClient: OwlVoiceASRServiceProtocol, @unchecked
   private let explicitEndpoint: URL?
   private let explicitModel: String?
   public var providerID: String { explicitProviderID ?? OwlVoiceSettings.asrProviderID }
-  public var endpoint: URL { explicitEndpoint ?? OwlVoiceSettings.resolvedASREndpointURL }
-  public var model: String { explicitModel ?? OwlVoiceSettings.resolvedASRModel }
+  public var endpoint: URL {
+    if let explicitEndpoint { return explicitEndpoint }
+    if let explicitProviderID { return URL(string: OwlVoiceASRCatalog.preset(id: explicitProviderID).endpoint)! }
+    return OwlVoiceSettings.resolvedASREndpointURL
+  }
+  public var model: String {
+    if let explicitModel { return explicitModel }
+    if let explicitProviderID { return OwlVoiceASRCatalog.preset(id: explicitProviderID).defaultModel }
+    return OwlVoiceSettings.resolvedASRModel
+  }
   public let transport: OwlVoiceNetworkTransport
   public let apiKeyProvider: @Sendable () throws -> String?
   public var requestTimeout: TimeInterval
@@ -36,7 +44,8 @@ public final class OwlVoiceGrokASRClient: OwlVoiceASRServiceProtocol, @unchecked
     self.transport = transport
     self.requestTimeout = requestTimeout
     self.apiKeyProvider = apiKeyProvider ?? {
-      try OwlVoiceSettings.readActiveASRAPIKey()
+      if let providerID { return try OwlVoiceSettings.readASRAPIKey(forProviderID: providerID) }
+      return try OwlVoiceSettings.readActiveASRAPIKey()
     }
   }
 
@@ -79,7 +88,8 @@ public final class OwlVoiceGrokASRClient: OwlVoiceASRServiceProtocol, @unchecked
       audioData: audioWavData,
       model: model,
       prompt: prompt,
-      boundary: boundary
+      boundary: boundary,
+      fileOnly: providerID == OwlVoiceASRCatalog.deepseek.id
     )
 
     var request = URLRequest(url: endpoint)
@@ -152,23 +162,26 @@ public final class OwlVoiceGrokASRClient: OwlVoiceASRServiceProtocol, @unchecked
     audioData: Data,
     model: String,
     prompt: String?,
-    boundary: String
+    boundary: String,
+    fileOnly: Bool = false
   ) -> Data {
     var body = Data()
     let boundaryPrefix = "--\(boundary)\r\n"
 
-    // Model field
-    body.append(Data(boundaryPrefix.utf8))
-    body.append(Data("Content-Disposition: form-data; name=\"model\"\r\n\r\n\(model)\r\n".utf8))
-
-    // Response format field
-    body.append(Data(boundaryPrefix.utf8))
-    body.append(Data("Content-Disposition: form-data; name=\"response_format\"\r\n\r\njson\r\n".utf8))
-
-    // Optional prompt field
-    if let prompt = prompt, !prompt.isEmpty {
+    if !fileOnly {
+      // Model field
       body.append(Data(boundaryPrefix.utf8))
-      body.append(Data("Content-Disposition: form-data; name=\"prompt\"\r\n\r\n\(prompt)\r\n".utf8))
+      body.append(Data("Content-Disposition: form-data; name=\"model\"\r\n\r\n\(model)\r\n".utf8))
+
+      // Response format field
+      body.append(Data(boundaryPrefix.utf8))
+      body.append(Data("Content-Disposition: form-data; name=\"response_format\"\r\n\r\njson\r\n".utf8))
+
+      // Optional prompt field
+      if let prompt = prompt, !prompt.isEmpty {
+        body.append(Data(boundaryPrefix.utf8))
+        body.append(Data("Content-Disposition: form-data; name=\"prompt\"\r\n\r\n\(prompt)\r\n".utf8))
+      }
     }
 
     // Audio file field

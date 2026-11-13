@@ -1197,7 +1197,7 @@
       "role": "native",
       "target": "Swift",
       "issue": null,
-      "reason": "Cloud ASR client (OpenAI and Gemini generateContent) with multipart form packaging and JSON transcript parsing"
+      "reason": "Cloud ASR client (OpenAI, DeepSeek file upload, and Gemini generateContent) with multipart form packaging and JSON transcript parsing"
     },
     {
       "path": "sources/Voice/OwlVoiceHotwordsExtractor.swift",
