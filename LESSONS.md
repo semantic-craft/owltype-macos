@@ -248,6 +248,11 @@ fails `OwlSettingsUITests`; the suite is not in the gate, so both drifted unnoti
   ASCII keyboard layout for the run, activates the app before each click or keystroke, waits
   for filter changes instead of reading `exists` at once, and attaches `app.debugDescription`
   when a control is missing. Run it when no other Owltype test or gate is running.
+- Observed again on 2026-11-13: the broad settings journey passed once, then twice
+  reported `template-save` at `{{844, -315}, {52, 35}}` as not hittable on a shared
+  multi-display desktop. Preserve the failed receipts and investigate the actual
+  visible/scroll geometry before attributing it to a product change; see
+  [#423](https://github.com/semantic-craft/owltype-macos/issues/423).
 - Regression: [OwlSettingsUITests.swift](tests/OwlSettingsUITests.swift), all four tests.
 - Scope: the settings UI suite (scheme `OwltypeUITests`). The gate does not run it.
 - Verify (验证点): `xcodebuild test -project Owltype.xcodeproj -scheme OwltypeUITests
