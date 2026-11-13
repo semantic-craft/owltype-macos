@@ -113,7 +113,7 @@ pub fn dispatch(rule: &str, args: Value) -> Result<Value, String> {
         "onboarding_practice_hint" => {
             let has_other_source = args["has_other_source"].as_bool().unwrap_or(false);
             let hint = if has_other_source {
-                Some("包含其他输入法的内容，请清空后用猫头鹰重新输入。")
+                Some("包含其他输入法的内容，请清空后用法墨重新输入。")
             } else {
                 None
             };

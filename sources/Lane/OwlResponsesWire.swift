@@ -1,6 +1,6 @@
 //
 //  OwlResponsesWire.swift
-//  猫头鹰输入法 (Owltype) — Qwen / OpenAI / 火山方舟 / DeepSeek `/responses` wire format
+//  法墨输入法 (Owltype) — Qwen / OpenAI / 火山方舟 / DeepSeek `/responses` wire format
 //
 //  `/responses` is not just a renamed `/chat/completions`: it uses `input`, emits `output`
 //  items, and streams `response.output_text.delta` events. The four providers also have small

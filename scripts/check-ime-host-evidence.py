@@ -75,7 +75,7 @@ def main():
     # Other restored copies can share the same file. Baseline the bound window,
     # not whichever process last saved that path.
     baseline['nihao_count'] = before['nihaoCount']
-    print(f'请在已调出的{args.role}窗口选猫头鹰，用五笔新增“你好”并按⌘S；脚本会自动切换下一窗口。', flush=True)
+    print(f'请在已调出的{args.role}窗口选法墨，用五笔新增“你好”并按⌘S；脚本会自动切换下一窗口。', flush=True)
     while time.time() <= args.completed + 60:
         time.sleep(.15)
         before_read = observe()

@@ -1,6 +1,6 @@
 //
 //  OwlStructuredDrafting.swift
-//  猫头鹰输入法 (Owltype) — structured drafting seam
+//  法墨输入法 (Owltype) — structured drafting seam
 //
 //  A deep module for explicit cloud skills that turn a protected draft into either a safe final
 //  document or a bounded clarification request. Admission, auth ordering, request assembly,

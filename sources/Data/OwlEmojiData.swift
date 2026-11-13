@@ -1,6 +1,6 @@
 //
 //  OwlEmojiData.swift
-//  猫头鹰输入法 (Owltype) — 表情/符号面板 data
+//  法墨输入法 (Owltype) — 表情/符号面板 data
 //
 //  Curated glyph sets + search keywords, ported from the Claude Design "Owltype Emoji
 //  Panel" handoff. NOTE: a fuller set sourced from rime-ice's emoji mapping is a

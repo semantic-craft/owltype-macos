@@ -185,11 +185,11 @@ UPDATE scenario (asserts the shipped 1.3.32 no-logout update; closes that open l
   4. smoke-live.sh snapshot "$EV/after"  &&  smoke-live.sh verify "$EV/before" "$EV/after"
   5. smoke-live.sh check    — asserts a SINGLE Hans source; an illegal re-enable shows as a duplicate.
   6. Reopen TextEdit → smoke-live.sh input textedit   (real keystroke nihao→你好)
-  7. Menu-bar icon visible = 猫头鹰; input menu lists 猫头鹰 exactly once (no duplicate/ghost).
+  7. Menu-bar icon visible = 法墨; input menu lists 法墨 exactly once (no duplicate/ghost).
   8. NO-STEAL variant (second pass): switch to ABC yourself BEFORE triggering the update. After
      install, Owltype must NOT be selected (no source-stealing), but the input menu MUST still list
-     猫头鹰 — the deferred job runs unconditionally and refreshes the menu agents after the receipt
-     boundary (same log file; expect "menu-refreshed"). 1.6.0 red light: menu missing 猫头鹰 while
+     法墨 — the deferred job runs unconditionally and refreshes the menu agents after the receipt
+     boundary (same log file; expect "menu-refreshed"). 1.6.0 red light: menu missing 法墨 while
      the TIS probe showed enabled=true/selectable=true (OWL-TIS-006).
 UPDATE
   else
@@ -197,10 +197,10 @@ UPDATE
 
 FIRST-INSTALL scenario (clean account):
   1. smoke-live.sh snapshot "$EV/before"
-  2. Install the notarized DMG → run the GUI installer → grant "允许启用输入法" → menu shows 猫头鹰.
+  2. Install the notarized DMG → run the GUI installer → grant "允许启用输入法" → menu shows 法墨.
      First install activates without logout (1.3.32). If it half-activates, --diagnose-tis names the
      failing layer + OWL-* code instead of "reboot/logout".
-  3. Select 猫头鹰 from the input menu.
+  3. Select 法墨 from the input menu.
   4. smoke-live.sh snapshot "$EV/after"  &&  smoke-live.sh verify "$EV/before" "$EV/after"
   5. smoke-live.sh check                 (installed-app read-only gate)
   6. smoke-live.sh input textedit        (real keystroke nihao→你好; override via
@@ -248,7 +248,7 @@ omnibox_trace() {
       defaults write "$OWL_BUNDLE_ID" OwlDebugLiveInputTrace -bool true
       : > "$log" 2>/dev/null || true   # fresh judging window
       pass "trace ON — log: $log (cleared for a fresh window)"
-      info "生效需重挂猫头鹰进程：切走再切回猫头鹰输入源，或重开目标 App。"
+      info "生效需重挂法墨进程：切走再切回法墨输入源，或重开目标 App。"
       ;;
     off)
       defaults delete "$OWL_BUNDLE_ID" OwlDebugLiveInputTrace 2>/dev/null || true
@@ -345,9 +345,9 @@ omnibox_checklist() {
   cat <<OMNIBOX
 === Owltype omnibox 宿主矩阵回归 — 可重复清单 (#90 / spec #88 §2.3/§5) ===
 前置：
-  1. 装公证包（DMG/pkg），猫头鹰为当前输入源（ad-hoc/未签名会被 Tahoe 弹回，非有效目标）。
+  1. 装公证包（DMG/pkg），法墨为当前输入源（ad-hoc/未签名会被 Tahoe 弹回，非有效目标）。
   2. 开 trace：  smoke-live.sh omnibox trace on   （写 OwlDebugLiveInputTrace + 清空日志窗口）
-     然后切走再切回猫头鹰（或重开目标 App）让 defaults 生效。
+     然后切走再切回法墨（或重开目标 App）让 defaults 生效。
   3. 日志路径：  $log
 
 宿主 × 操作矩阵（每格四操作：①整句拼音 ②退格逐码 ③上屏 ④连续输入 ≥20 轮采样）：

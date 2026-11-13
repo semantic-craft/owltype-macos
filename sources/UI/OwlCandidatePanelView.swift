@@ -1,6 +1,6 @@
 //
 //  OwlCandidatePanelView.swift
-//  猫头鹰输入法 (Owltype) — SwiftUI candidate panel
+//  法墨输入法 (Owltype) — SwiftUI candidate panel
 //
 //  Visual spec: the Claude Design handoff "Owltype Candidate Window" (claude.ai/design).
 //  Implements the two forms it specified — ① compact horizontal pill bar (default) and

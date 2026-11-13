@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Behavior test for the package scripts: no bundle-shaped install intermediate may stay in
-# /Library/Input Methods, where LaunchServices registers it as a second 猫头鹰输入法.
+# /Library/Input Methods, where LaunchServices registers it as a second 法墨输入法.
 # Runs the real preinstall/postinstall, rewritten onto a throwaway system root, with mocked
 # install/stat/launchctl/codesign/PlistBuddy/lsregister and a fake App whose --commit-install
 # only copies files. Nothing on this machine is installed, registered or removed.

@@ -1,6 +1,6 @@
 //
 //  OwlDeepSeekSearch.swift
-//  猫头鹰输入法 (Owltype) — DeepSeek 联网的检索层：DeepSeek Search 接口
+//  法墨输入法 (Owltype) — DeepSeek 联网的检索层：DeepSeek Search 接口
 //
 //  任意提问联网与来源核验都先用 `POST /v1/tools/search` 取回网页，再把编号结果交给
 //  `deepseek-flash` 依据作答。检索与作答分开：模型收下内置 `web_search` 工具却不搜（V4.1 Flash

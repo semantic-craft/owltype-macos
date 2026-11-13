@@ -1,7 +1,7 @@
 // Installer — 安装、修复安装、清空修复与彻底卸载的全部副作用逻辑（无 UI）。
 //
 // 安全纪律（卸载与修复白名单，对齐 scripts/uninstall-owltype.sh 与 scripts/repair-owltype.sh）：
-//   - 删除目标硬编码为猫头鹰自有路径，绝不触碰 Squirrel / ~/Library/Rime / im.rime /
+//   - 删除目标硬编码为法墨自有路径，绝不触碰 Squirrel / ~/Library/Rime / im.rime /
 //     Sogou / 搜狗 / Weasel 等他人输入法。
 //   - 用户目录下的清理一律由登录用户进程自身通过 FileManager 执行；
 //     只有 /Library/Input Methods 与 /private/var/db 下的系统级路径才走提权。
@@ -34,7 +34,7 @@ enum InstallerError: LocalizedError {
 }
 
 enum Installer {
-    /// 系统输入法目录里的猫头鹰安装位置。
+    /// 系统输入法目录里的法墨安装位置。
     static let installedAppPath = "/Library/Input Methods/Owltype.app"
     private static let systemInputMethodsDir = "/Library/Input Methods"
     private static let installerStatePath = "/private/var/db/im.owltype.inputmethod.Owltype-installer"
@@ -146,7 +146,7 @@ enum Installer {
                 _ = try repairInstall()
                 return
             }
-            throw InstallerError.validationFailed("本机尚未安装猫头鹰输入法，请点击「立即安装」。")
+            throw InstallerError.validationFailed("本机尚未安装法墨输入法，请点击「立即安装」。")
         }
 
         let sourceBefore = DispatchQueue.main.sync { currentSourceID() }
@@ -352,7 +352,7 @@ enum Installer {
                 preferredID: id(preferred), selectableASCIIKeyboardIDs: sources.compactMap(id))
         }
         guard let sourceID else {
-            throw InstallerError.activationFailed("未找到可用的英文键盘输入源，未替换猫头鹰。请先启用系统英文键盘。")
+            throw InstallerError.activationFailed("未找到可用的英文键盘输入源，未替换法墨。请先启用系统英文键盘。")
         }
         let owl = app.appendingPathComponent("Contents/MacOS/Owltype")
         _ = try runProcess(owl.path, ["--select-input-source", sourceID])
@@ -626,7 +626,7 @@ enum Installer {
         try runPrivileged(command)
     }
 
-    /// 用户级删除白名单：全部是猫头鹰自有路径（绝不含他人输入法 / Rime）。
+    /// 用户级删除白名单：全部是法墨自有路径（绝不含他人输入法 / Rime）。
     private static func userLevelTargets(keepUserData: Bool) -> [URL] {
         let home = FileManager.default.homeDirectoryForCurrentUser
         var targets = [

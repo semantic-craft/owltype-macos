@@ -1,6 +1,6 @@
 //
 //  OwlAskAnythingModule.swift
-//  猫头鹰输入法 (Owltype) — 任意提问 use-case seam
+//  法墨输入法 (Owltype) — 任意提问 use-case seam
 //
 //  The caller-facing interface is deliberately tiny: messages in, streamed answer + attribution
 //  out. Provider ordering and search failover stay behind this seam; the wire and its dialect are

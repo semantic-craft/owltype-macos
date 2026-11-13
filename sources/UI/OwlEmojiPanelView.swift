@@ -1,6 +1,6 @@
 //
 //  OwlEmojiPanelView.swift
-//  猫头鹰输入法 (Owltype) — 表情/符号面板 view
+//  法墨输入法 (Owltype) — 表情/符号面板 view
 //
 //  The Claude Design "Owltype Emoji Panel" handoff in SwiftUI: a glass floating panel with
 //  top category tabs (最近/表情/符号/颜文字/标点), a tiled grid (颜文字 take

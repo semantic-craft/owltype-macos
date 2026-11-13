@@ -58,8 +58,8 @@ bundle_id=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Content
 [[ "$bundle_id" == "$DOMAIN" ]] || fail "unexpected bundle id: $bundle_id"
 pass_clean "bundle id is $DOMAIN"
 
-plutil -p "$APP/Contents/Resources/en.lproj/InfoPlist.strings" | grep -q '"im.owltype.inputmethod.Owltype.Hans" => "猫头鹰输入法"' ||
-  fail "installed Owltype Hans menu label is not localized as 猫头鹰输入法"
+plutil -p "$APP/Contents/Resources/en.lproj/InfoPlist.strings" | grep -q '"im.owltype.inputmethod.Owltype.Hans" => "法墨输入法"' ||
+  fail "installed Owltype Hans menu label is not localized as 法墨输入法"
 pass_clean "installed Owltype Hans menu label is localized"
 
 [[ -s "$APP/Contents/Resources/LICENSE.txt" ]] || fail "missing GPL license in installed app resources"
@@ -213,7 +213,7 @@ check_default_off OwlLocalModelLaneEnabled
 check_default_off OwlSensitiveModeEnabled
 
 if [[ -d "$HOME/Library/Rime" ]] &&
-   find "$HOME/Library/Rime" \( -iname '*owltype*' -o -iname '*猫头鹰*' \) -print -quit | grep -q .; then
+   find "$HOME/Library/Rime" \( -iname '*owltype*' -o -iname "*${OWL_PREVIOUS_PRODUCT_NAME_ZH}*" -o -iname "*${OWL_PRODUCT_NAME_ZH%输入法}*" \) -print -quit | grep -q .; then
   fail "found Owltype-specific files under live ~/Library/Rime"
 fi
 pass_clean "live ~/Library/Rime has no Owltype-specific files"

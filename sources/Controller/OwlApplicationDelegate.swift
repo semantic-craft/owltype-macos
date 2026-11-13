@@ -150,7 +150,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   func applicationDidBecomeActive(_ notification: Notification) {
     guard !OwlApp.isShowingSettingsForUITests else { return }
     // 授权后补装（2026-07-26）：启动时 AX 未授权则 tap 缺席，事后授权不会自动送达任何事件，
-    // 录制热键在 Chromium/Electron 宿主失灵直到注销。用户去系统设置授权后切回猫头鹰窗口的
+    // 录制热键在 Chromium/Electron 宿主失灵直到注销。用户去系统设置授权后切回法墨窗口的
     // 瞬间（设置页徽章翻绿的同一事件）补一次；已装时首行 guard 直接返回，零开销。
     hotKeyTap.startIfPossible()
   }
@@ -559,7 +559,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     center.getNotificationSettings { settings in
       if (settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional) && settings.alertSetting == .enabled {
         let content = UNMutableNotificationContent()
-        content.title = "猫头鹰输入法"
+        content.title = "法墨输入法"
         if let msgText = msgText {
           content.subtitle = msgText
         }
@@ -689,7 +689,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     // 授权后补装 tap 的第二保险（第一保险=applicationDidBecomeActive）：TCC 辅助功能表变更时
     // 系统会广播这条 DNC（未文档化、10.9 起稳定，alt-tab 等在用）。任何 app 的授权变化都触发、
     // 无 payload——只当「该重查一次」的信号用，让用户在系统设置里勾上开关的瞬间 tap 就位，
-    // 不必切回猫头鹰窗口。通知名将来若失效，无声退化为 didBecomeActive 补装，无副作用。
+    // 不必切回法墨窗口。通知名将来若失效，无声退化为 didBecomeActive 补装，无副作用。
     notifCenter.addObserver(self, selector: #selector(accessibilityAPIChanged(_:)), name: .init("com.apple.accessibility.api"), object: nil, suspensionBehavior: .deliverImmediately)
     notifCenter.addObserver(forName: .init(kTISNotifySelectedKeyboardInputSourceChanged as String), object: nil, queue: .main) { [weak self] _ in
       self?.finalizeStrandedComposition()

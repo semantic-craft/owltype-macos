@@ -1,7 +1,4 @@
 #!/usr/bin/env bash
-# Identity residual gate. Since 2.0.0 (法墨/Famo → 猫头鹰/Owltype) this is the machine
-# acceptance check for that rename: it drives the old brand's residue to zero across the
-# repository and every shipped layer.
 #
 #   scripts/check-identity-residual.sh              # repository source + every artifact layer
 #   scripts/check-identity-residual.sh --source     # repository source only
@@ -53,6 +50,7 @@ SCAN_EXCLUDE=(
   -g '!scripts/check-public-privacy.sh'
   -g '!scripts/check-public-privacy.selftest.sh'
   -g '!CHANGELOG.md'
+  -g '!LESSONS.md'
   -g '!Sparkle/**'
 )
 
@@ -300,7 +298,7 @@ else
       printf 'note: DMG has no OwltypeInstaller.app at its root\n'
     fi
     dmg_hard=0
-    for loose in "卸载猫头鹰.command" "uninstall-owltype.sh" "修复猫头鹰.command" \
+    for loose in "卸载法墨.command" "uninstall-owltype.sh" "修复法墨.command" \
         "repair-owltype.sh" "owltype-maintenance-lib.sh"; do
       loose_path="${_dmg_mnt}/${loose}"
       [[ -f "$loose_path" ]] || continue

@@ -334,7 +334,7 @@ extension EngineRuntime {
       Self.deployLog.error(
         "reset user dict BLOCKED: Rust engine still has live sessions; no data deleted"
       )
-      return "重置失败：Rust 引擎仍有活动会话，未删除用户词典。请重新打开猫头鹰后再试。"
+      return "重置失败：Rust 引擎仍有活动会话，未删除用户词典。请重新打开法墨后再试。"
     case .finished(.success(let outcome), let redeployed):
       Self.deployLog.notice("""
         reset Rust user dictionary cleared \(outcome.removedItems.count, privacy: .public) item(s), \

@@ -138,12 +138,12 @@ final class OwlCommitTransformTests: XCTestCase {
 
   func testCJKEnglishSpacing() {
     XCTAssertEqual(
-      OwlCommitTransform.apply(to: "猫头鹰AI", cjkEnglishSpacing: true, cjkNumberSpacing: false),
-      "猫头鹰 AI"
+      OwlCommitTransform.apply(to: "法墨AI", cjkEnglishSpacing: true, cjkNumberSpacing: false),
+      "法墨 AI"
     )
     XCTAssertEqual(
-      OwlCommitTransform.apply(to: "AI猫头鹰", cjkEnglishSpacing: true, cjkNumberSpacing: false),
-      "AI 猫头鹰"
+      OwlCommitTransform.apply(to: "AI法墨", cjkEnglishSpacing: true, cjkNumberSpacing: false),
+      "AI 法墨"
     )
   }
 
@@ -156,8 +156,8 @@ final class OwlCommitTransformTests: XCTestCase {
 
   func testBothModesAvoidDoubleSpacing() {
     XCTAssertEqual(
-      OwlCommitTransform.apply(to: "猫头鹰 AI", cjkEnglishSpacing: true, cjkNumberSpacing: true),
-      "猫头鹰 AI"
+      OwlCommitTransform.apply(to: "法墨 AI", cjkEnglishSpacing: true, cjkNumberSpacing: true),
+      "法墨 AI"
     )
     XCTAssertEqual(
       OwlCommitTransform.apply(to: "Owltype输入法2", cjkEnglishSpacing: true, cjkNumberSpacing: true),
@@ -170,15 +170,15 @@ final class OwlCommitTransformTests: XCTestCase {
   // trailing char of the prior commit, threaded by OwlInputController.lastCommittedCharacter)
   // restores the boundary space.
   func testCrossCommitBoundarySpacing() {
-    // 猫头鹰 committed, then AI committed separately → leading space before AI.
+    // 法墨 committed, then AI committed separately → leading space before AI.
     XCTAssertEqual(
       OwlCommitTransform.apply(to: "AI", cjkEnglishSpacing: true, cjkNumberSpacing: false, previous: "墨"),
       " AI"
     )
-    // AI committed, then 猫头鹰 → leading space before 猫头鹰.
+    // AI committed, then 法墨 → leading space before 法墨.
     XCTAssertEqual(
-      OwlCommitTransform.apply(to: "猫头鹰", cjkEnglishSpacing: true, cjkNumberSpacing: false, previous: "I"),
-      " 猫头鹰"
+      OwlCommitTransform.apply(to: "法墨", cjkEnglishSpacing: true, cjkNumberSpacing: false, previous: "I"),
+      " 法墨"
     )
     // 第 committed, then 3条 → number spacing across the boundary.
     XCTAssertEqual(

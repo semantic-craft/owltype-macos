@@ -7,7 +7,7 @@ pub struct PracticeProof {
 }
 
 impl PracticeProof {
-    pub const TARGET: &'static str = "你好，猫头鹰";
+    pub const TARGET: &'static str = "你好，法墨";
 
     pub fn inserted(&mut self, from_owl: bool, had_composition: bool) {
         self.has_other_source = self.has_other_source || !from_owl;
@@ -20,7 +20,7 @@ impl PracticeProof {
 
     pub fn hint(&self) -> Option<&'static str> {
         if self.has_other_source {
-            Some("包含其他输入法的内容，请清空后用猫头鹰重新输入。")
+            Some("包含其他输入法的内容，请清空后用法墨重新输入。")
         } else {
             None
         }
@@ -34,18 +34,18 @@ mod tests {
     #[test]
     fn test_practice_proof_completion() {
         let mut proof = PracticeProof::default();
-        assert!(!proof.is_complete("你好，猫头鹰", false));
+        assert!(!proof.is_complete("你好，法墨", false));
 
         proof.inserted(true, true);
-        assert!(proof.is_complete("你好，猫头鹰", false));
-        assert!(!proof.is_complete("你好，猫头鹰", true));
+        assert!(proof.is_complete("你好，法墨", false));
+        assert!(!proof.is_complete("你好，法墨", true));
         assert_eq!(proof.hint(), None);
 
         proof.inserted(false, false);
-        assert!(!proof.is_complete("你好，猫头鹰", false));
+        assert!(!proof.is_complete("你好，法墨", false));
         assert_eq!(
             proof.hint(),
-            Some("包含其他输入法的内容，请清空后用猫头鹰重新输入。")
+            Some("包含其他输入法的内容，请清空后用法墨重新输入。")
         );
     }
 }

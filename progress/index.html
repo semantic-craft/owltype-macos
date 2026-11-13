@@ -1,10 +1,16 @@
 <!doctype html>
 <html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Owltype · 项目进度与剩余工作</title>
+<title>法墨输入法 · 项目进度与剩余工作</title>
 <style>body{font:16px system-ui;max-width:960px;margin:3rem auto;padding:0 1rem;color:#202936;background:#f7f8fb}article,section{padding:1rem;margin:1rem 0;background:white;border-radius:12px}a{color:#1555ac}.badge{padding:.25rem .6rem;border-radius:20px;background:#e9edf5}small{color:#566}</style>
-<h1>Owltype · 项目进度与剩余工作</h1>
-<p>Observed: 2026-11-13T07:41:30.589702Z</p>
-<p>Main: <code>main: a8e63448d8244ca7759d40b300ae948e4be8eb5b</code></p>
+<h1>法墨输入法 · 项目进度与剩余工作</h1>
+<p>Observed: 2026-11-13T08:14:03.874494Z</p>
+<p>Main: <code>main: c3bbde085d60bb6f97529b26487e9ad1977a5e04</code></p>
+<section id="chinese-name"><h2>中文名称恢复</h2>
+<article id="restore-chinese-name"><h3>恢复法墨输入法中文名称</h3><span class="badge">unverified</span><p>当前界面、简繁体资源和安装文案已恢复法墨名称。隔离设置界面、三种语言编译资源及 18 项身份门禁已通过；正式安装验收未完成。</p><ul>
+<li><a href="https://github.com/semantic-craft/owltype-macos/issues/421">issue 421: 名称恢复与连续性验收范围</a></li>
+<li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/scripts/check-manifest.sh">file scripts/check-manifest.sh: 检查系统身份和编译后的多语言名称</a></li>
+</ul><p>Next: 在正式签名安装中核对输入源名称、已有设置与数据连续性。</p></article>
+</section>
 <section id="project-review"><h2>当前结论 · 2026-11-03</h2>
 <article id="apple-silicon-only"><h3>Apple Silicon 原生发行包</h3><span class="badge">in_progress</span><p>Apple Silicon 构建改动已合并，完整门禁和独立审查通过。2.6.0 候选 App 已签名公证，但未发布；按用户要求改以 2.5.1 重新构建和公证。</p><ul>
 <li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/scripts/check-rust-delivery.py">file scripts/check-rust-delivery.py: 检查 App 中所有 Mach-O 只含 arm64。</a></li>
@@ -52,7 +58,7 @@
 <article id="review-278"><h3>#278 增加与候选窗皮肤一致的浮动输入状态栏</h3><span class="badge">unverified</span><p>浮动状态栏已实现并包含在 2.4.1；有定向测试和皮肤渲染证据。</p><ul>
 <li><a href="https://github.com/semantic-craft/owltype-macos/issues/278">issue 278: 原始验收标准、后续范围决定和交付记录</a></li>
 </ul><p>Next: 按需跟踪：首次点击焦点、拖动后重启恢复及拔屏缺少安装版记录；当前没有新复现缺陷，不主动追加测试账户或全套人工验收。</p></article>
-<article id="review-204"><h3>#204 免注销更新：验证并修正官方 Sparkle 与安装包的配合</h3><span class="badge">unverified</span><p>Sparkle 公开 API 重启补丁及原选猫头鹰更新路径已有通过记录。</p><ul>
+<article id="review-204"><h3>#204 免注销更新：验证并修正官方 Sparkle 与安装包的配合</h3><span class="badge">unverified</span><p>Sparkle 公开 API 重启补丁及原选本输入法更新路径已有通过记录。</p><ul>
 <li><a href="https://github.com/semantic-craft/owltype-macos/issues/204">issue 204: 原始验收标准、后续范围决定和交付记录</a></li>
 </ul><p>Next: 保留其他输入源、正式签名起点与失败/取消/并发的历史证据缺口；相关改动或真实更新故障出现时定向验证，不重复已通过的 Hans 路径。</p></article>
 <article id="review-205"><h3>#205 免注销安装：完成剩余 GUI/pkg 真机验收矩阵</h3><span class="badge">unverified</span><p>归档 pkg 与共享会话恢复已交付，已有局部原选输入源通过记录。</p><ul>
@@ -213,5 +219,6 @@
 </ul><p>Next: 核对工单完成证据。</p></article>
 </section>
 <section><h2>Open pull requests</h2><ul>
+<li><a href="https://github.com/semantic-craft/owltype-macos/pull/422">#422</a> <code>59a0806ede90a593f03259d28a1f9180ef2f3905</code></li>
 </ul><h2>Recent releases</h2><ul>
 </ul></section></html>

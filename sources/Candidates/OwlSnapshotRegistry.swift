@@ -1,6 +1,6 @@
 //
 //  OwlSnapshotRegistry.swift
-//  猫头鹰输入法 (Owltype) — P0 bypass candidate infrastructure (spec P0-02, registry part)
+//  法墨输入法 (Owltype) — P0 bypass candidate infrastructure (spec P0-02, registry part)
 //
 //  The MainActor source of truth for "which composition snapshot is currently live". An
 //  async enhancement result (T1 local / T2 cloud) must call `isCurrent(_:)` on the main

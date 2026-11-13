@@ -1,6 +1,6 @@
 //
 //  OwlQuickSendPanelModelTests.swift
-//  猫头鹰输入法 (Owltype) — 快捷短语面板 model tests
+//  法墨输入法 (Owltype) — 快捷短语面板 model tests
 //
 //  The pure, unit-testable core of the picker panel (`OwlPickerPanelModel`), driven through the
 //  快捷短语 source: mapping `OwlQuickSendStore` entries into `OwlPickerRow`s, the typed-search

@@ -36,15 +36,15 @@ targets:
     info:
       path: Info.plist
       properties:
-        CFBundleName: 猫头鹰安装器
-        CFBundleDisplayName: 猫头鹰安装器
+        CFBundleName: 法墨安装器
+        CFBundleDisplayName: 法墨安装器
         # 版本占位符：Info.plist 由 xcodegen 每次 generate 重生成，直接改 plist 会被清掉；
         # 真实版本由 package/make_dmg 构建时以 xcodebuild 参数注入（与 Owltype 版本对齐，必改 6）。
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSMinimumSystemVersion: "14.0"
         LSApplicationCategoryType: public.app-category.utilities
-        NSHumanReadableCopyright: "GPL-3.0-or-later · 猫头鹰输入法"
+        NSHumanReadableCopyright: "GPL-3.0-or-later · 法墨输入法"
         NSPrincipalClass: NSApplication
         # 故意不设 LSUIElement：这是普通可见窗口 App，不是后台 agent。
     settings:

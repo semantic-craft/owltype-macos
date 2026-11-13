@@ -1,6 +1,6 @@
 //
 //  OwlVerificationAnchors.swift
-//  猫头鹰输入法 (Owltype) — 来源核验锚点数据层：坐标抽取 + 案号准入闸 (issue #134)
+//  法墨输入法 (Owltype) — 来源核验锚点数据层：坐标抽取 + 案号准入闸 (issue #134)
 //
 //  1:1 移植自 Responsay `VerificationAnchor.swift` / `FactCoordinateExtractor.swift` /
 //  `CaseNumberVerifier.swift`（主线仓 docs/owl-responsay-alignment-spec.md）。

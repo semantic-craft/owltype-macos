@@ -1,6 +1,6 @@
 //
 //  OwlThemes.swift
-//  猫头鹰输入法 (Owltype) — 皮肤外观 (skin) themes
+//  法墨输入法 (Owltype) — 皮肤外观 (skin) themes
 //
 //  The 荔园红 (shenda) palette ships in `OwlCandidatePanelState.swift`; this file adds
 //  the other eight skins from the project color source of truth
@@ -261,7 +261,7 @@ enum OwlSkin: String, CaseIterable, Identifiable, Sendable {
 }
 
 extension Font {
-  /// 猫头鹰标题衬线（Claude design 编辑式标题）。`.serif` design 在 macOS 以 New York +
+  /// 法墨标题衬线（Claude design 编辑式标题）。`.serif` design 在 macOS 以 New York +
   /// 系统中文衬线（Songti 风格）呈现，自带回退，无需硬编码字体名；正文仍用系统无衬线。
   static func owlSerif(size: CGFloat, weight: Font.Weight = .semibold) -> Font {
     .system(size: size, weight: weight, design: .serif)

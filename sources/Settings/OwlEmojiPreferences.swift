@@ -1,6 +1,6 @@
 //
 //  OwlEmojiPreferences.swift
-//  猫头鹰输入法 (Owltype) — 候选 emoji preference
+//  法墨输入法 (Owltype) — 候选 emoji preference
 //
 //  UserDefaults home for the 「在候选中显示 emoji」 toggle (rime-ice `emoji` switch). The
 //  emoji / symbol PANEL is summoned from the input-method menu bar and needs no stored

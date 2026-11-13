@@ -1,6 +1,6 @@
 //
 //  OwlFuzzySheet.swift
-//  猫头鹰输入法 (Owltype) — 模糊拼音 (fuzzy-pinyin) settings sheet
+//  法墨输入法 (Owltype) — 模糊拼音 (fuzzy-pinyin) settings sheet
 //
 //  v0.3.5: the 模糊拼音 「设置…」 sheet opened from the 键盘输入 page. A 深大红-themed
 //  list of `SettingsCheckRow`s, one per fuzzy pair (zh=z / ch=c / sh=s / n=l / r=l /

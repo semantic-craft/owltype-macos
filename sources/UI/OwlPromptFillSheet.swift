@@ -1,6 +1,6 @@
 //
 //  OwlPromptFillSheet.swift
-//  猫头鹰输入法 (Owltype) — 提示词填空 sheet（R4）
+//  法墨输入法 (Owltype) — 提示词填空 sheet（R4）
 //
 //  Non-activating parameter UI. The shared invocation owns the selected entry, original host,
 //  substitution and single terminal outcome; this sheet owns only field editing and window life.

@@ -98,11 +98,11 @@ enum OwlUpdateLogoutPrompt {
   @MainActor
   static func presentAlert(current: String, detail: String? = nil) -> Choice {
     let alert = NSAlert()
-    alert.messageText = "猫头鹰 \(current) 安装后的会话自检未通过"
+    alert.messageText = "法墨 \(current) 安装后的会话自检未通过"
     let guidance = """
-    请先在输入菜单中选择猫头鹰并试输入；也可以重试安装或在系统设置检查输入法。若仍无法恢复，可尝试注销并重新登录。
+    请先在输入菜单中选择法墨并试输入；也可以重试安装或在系统设置检查输入法。若仍无法恢复，可尝试注销并重新登录。
 
-    首次选择注销时，macOS 可能会问你是否允许「猫头鹰」控制「系统事件」——这是执行注销所必需的，请点允许；之后系统还会再弹一次注销确认，你仍可取消。
+    首次选择注销时，macOS 可能会问你是否允许「法墨」控制「系统事件」——这是执行注销所必需的，请点允许；之后系统还会再弹一次注销确认，你仍可取消。
 
     你也可以选「稍后处理」，需要时从苹果菜单手动注销即可。
     """
@@ -264,7 +264,7 @@ enum OwlLogoutPromptTiming {
 
 /// B2：把「更新后建议注销」从「启动同步弹」改为「安全时机门控 + 激活确认 + 焦点还原」。
 /// 真机已证同步弹（无 activation）会在用户开始输入后中途夺焦点、打断输入。编排复用 `OwlAIWindow` 的
-/// 「先捕获宿主、稍后还原」思路：低频轮询等无合成 + 输入空闲，激活猫头鹰自身后 `runModal`；
+/// 「先捕获宿主、稍后还原」思路：低频轮询等无合成 + 输入空闲，激活法墨自身后 `runModal`；
 /// 「稍后自己注销」还原宿主焦点，「立即注销」保持前台进 TCC→系统注销确认链。
 /// **不设「不安全也强弹」的全局超时**（用户持续输入/登录中永不打断）；但 #131 后「安全条件被卡死」的
 /// 两类永久静默有阀（搁浅合成/激活未确认，见 `OwlLogoutPromptTiming`），且每步可观测：
@@ -277,7 +277,7 @@ final class OwlUpdateLogoutScheduler {
   private enum Phase {
     case pending      // 等安全时机
     case rechecking   // #207：安全时机已到，探针在后台重探会话健康（≤8 秒），结果决定撤销还是激活
-    case activating   // 已请求激活猫头鹰，等 isActive（有阀，不会永等）
+    case activating   // 已请求激活法墨，等 isActive（有阀，不会永等）
   }
 
   private static let log = Logger(subsystem: "im.owltype.inputmethod.Owltype", category: "logoutPrompt")
@@ -509,9 +509,9 @@ enum OwlLogoutAction {
     let alert = NSAlert()
     alert.messageText = "无法自动注销：请重新开启「自动化」权限"
     alert.informativeText = """
-    你曾拒绝或关闭了「猫头鹰」控制「系统事件」的授权，系统因此静默拦下了自动注销，也不会再弹授权框。
+    你曾拒绝或关闭了「法墨」控制「系统事件」的授权，系统因此静默拦下了自动注销，也不会再弹授权框。
 
-    恢复方法：打开 系统设置 → 隐私与安全性 → 自动化，找到「猫头鹰」，把「系统事件」重新打开；然后再点一次「注销并重新登录」即可。你也可以直接点屏幕左上角的苹果菜单 → 注销。
+    恢复方法：打开 系统设置 → 隐私与安全性 → 自动化，找到「法墨」，把「系统事件」重新打开；然后再点一次「注销并重新登录」即可。你也可以直接点屏幕左上角的苹果菜单 → 注销。
 
     诊断码：\(code.map(String.init) ?? "?")
     """

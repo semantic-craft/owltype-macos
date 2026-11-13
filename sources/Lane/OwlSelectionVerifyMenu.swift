@@ -1,6 +1,6 @@
 //
 //  OwlSelectionVerifyMenu.swift
-//  猫头鹰输入法 (Owltype) — 来源核验分组源菜单模型 (issue #134)
+//  法墨输入法 (Owltype) — 来源核验分组源菜单模型 (issue #134)
 //
 //  1:1 移植自 Responsay `SelectionVerifyMenu.swift`。任何选区都能核验：
 //    · 抽到该组相关的结构化坐标（法条/案号/文献） → 用坐标当检索词（最精准）；

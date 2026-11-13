@@ -248,6 +248,11 @@ fails `OwlSettingsUITests`; the suite is not in the gate, so both drifted unnoti
   ASCII keyboard layout for the run, activates the app before each click or keystroke, waits
   for filter changes instead of reading `exists` at once, and attaches `app.debugDescription`
   when a control is missing. Run it when no other Owltype test or gate is running.
+- Observed again on 2026-11-13: the broad settings journey passed once, then twice
+  reported `template-save` at `{{844, -315}, {52, 35}}` as not hittable on a shared
+  multi-display desktop. Preserve the failed receipts and investigate the actual
+  visible/scroll geometry before attributing it to a product change; see
+  [#423](https://github.com/semantic-craft/owltype-macos/issues/423).
 - Regression: [OwlSettingsUITests.swift](tests/OwlSettingsUITests.swift), all four tests.
 - Scope: the settings UI suite (scheme `OwltypeUITests`). The gate does not run it.
 - Verify (验证点): `xcodebuild test -project Owltype.xcodeproj -scheme OwltypeUITests
@@ -1532,3 +1537,29 @@ fails `OwlSettingsUITests`; the suite is not in the gate, so both drifted unnoti
 - Regression: `test_rejects_a_misplaced_main_executable` renames the main program and also tests a replacement program without the required symbols.
 - Verify (验证点): `python3 scripts/check-rust-delivery.selftest.py` passes, and `make release` validates the built bundle before removing local signatures.
 - Seen on 1 distinct date: 2026-11-10.
+
+## A clean checkout can still have an active build
+
+- Seen 1x (2026-11-13): the Chinese-name change started from a clean release
+  checkout while another chat's full gate was still running there. Its Release
+  build picked up the new display name, so that receipt could not establish the
+  original release revision. The name change was moved into an independent
+  worktree and the original checkout was restored.
+- Before editing a checkout used for release work, check active build processes
+  and their working directories as well as Git status. Use a separate worktree
+  when another task owns a running gate. A clean Git status alone does not prove
+  exclusive ownership.
+- Verify: each gate receipt must report an unchanged source snapshot and its
+  built manifest must match the intended revision. Discard mixed-build evidence
+  and rebuild from the restored or isolated checkout.
+
+## Product-name practice needs the matching keyboard replay
+
+- Seen 1x (2026-11-13): restoring the Chinese display name also changed the
+  onboarding practice target. The full native suite still typed the former
+  name's pinyin and failed the real-engine completion assertion.
+- Keep the replay aligned with the visible target. The integration test now
+  types each syllable, selects the corresponding candidate through the input
+  controller, and checks that uncommitted text cannot complete practice.
+- Verify: `OwlInputHabitsIntegrationTests/testControllerRoundTrip` must produce
+  `OwlPracticeProof.target` through the real engine and finish the native field.

@@ -1,6 +1,6 @@
 //
 //  OwlAIWindow.swift
-//  猫头鹰输入法 (Owltype) — AI conversation window (roadmap B10, v1)
+//  法墨输入法 (Owltype) — AI conversation window (roadmap B10, v1)
 //
 //  A small Owltype-owned chat window that already knows the user's current composition context.
 //  azooKey-style lifecycle: a SINGLE reused instance (`isReleasedWhenClosed = false`), takes key
@@ -55,8 +55,8 @@ final class OwlAIWindow: NSWindowController {
       defer: false
     )
     // Keep the title for a11y / the Window menu, but hide it and let the SwiftUI paper flow under a
-    // transparent titlebar (方案 C) — no duplicate "猫头鹰 AI 对话" over the content header.
-    panel.title = NSLocalizedString("猫头鹰 AI 对话", comment: "Owltype AI conversation window title")
+    // transparent titlebar (方案 C) — no duplicate "法墨 AI 对话" over the content header.
+    panel.title = NSLocalizedString("法墨 AI 对话", comment: "Owltype AI conversation window title")
     panel.titleVisibility = .hidden
     panel.titlebarAppearsTransparent = true
     panel.isMovableByWindowBackground = true

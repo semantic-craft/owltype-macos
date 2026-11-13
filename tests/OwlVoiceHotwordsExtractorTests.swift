@@ -178,7 +178,7 @@ final class OwlVoiceHotwordsExtractorTests: XCTestCase {
     XCTAssertNil(extractor.sanitizeToken("   "))
 
     // Valid multi-character words with alphanumeric/CJK are preserved
-    XCTAssertEqual(extractor.sanitizeToken("  猫头鹰  "), "猫头鹰")
+    XCTAssertEqual(extractor.sanitizeToken("  法墨  "), "法墨")
     XCTAssertEqual(extractor.sanitizeToken("AI"), "AI")
     XCTAssertEqual(extractor.sanitizeToken("C++"), "C++")
     XCTAssertEqual(extractor.sanitizeToken("A/B"), "A/B")
@@ -260,16 +260,16 @@ final class OwlVoiceHotwordsExtractorTests: XCTestCase {
     let extractor = OwlVoiceHotwordsExtractor(databaseURL: nil, inMemoryPinnedWordsProvider: { [] })
 
     // Both preContext and hotwords
-    let both = extractor.buildPrompt(preContext: "正在打字", hotwords: ["猫头鹰", "输入法"], maxBytes: 800)
-    XCTAssertEqual(both, "前文：正在打字\n热词：猫头鹰，输入法")
+    let both = extractor.buildPrompt(preContext: "正在打字", hotwords: ["法墨", "输入法"], maxBytes: 800)
+    XCTAssertEqual(both, "前文：正在打字\n热词：法墨，输入法")
 
     // Context only (hotwords empty)
     let ctxOnly = extractor.buildPrompt(preContext: "正在打字", hotwords: [], maxBytes: 800)
     XCTAssertEqual(ctxOnly, "前文：正在打字")
 
     // Hotwords only (context nil/empty)
-    let hotwordsOnly = extractor.buildPrompt(preContext: nil, hotwords: ["猫头鹰", "输入法"], maxBytes: 800)
-    XCTAssertEqual(hotwordsOnly, "热词：猫头鹰，输入法")
+    let hotwordsOnly = extractor.buildPrompt(preContext: nil, hotwords: ["法墨", "输入法"], maxBytes: 800)
+    XCTAssertEqual(hotwordsOnly, "热词：法墨，输入法")
 
     // Both nil or empty
     let bothEmpty = extractor.buildPrompt(preContext: "   ", hotwords: [], maxBytes: 800)
@@ -762,7 +762,7 @@ final class OwlVoiceHotwordsExtractorTests: XCTestCase {
       bigrams: [
         ("\u{0001}", "句首词语", 100),              // previous is char(1)
         ("", "空前导词语", 90),                     // previous is empty string
-        ("猫头鹰", "输入法", 80),                    // multi-byte Chinese concatenation
+        ("法墨", "输入法", 80),                    // multi-byte Chinese concatenation
         ("🚀", "发射中心", 70),                     // emoji + Chinese
         ("👨‍👩‍👧‍👦", "家庭旅行", 60),                   // complex ZWJ emoji + Chinese
         ("TCP,", "IP协议", 50),                    // internal comma in bigram
@@ -788,7 +788,7 @@ final class OwlVoiceHotwordsExtractorTests: XCTestCase {
     XCTAssertTrue(hotwords.contains("空前导词语"))
 
     // 3. Multi-byte Chinese concatenated cleanly
-    XCTAssertTrue(hotwords.contains("猫头鹰输入法"))
+    XCTAssertTrue(hotwords.contains("法墨输入法"))
 
     // 4. Emoji + Chinese preserved without UTF-8 corruption
     XCTAssertTrue(hotwords.contains("🚀发射中心"))

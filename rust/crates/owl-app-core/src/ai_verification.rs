@@ -430,7 +430,7 @@ impl Receipt {
     }
     fn receipt(&self, timestamp: &str) -> String {
         let mut lines = vec![
-            format!("猫头鹰核验回执 · {timestamp}"),
+            format!("法墨核验回执 · {timestamp}"),
             format!("引文：「{}」", query(&self.text)),
         ];
         for a in &self.anchors {

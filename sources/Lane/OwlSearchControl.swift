@@ -1,6 +1,6 @@
 //
 //  OwlSearchControl.swift
-//  猫头鹰输入法 (Owltype) — 任意提问「联网搜索」的 wire format
+//  法墨输入法 (Owltype) — 任意提问「联网搜索」的 wire format
 //
 //  任意提问的联网只走 DeepSeek：先调 DeepSeek Search 接口取回网页（`OwlDeepSeekSearch`），再由
 //  `searchModel` 依据编号结果作答。其他供应商一律 `.none` —— 调用方问「这家能不能搜」时不需要再查一张表。

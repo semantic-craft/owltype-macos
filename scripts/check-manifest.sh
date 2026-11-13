@@ -45,6 +45,8 @@ assert_eq() {
 C='ComponentInputModeDict:tsInputModeListKey'
 
 assert_eq "CFBundleIdentifier"        "CFBundleIdentifier"        "$OWL_BUNDLE_ID"
+assert_eq "CFBundleName"              "CFBundleName"              "$OWL_PRODUCT_NAME_ZH"
+assert_eq "CFBundleExecutable"        "CFBundleExecutable"        "Owltype"
 assert_eq "InputMethodConnectionName" "InputMethodConnectionName" "$OWL_CONNECTION"
 assert_eq "TISInputSourceID"          "TISInputSourceID"          "$OWL_BUNDLE_ID"
 
@@ -64,6 +66,25 @@ assert_eq "Hant TISInputSourceID" "$C:$OWL_SOURCE_ID_HANT:TISInputSourceID" "$OW
 for mode in "$OWL_SOURCE_ID_HANS" "$OWL_SOURCE_ID_HANT"; do
   assert_eq "$mode menuIcon"    "$C:$mode:tsInputModeMenuIconFileKey"          "$OWL_MENU_ICON"
   assert_eq "$mode altMenuIcon" "$C:$mode:tsInputModeAlternateMenuIconFileKey" "$OWL_MENU_ICON"
+done
+
+for language in en zh-Hans zh-Hant; do
+  PLIST="$APP/Contents/Resources/$language.lproj/InfoPlist.strings"
+  if [[ ! -f "$PLIST" ]]; then
+    printf 'FAIL: missing localized names: %s\n' "$PLIST" >&2
+    fail=1
+    continue
+  fi
+  case "$language" in
+    en) name="Owltype" ;;
+    zh-Hans) name="$OWL_PRODUCT_NAME_ZH" ;;
+    zh-Hant) name="法墨輸入法" ;;
+  esac
+  for key in CFBundleDisplayName CFBundleName "$OWL_BUNDLE_ID"; do
+    assert_eq "$language $key" "$key" "$name"
+  done
+  assert_eq "$language Hans label" "$OWL_SOURCE_ID_HANS" "$OWL_PRODUCT_NAME_ZH"
+  assert_eq "$language Hant label" "$OWL_SOURCE_ID_HANT" "法墨輸入法"
 done
 
 if (( fail )); then

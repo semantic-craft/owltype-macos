@@ -33,8 +33,8 @@ final class OwlInstaller {
     /// 面向用户的模式名，只给结果文案用。日志与诊断一律继续用 `rawValue` 的精确 source id。
     var displayName: String {
       switch self {
-      case .hans: return "猫头鹰（简体）"
-      case .hant: return "猫头鹰（繁体）"
+      case .hans: return "法墨（简体）"
+      case .hant: return "法墨（繁体）"
       }
     }
   }
@@ -190,7 +190,7 @@ final class OwlInstaller {
     case select(InputMode)
   }
 
-  /// 纯决策，无 TIS、无 IO。模式选择：优先**已启用**的猫头鹰模式 —— 只启用了繁体的用户点「设为默认」
+  /// 纯决策，无 TIS、无 IO。模式选择：优先**已启用**的法墨模式 —— 只启用了繁体的用户点「设为默认」
   /// 必须落在繁体，盲选 primary 会把人切到简体；两个都没启用才回落 primary，由 select 顺手 enable。
   static func makeDefaultPlan(enabledModes: Set<InputMode>, currentSourceID: String?) -> MakeDefaultPlan {
     if let currentSourceID, let mode = InputMode(rawValue: currentSourceID), enabledModes.contains(mode) {
@@ -209,15 +209,15 @@ final class OwlInstaller {
     case .selectFailed(let status):
       if status == paramErr {
         return .failed(
-          reason: "系统拒绝切换到\(mode.displayName)（TIS 错误 \(status)）。请到 系统设置 → 键盘 → 输入法 → 编辑… 里重新加入猫头鹰后再试。")
+          reason: "系统拒绝切换到\(mode.displayName)（TIS 错误 \(status)）。请到 系统设置 → 键盘 → 输入法 → 编辑… 里重新加入法墨后再试。")
       }
       return .failed(reason: "系统拒绝切换到\(mode.displayName)（TIS 错误 \(status)）。")
     case .notEnabled:
-      return .failed(reason: "\(mode.displayName)尚未真正启用。请到 系统设置 → 键盘 → 输入法 → 编辑… 里加一次猫头鹰，再回来重试。")
+      return .failed(reason: "\(mode.displayName)尚未真正启用。请到 系统设置 → 键盘 → 输入法 → 编辑… 里加一次法墨，再回来重试。")
     case .notSelectable:
-      return .failed(reason: "\(mode.displayName)当前不可选中。请到 系统设置 → 键盘 → 输入法 → 编辑… 里移除猫头鹰后重新加入。")
+      return .failed(reason: "\(mode.displayName)当前不可选中。请到 系统设置 → 键盘 → 输入法 → 编辑… 里移除法墨后重新加入。")
     case .sourceMissing:
-      return .failed(reason: "系统里查不到\(mode.displayName)（\(mode.rawValue)）。请重新安装猫头鹰。")
+      return .failed(reason: "系统里查不到\(mode.displayName)（\(mode.rawValue)）。请重新安装法墨。")
     }
   }
 
@@ -233,9 +233,9 @@ final class OwlInstaller {
     }
   }
 
-  /// `--select-input-source <arg>` 的纯 CLI 分发决策：参数是猫头鹰自家输入模式，还是任意系统输入源 id
+  /// `--select-input-source <arg>` 的纯 CLI 分发决策：参数是法墨自家输入模式，还是任意系统输入源 id
   /// （如 `com.apple.keylayout.ABC`，postinstall 更新序列在 kill 旧进程前切出用）。纯函数、无 TIS ——
-  /// 单测保证系统 id 绝不会误落回「选中猫头鹰」的无参默认路径。
+  /// 单测保证系统 id 绝不会误落回「选中法墨」的无参默认路径。
   enum SelectTarget: Equatable {
     case owlMode(InputMode)
     case systemSource(String)
@@ -290,10 +290,10 @@ final class OwlInstaller {
   static func currentInputSourceDisplayName(for id: String?) -> String {
     guard let id, !id.isEmpty else { return "未知" }
     if id.hasPrefix(inputSourcePrefix) {
-      return "猫头鹰输入法（\(id)）"
+      return "法墨输入法（\(id)）"
     }
     if id.hasPrefix(squirrelInputSourcePrefix) {
-      return "Squirrel（\(id)，当前不是猫头鹰）"
+      return "Squirrel（\(id)，当前不是法墨）"
     }
     return id
   }
@@ -341,13 +341,13 @@ final class OwlInstaller {
   static func activationGuidanceText(for mode: InputMode?) -> String {
     let label = mode?.rawValue ?? OwlInstaller.InputMode.primary.rawValue
     return """
-    [猫头鹰激活诊断] 检测到“已选中但未真正启用”的死半态：当前输入法是 \(label)，但它没有被真正启用，\
+    [法墨激活诊断] 检测到“已选中但未真正启用”的死半态：当前输入法是 \(label)，但它没有被真正启用，\
     会吞掉所有按键（包括英文）。
     一键恢复步骤（请手动在系统设置中操作，不要让程序自动改你正在用的输入法）：
       1. 打开 系统设置 → 键盘 → 输入法 → 点“编辑…”（System Settings → Keyboard → Input Sources → Edit…）。
-      2. 若列表里有“猫头鹰/Owltype”，先用减号(−)移除，再用加号(+) → 简体中文 → 重新加入“猫头鹰”。
-      3. 若列表里没有“猫头鹰”，直接用加号(+)添加。
-      4. 加回后从右上角输入法菜单切到“猫头鹰”，测试能否打字。
+      2. 若列表里有“法墨/Owltype”，先用减号(−)移除，再用加号(+) → 简体中文 → 重新加入“法墨”。
+      3. 若列表里没有“法墨”，直接用加号(+)添加。
+      4. 加回后从右上角输入法菜单切到“法墨”，测试能否打字。
     判断是否启用，请以上面“输入法 → 编辑…”里的列表为准；不要用 \
     `defaults read … AppleEnabledInputSources` 来核对——新版 macOS 不在该列表收录第三方输入法，会误判为“未启用”。
     """
@@ -363,9 +363,9 @@ final class OwlInstaller {
   static func activationStatusText(currentInputSourceID current: String, lastHostKeyEventDate: String?) -> String {
     let handleStatus = lastHostKeyEventDate.map {
       "最近一次宿主按键进入 Owltype handle(): \($0)"
-    } ?? "本次登录尚未观察到宿主按键进入 Owltype handle()。若菜单已选中猫头鹰但打字无反应，请在系统设置 → 键盘 → 输入法里手动添加一次猫头鹰。"
+    } ?? "本次登录尚未观察到宿主按键进入 Owltype handle()。若菜单已选中法墨但打字无反应，请在系统设置 → 键盘 → 输入法里手动添加一次法墨。"
     return """
-    [猫头鹰激活诊断]
+    [法墨激活诊断]
     当前系统输入源：\(current)
     \(handleStatus)
     """
@@ -632,7 +632,7 @@ enum OwlTISDiagnostics {
     case "OWL-TIS-001": return "系统查不到 Owltype 输入源 —— 核对 codesign/spctl/xattr/权限后重跑 --install。"
     case "OWL-TIS-002": return "Owltype 输入源不可启用 —— 只按精确 source id 操作、检查父条目；绝不按 localized name 选源。"
     case "OWL-TIS-003": return "启用读回不一致 —— 运行 --enable-input-source；fresh-process 复核仍 false 说明未落地。"
-    case "OWL-TIS-004": return "选中半态/不可选 —— 先切 ABC 再在输入菜单重选「猫头鹰」；必要时系统设置→键盘→输入法重加一次。"
+    case "OWL-TIS-004": return "选中半态/不可选 —— 先切 ABC 再在输入菜单重选「法墨」；必要时系统设置→键盘→输入法重加一次。"
     case "OWL-LS-001": return "同一 bundle id 被多个 bundle 认领 —— 跑 scripts/clean-dev.sh --apply，只留装机版一条认领。"
     case "OWL-LS-002": return "未签名（ad-hoc）开发构建认领了同一 bundle id，登录可能解析到它 —— 跑 scripts/clean-dev.sh --apply。"
     case "OWL-DATA-001": return "数据目录缺失（可选中但无候选）—— 启动一次 Owltype 部署 schema 到 ~/Library/Application Support/Owltype；永不 fallback 到 ~/Library/Rime。"

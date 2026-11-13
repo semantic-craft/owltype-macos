@@ -1,6 +1,6 @@
 //
 //  OwlOnboardingView.swift
-//  猫头鹰输入法 (Owltype) — SwiftUI onboarding / welcome window
+//  法墨输入法 (Owltype) — SwiftUI onboarding / welcome window
 //
 //  Visual spec: the Claude Design "Owltype Onboarding" handoff (claude.ai/design) — the
 //  default two-column layout (accent illustration left, content right) with a numbered
@@ -168,15 +168,15 @@ struct OwlOnboardingView: View {
   }
 
   private var title: String {
-    ["欢迎使用猫头鹰", "完整词库", "启用猫头鹰输入法", "选择输入方案", "试打一下"][step]
+    ["欢迎使用法墨", "完整词库", "启用法墨输入法", "选择输入方案", "试打一下"][step]
   }
   private var desc: String {
     [
       "现代、本地、为简体中文而生的开源输入法 —— 由水杉 Rust 引擎驱动，词库与按键都在你掌心。",
-      "猫头鹰只内置自建的清洁室精简词库。五笔、简体拼音、小鹤双拼等方案的词库来自第三方开源项目（雾凇拼音 rime-ice、极点五笔86）—— 为避免版权争议，猫头鹰不随安装包分发它们，也不会在你不知情的情况下替你下载。",
-      "打开「系统设置 → 键盘 → 输入法」，在列表中勾选「猫头鹰」即可。点下方按钮可直达设置面板。",
+      "法墨只内置自建的清洁室精简词库。五笔、简体拼音、小鹤双拼等方案的词库来自第三方开源项目（雾凇拼音 rime-ice、极点五笔86）—— 为避免版权争议，法墨不随安装包分发它们，也不会在你不知情的情况下替你下载。",
+      "打开「系统设置 → 键盘 → 输入法」，在列表中勾选「法墨」即可。点下方按钮可直达设置面板。",
       "挑一个方案先用起来，随时能在设置里增删与切换。推荐从拼音开始。",
-      "切换到猫头鹰输入法，在下面打出第一句，确认输入已经正常。"
+      "切换到法墨输入法，在下面打出第一句，确认输入已经正常。"
     ][step]
   }
 
@@ -205,7 +205,7 @@ struct OwlOnboardingView: View {
         chevron
         breadcrumb("键盘", accent: false)
         chevron
-        breadcrumb("输入法 → 猫头鹰", accent: true)
+        breadcrumb("输入法 → 法墨", accent: true)
       }
       .padding(.horizontal, 15)
       .padding(.vertical, 13)
@@ -216,7 +216,7 @@ struct OwlOnboardingView: View {
         Image(systemName: owlEnabled ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
           .font(.system(size: 16))
           .foregroundStyle(owlEnabled ? Color.green : palette.ink3)
-        Text(owlEnabled ? "已启用 —— 猫头鹰已出现在输入法列表" : "未启用 —— 尚未在输入法列表中勾选")
+        Text(owlEnabled ? "已启用 —— 法墨已出现在输入法列表" : "未启用 —— 尚未在输入法列表中勾选")
           .font(.system(size: 13))
           .foregroundStyle(owlEnabled ? palette.ink : palette.ink3)
         Spacer(minLength: 8)
@@ -225,7 +225,7 @@ struct OwlOnboardingView: View {
           .font(.system(size: 12, weight: .medium))
           .foregroundStyle(palette.accent)
       }
-      Text("若 macOS 弹出允许「Owltype」启用「猫头鹰输入法」的确认框，请在该弹窗点 Allow。若右上角已显示猫头鹰但不能打字，请到输入法编辑列表先移除猫头鹰，再重新添加。")
+      Text("若 macOS 弹出允许「Owltype」启用「法墨输入法」的确认框，请在该弹窗点 Allow。若右上角已显示法墨但不能打字，请到输入法编辑列表先移除法墨，再重新添加。")
         .font(.system(size: 12))
         .foregroundStyle(palette.ink3)
         .fixedSize(horizontal: false, vertical: true)
@@ -340,7 +340,7 @@ struct OwlOnboardingView: View {
       }
       .id(practiceGeneration)
       .frame(height: 85)
-      Label(practiceSourceIsOwl ? "当前已选中猫头鹰" : "请从菜单栏切换到猫头鹰",
+      Label(practiceSourceIsOwl ? "当前已选中法墨" : "请从菜单栏切换到法墨",
             systemImage: practiceSourceIsOwl ? "checkmark.circle.fill" : "keyboard")
         .font(.system(size: 12)).foregroundStyle(palette.ink2)
       Label(practiceComplete ? "试打成功，可以开始使用了" : (practiceHint ?? "等待手动输入完整句子；粘贴不计入"),
@@ -474,7 +474,7 @@ struct OwlOnboardingView: View {
       illustrationGlyph
       VStack {
         Spacer()
-        Text("猫头鹰 · OWLTYPE")
+        Text("法墨 · OWLTYPE")
           .font(.system(size: 12, weight: .medium))
           .tracking(2)
           .foregroundStyle(palette.onAccent.opacity(0.6))

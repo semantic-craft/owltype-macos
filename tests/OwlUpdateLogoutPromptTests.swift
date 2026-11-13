@@ -278,8 +278,8 @@ final class OwlUpdateLogoutPromptTests: XCTestCase {
     record.recheckError = "Owltype --install-session-probe 超过 8 秒未结束"
     XCTAssertEqual(record.alertDetail,
                    "本次安装自检：\(record.summary)\n刚才重新探测失败：Owltype --install-session-probe 超过 8 秒未结束")
-    record.recheckSummary = "没有运行中的猫头鹰进程"
-    XCTAssertEqual(record.alertDetail, "本次安装自检：\(record.summary)\n刚才重新探测：没有运行中的猫头鹰进程",
+    record.recheckSummary = "没有运行中的法墨进程"
+    XCTAssertEqual(record.alertDetail, "本次安装自检：\(record.summary)\n刚才重新探测：没有运行中的法墨进程",
                    "探针成功时以探测结果为准")
   }
 
@@ -290,14 +290,14 @@ final class OwlUpdateLogoutPromptTests: XCTestCase {
     var record = failedRecord()
     record.recheckTimestampUTC = "2026-10-22T07:05:00Z"
     record.recheckUnmet = ["noServer"]
-    record.recheckSummary = "没有运行中的猫头鹰进程"
+    record.recheckSummary = "没有运行中的法墨进程"
     record.status = .dismissed
     record.save(defaults: defaults)
     let section = OwlInstallSelfCheckRecord.supportBundleSection(defaults: defaults)
     for expected in ["## 安装自检（最近一次失败）", "时间(UTC): 2026-10-22T07:00:00Z", "版本: 2.0.19（更新）", "阶段: verify",
                      "原因: selfCheckTimedOut", "未满足: serverVersionDiffers", "说明: 阶段「核验会话」失败",
                      "探测结果: {\"servers\":[]}", "状态: 用户选择「稍后处理」",
-                     "重探(UTC): 2026-10-22T07:05:00Z → 没有运行中的猫头鹰进程"] {
+                     "重探(UTC): 2026-10-22T07:05:00Z → 没有运行中的法墨进程"] {
       XCTAssertTrue(section.contains(expected), "缺少：\(expected)\n\(section)")
     }
   }

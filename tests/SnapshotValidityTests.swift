@@ -198,14 +198,14 @@ final class OwlInputSourceDisplayTests: XCTestCase {
   func testOwltypeInputSourceDisplayIsBranded() {
     XCTAssertEqual(
       OwlInstaller.currentInputSourceDisplayName(for: "im.owltype.inputmethod.Owltype.Hans"),
-      "猫头鹰输入法（im.owltype.inputmethod.Owltype.Hans）"
+      "法墨输入法（im.owltype.inputmethod.Owltype.Hans）"
     )
   }
 
   func testSquirrelInputSourceDisplayWarnsItIsNotOwltype() {
     XCTAssertEqual(
       OwlInstaller.currentInputSourceDisplayName(for: "im.rime.inputmethod.Squirrel.Hans"),
-      "Squirrel（im.rime.inputmethod.Squirrel.Hans，当前不是猫头鹰）"
+      "Squirrel（im.rime.inputmethod.Squirrel.Hans，当前不是法墨）"
     )
   }
 

@@ -1,6 +1,6 @@
 //
 //  OwlCNKIExpertQueryBuilder.swift
-//  猫头鹰输入法 (Owltype) — 知网专业检索式构造器 (issue #133)
+//  法墨输入法 (Owltype) — 知网专业检索式构造器 (issue #133)
 //
 //  1:1 移植自 Responsay `CNKIExpertQueryBuilder.swift`（其源头是 opencli-stack
 //  academic-search 的 buildCnkiProfessionalExpr，已对真实 CNKI 验证）。

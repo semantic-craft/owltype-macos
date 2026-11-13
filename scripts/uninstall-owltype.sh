@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# 猫头鹰 Owltype 卸载器 — 严格白名单。只清猫头鹰自己的文件；绝不触碰 Squirrel、~/Library/Rime、
+# 法墨 Owltype 卸载器 — 严格白名单。只清法墨自己的文件；绝不触碰 Squirrel、~/Library/Rime、
 # 搜狗或你的任何其他输入法。删除目标固定在 TARGETS 数组里（全是 Owltype 自己的路径）；
 # 脚本中出现 “Squirrel / Rime” 字样的地方都是「安全闸」和给用户的安抚提示，不是删除目标。
 #
-# 除正式安装外，也清掉其他位置的猫头鹰副本、安装中断留下的 .Owltype.* 目录、LaunchServices 登记
-# 和记着猫头鹰的系统输入法列表缓存，让之后的重装从干净状态开始。
+# 除正式安装外，也清掉其他位置的法墨副本、安装中断留下的 .Owltype.* 目录、LaunchServices 登记
+# 和记着法墨的系统输入法列表缓存，让之后的重装从干净状态开始。
 #
 # 用法：
 #   bash uninstall-owltype.sh              # 交互确认后卸载
@@ -33,7 +33,7 @@ APP="${OWL_SYSTEM_ROOT}/Library/Input Methods/Owltype.app"
 OWL_BIN="${APP}/Contents/MacOS/Owltype"
 RECEIPT_ID="im.owltype.inputmethod.Owltype"
 
-# 白名单：仅猫头鹰自己的路径。
+# 白名单：仅法墨自己的路径。
 TARGETS=(
   "${APP}"
   "${HOME}/Library/Caches/im.owltype.inputmethod.Owltype"
@@ -50,7 +50,7 @@ fi
 while IFS= read -r stray; do
   [ -n "$stray" ] || continue
   TARGETS+=("$stray")
-  # 正式位置没有可执行的猫头鹰时，用仍在的旧副本停用输入源，免得删掉后当前输入源指向已删除的程序。
+  # 正式位置没有可执行的法墨时，用仍在的旧副本停用输入源，免得删掉后当前输入源指向已删除的程序。
   case "${stray##*/}" in
     *.app)
       if [ ! -x "$OWL_BIN" ] && [ ! -L "$stray" ] && [ -x "$stray/Contents/MacOS/Owltype" ]; then
@@ -69,7 +69,7 @@ for t in "${TARGETS[@]}"; do
   fi
 done
 
-echo "▸ 将清理以下猫头鹰文件（不影响 Squirrel / ~/Library/Rime / 你的其他输入法）："
+echo "▸ 将清理以下法墨文件（不影响 Squirrel / ~/Library/Rime / 你的其他输入法）："
 present=()
 for t in "${TARGETS[@]}"; do
   if [ -e "$t" ]; then echo "  - $t"; present+=("$t"); fi
@@ -80,7 +80,7 @@ if pkgutil --pkg-info "${RECEIPT_ID}" >/dev/null 2>&1; then
   echo "  - PackageKit receipt ${RECEIPT_ID}"
 fi
 if [ "${#present[@]}" -eq 0 ] && [ "${receipt_present}" -eq 0 ]; then
-  echo "  （未发现猫头鹰残留文件，可能已卸载。）"
+  echo "  （未发现法墨残留文件，可能已卸载。）"
   if [ "$DRY_RUN" != 1 ]; then
     # 文件已不在，但系统登记与菜单缓存可能还记着旧副本；撤销登记、刷新列表，不需要密码。
     while IFS= read -r claim; do [ -n "$claim" ] && owl_unregister "$claim"; done < <(owl_launch_services_claims)
@@ -97,7 +97,7 @@ if [ "$DRY_RUN" = 1 ]; then
 fi
 
 if [ "$ASSUME_YES" != 1 ]; then
-  printf "确认卸载猫头鹰？仅清以上路径。[y/N] "
+  printf "确认卸载法墨？仅清以上路径。[y/N] "
   read -r ans
   case "$ans" in
     y|Y|yes|YES) ;;
@@ -106,19 +106,19 @@ if [ "$ASSUME_YES" != 1 ]; then
 fi
 
 if owl_install_in_progress; then
-  echo "❌ 有安装或更新正在进行（猫头鹰安装器、系统安装程序或自动更新）。请等它结束后再卸载。"
+  echo "❌ 有安装或更新正在进行（法墨安装器、系统安装程序或自动更新）。请等它结束后再卸载。"
   exit 1
 fi
 
-echo "▸ 停用并退出猫头鹰…"
+echo "▸ 停用并退出法墨…"
 if [ -x "$OWL_BIN" ]; then
-  # 卸载前若当前输入源是猫头鹰，先切到系统 ABC，避免停用/删除后把你留在无激活输入源的坏态。
-  # 只调猫头鹰自己的只读 CLI（此刻二进制仍在），零 swift/xcode 依赖；仅当前是猫头鹰才切——
+  # 卸载前若当前输入源是法墨，先切到系统 ABC，避免停用/删除后把你留在无激活输入源的坏态。
+  # 只调法墨自己的只读 CLI（此刻二进制仍在），零 swift/xcode 依赖；仅当前是法墨才切——
   # 绝不把正在用搜狗/Squirrel 的你粗暴拽到 ABC。
   cur="$("$OWL_BIN" --current-input-source 2>/dev/null || true)"
   case "$cur" in
     im.owltype.inputmethod.Owltype*)
-      echo "  · 当前输入源是猫头鹰，先切到 ABC 再停用"
+      echo "  · 当前输入源是法墨，先切到 ABC 再停用"
       "$OWL_BIN" --select-input-source com.apple.keylayout.ABC 2>/dev/null || true
       ;;
   esac
@@ -134,7 +134,7 @@ while IFS= read -r claim; do
   owl_unregister "$claim"
   claims=$((claims + 1))
 done < <(owl_launch_services_claims)
-echo "  ✓ 撤销 ${claims} 条猫头鹰登记"
+echo "  ✓ 撤销 ${claims} 条法墨登记"
 
 removed=0
 for t in "${present[@]+"${present[@]}"}"; do
@@ -152,7 +152,7 @@ fi
 owl_purge_input_source_caches
 owl_refresh_input_menus
 
-echo "✅ 猫头鹰卸载完成（清理 ${removed} 项）。Squirrel、~/Library/Rime 及你的其他输入法均未被触碰。"
+echo "✅ 法墨卸载完成（清理 ${removed} 项）。Squirrel、~/Library/Rime 及你的其他输入法均未被触碰。"
 echo "提示：供应商密钥仍在钥匙串；如需一并清空，请手动删除以下两个 service："
 echo "  - im.owltype.inputmethod.Owltype.providers"
 echo "  - im.owltype.inputmethod.Owltype.deepseek"

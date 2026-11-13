@@ -1,6 +1,6 @@
 //
 //  OwlExperimentalPreferences.swift
-//  猫头鹰输入法 (Owltype) — 实验性功能开关
+//  法墨输入法 (Owltype) — 实验性功能开关
 //
 //  UserDefaults home for default-OFF experimental toggles. Mirrors the established prefs pattern
 //  (`OwlEmojiPreferences` / `OwlCloudPreferences`): the key string literal lives ONLY here; the

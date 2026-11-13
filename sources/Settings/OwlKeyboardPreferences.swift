@@ -1,6 +1,6 @@
 //
 //  OwlKeyboardPreferences.swift
-//  猫头鹰输入法 (Owltype) — 键盘输入 settings preferences
+//  法墨输入法 (Owltype) — 键盘输入 settings preferences
 //
 //  v0.3.1: the option-group choices shown on the 键盘输入 page (输入方式 / 中英文切换
 //  / 翻页键 / 快速选词 / 符号). Persisted in UserDefaults (Owltype-namespaced), mirroring
@@ -346,7 +346,7 @@ enum OwlKeyboardPreferences {
   // MARK: - 符号
 
   /// 输入中文时 "/" 弹出符号选单（、/／÷）。Key `"OwlKeyboardSlashSymbolMenu"`,
-  /// default `false`：关闭时维持猫头鹰的编程便利行为——裸 `/` 提交当前中文候选、切到英文并
+  /// default `false`：关闭时维持法墨的编程便利行为——裸 `/` 提交当前中文候选、切到英文并
   /// 输出 ASCII `/`；打开后前端不再抢占该键，交给 Rime punctuator 显示候选。
   /// Runtime reads the cached value on the key-event hot path; the generated default patch supplies
   /// both half/full-shape candidate lists.

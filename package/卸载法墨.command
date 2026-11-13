@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
-# 卸载猫头鹰.command — 双击运行的猫头鹰卸载入口。
+# 卸载法墨.command — 双击运行的法墨卸载入口。
 #
-# 它只负责「找到并调用」白名单卸载脚本 scripts/uninstall-owltype.sh（严格白名单，只清猫头鹰自己的文件，
+# 它只负责「找到并调用」白名单卸载脚本 scripts/uninstall-owltype.sh（严格白名单，只清法墨自己的文件，
 # 绝不触碰 Squirrel / ~/Library/Rime / 搜狗 / 你的其他输入法；删 /Library 系统目录时由该脚本用 sudo
 # 提权，会在本窗口里要一次密码）。本文件不重复实现卸载逻辑。
 #
 # 既可从 DMG 里双击（make_dmg 把 uninstall-owltype.sh 与本文件一起打进 DMG，同目录可寻），也可从仓库
-# 直接跑（package/卸载猫头鹰.command → ../scripts/uninstall-owltype.sh）。
+# 直接跑（package/卸载法墨.command → ../scripts/uninstall-owltype.sh）。
 
 # 解析自身所在目录（双击时 BASH_SOURCE 可能为空，退回 $0）。
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
@@ -24,12 +24,12 @@ done
 
 if [ -z "$UNINSTALL" ]; then
   echo "❌ 找不到 uninstall-owltype.sh（已查找：${CANDIDATES[*]}）。"
-  echo "请从猫头鹰仓库的 scripts/uninstall-owltype.sh 运行卸载。"
+  echo "请从法墨仓库的 scripts/uninstall-owltype.sh 运行卸载。"
   read -r -p "按回车键关闭此窗口…" _
   exit 1
 fi
 
-echo "▸ 运行猫头鹰卸载脚本：$UNINSTALL"
+echo "▸ 运行法墨卸载脚本：$UNINSTALL"
 echo
 /bin/bash "$UNINSTALL"
 status=$?

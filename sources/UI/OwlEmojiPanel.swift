@@ -1,6 +1,6 @@
 //
 //  OwlEmojiPanel.swift
-//  猫头鹰输入法 (Owltype) — 表情/符号面板 host
+//  法墨输入法 (Owltype) — 表情/符号面板 host
 //
 //  A floating NSPanel hosting `OwlEmojiPanelView`. NON-activating and NOT key-capable —
 //  so summoning it never steals focus from the host document, which keeps the active IME

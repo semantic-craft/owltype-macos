@@ -16,7 +16,7 @@ final class OwlVoiceGrokASRClientTests: XCTestCase {
     let body = OwlVoiceGrokASRClient.buildMultipartBody(
       audioData: mockWav,
       model: "grok-asr",
-      prompt: "前文：你好\n热词：猫头鹰输入法",
+      prompt: "前文：你好\n热词：法墨输入法",
       boundary: boundary
     )
 
@@ -24,7 +24,7 @@ final class OwlVoiceGrokASRClientTests: XCTestCase {
     XCTAssertTrue(bodyString.contains("--Boundary-TEST-UUID\r\n"))
     XCTAssertTrue(bodyString.contains("name=\"model\"\r\n\r\ngrok-asr\r\n"))
     XCTAssertTrue(bodyString.contains("name=\"response_format\"\r\n\r\njson\r\n"))
-    XCTAssertTrue(bodyString.contains("name=\"prompt\"\r\n\r\n前文：你好\n热词：猫头鹰输入法\r\n"))
+    XCTAssertTrue(bodyString.contains("name=\"prompt\"\r\n\r\n前文：你好\n热词：法墨输入法\r\n"))
     XCTAssertTrue(bodyString.contains("name=\"file\"; filename=\"speech.wav\"\r\nContent-Type: audio/wav\r\n\r\n"))
     XCTAssertTrue(bodyString.hasSuffix("--Boundary-TEST-UUID--\r\n"))
   }
@@ -344,7 +344,7 @@ final class OwlVoiceGrokASRClientTests: XCTestCase {
       apiKeyProvider: { "gemini-secret-key" }
     )
     let mockWav = OwlWAVPacker.pack16kMono(pcmData: Data([0x01, 0x02, 0x03, 0x04]))
-    let transcript = try await client.transcribe(audioWavData: mockWav, prompt: "猫头鹰输入法")
+    let transcript = try await client.transcribe(audioWavData: mockWav, prompt: "法墨输入法")
     XCTAssertEqual(transcript, "用 Gemini 3.5 Transcribe 识别出来的语音内容")
 
     // Also verify general multimodal Gemini models (e.g. gemini-3.8-flash) returning parts[*].text

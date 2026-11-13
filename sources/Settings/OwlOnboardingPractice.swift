@@ -3,7 +3,7 @@ import SwiftUI
 
 /// Proof is scoped to the practice field. Pasting and edits from other sources cannot pass.
 struct OwlPracticeProof {
-  static let target = "你好，猫头鹰"
+  static let target = "你好，法墨"
   private(set) var hasOwlCommit = false
   private(set) var hasOtherSource = false
 

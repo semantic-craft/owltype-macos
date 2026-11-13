@@ -301,10 +301,21 @@
         "reason": "not_planned",
         "state": "closed",
         "updated_at": "2026-11-03T14:59:50Z"
+      },
+      {
+        "number": 421,
+        "reason": null,
+        "state": "open",
+        "updated_at": "2026-11-13T07:52:07Z"
       }
     ],
-    "main": "a8e63448d8244ca7759d40b300ae948e4be8eb5b",
-    "open_pulls": [],
+    "main": "c3bbde085d60bb6f97529b26487e9ad1977a5e04",
+    "open_pulls": [
+      {
+        "head": "59a0806ede90a593f03259d28a1f9180ef2f3905",
+        "number": 422
+      }
+    ],
     "pulls": [
       {
         "base": "46a7ccf01be992d0e9786e4aaadb40313013c981",
@@ -345,7 +356,7 @@
     "docs/input-alignment.md",
     "progress/sync.py"
   ],
-  "observed_at": "2026-11-13T07:41:30.589702Z",
+  "observed_at": "2026-11-13T08:14:03.874494Z",
   "outputs": [
     "progress/index.html"
   ],
@@ -355,6 +366,31 @@
   "repository": "semantic-craft/owltype-macos",
   "schema_version": 1,
   "sections": [
+    {
+      "id": "chinese-name",
+      "items": [
+        {
+          "evidence": [
+            {
+              "kind": "issue",
+              "note": "名称恢复与连续性验收范围",
+              "ref": 421
+            },
+            {
+              "kind": "file",
+              "note": "检查系统身份和编译后的多语言名称",
+              "ref": "scripts/check-manifest.sh"
+            }
+          ],
+          "id": "restore-chinese-name",
+          "next": "在正式签名安装中核对输入源名称、已有设置与数据连续性。",
+          "status": "unverified",
+          "summary": "当前界面、简繁体资源和安装文案已恢复法墨名称。隔离设置界面、三种语言编译资源及 18 项身份门禁已通过；正式安装验收未完成。",
+          "title": "恢复法墨输入法中文名称"
+        }
+      ],
+      "title": "中文名称恢复"
+    },
     {
       "id": "project-review",
       "items": [
@@ -578,7 +614,7 @@
           "id": "review-204",
           "next": "保留其他输入源、正式签名起点与失败/取消/并发的历史证据缺口；相关改动或真实更新故障出现时定向验证，不重复已通过的 Hans 路径。",
           "status": "unverified",
-          "summary": "Sparkle 公开 API 重启补丁及原选猫头鹰更新路径已有通过记录。",
+          "summary": "Sparkle 公开 API 重启补丁及原选本输入法更新路径已有通过记录。",
           "title": "#204 免注销更新：验证并修正官方 Sparkle 与安装包的配合"
         },
         {
@@ -1291,7 +1327,7 @@
       "title": "历史工单快照（非当前待办） · Rust 业务核心迁移"
     }
   ],
-  "title": "Owltype · 项目进度与剩余工作",
+  "title": "法墨输入法 · 项目进度与剩余工作",
   "tracked": {
     "issues": [
       204,
@@ -1343,7 +1379,8 @@
       365,
       366,
       367,
-      373
+      373,
+      421
     ],
     "pulls": [
       305,

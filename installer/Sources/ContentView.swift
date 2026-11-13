@@ -27,7 +27,7 @@ final class InstallerViewModel: ObservableObject {
     }
 
     func install() {
-        runAction(progressText: "正在安装并配置猫头鹰输入法…") {
+        runAction(progressText: "正在安装并配置法墨输入法…") {
             let result = try Installer.install()
             return InstallerActivationPolicy.completionSummary(
                 for: .install(plan: result.plan, status: result.status))
@@ -51,8 +51,8 @@ final class InstallerViewModel: ObservableObject {
 
     func uninstall(keepUserData: Bool) {
         let progress = keepUserData
-            ? "正在卸载猫头鹰输入法（保留个人词库与设置）…"
-            : "正在彻底卸载猫头鹰输入法并清空用户数据…"
+            ? "正在卸载法墨输入法（保留个人词库与设置）…"
+            : "正在彻底卸载法墨输入法并清空用户数据…"
         runAction(progressText: progress) {
             try Installer.uninstall(keepUserData: keepUserData)
             return InstallerActivationPolicy.completionSummary(
@@ -64,7 +64,7 @@ final class InstallerViewModel: ObservableObject {
         DispatchQueue.global(qos: .userInitiated).async {
             Installer.activateAndOpenSettings()
             DispatchQueue.main.async {
-                self.statusText = "✅ 已请求切换到猫头鹰输入法并打开设置窗口。"
+                self.statusText = "✅ 已请求切换到法墨输入法并打开设置窗口。"
             }
         }
     }
@@ -84,8 +84,8 @@ final class InstallerViewModel: ObservableObject {
             return "已取消授权，未对系统做任何更改。"
         }
         if case InstallerError.activationFailed(let message) = error, message.contains("inputSourceNotEnabled") {
-            return "❌ 系统尚未允许启用猫头鹰输入法。\n"
-                + "请点击「清空修复」或在「系统设置 → 键盘 → 输入法」中添加「猫头鹰」。"
+            return "❌ 系统尚未允许启用法墨输入法。\n"
+                + "请点击「清空修复」或在「系统设置 → 键盘 → 输入法」中添加「法墨」。"
         }
         return "❌ " + error.localizedDescription
     }
@@ -154,7 +154,7 @@ struct ContentView: View {
             }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("卸载只会清理猫头鹰自有文件与系统注册记录，绝不触碰 Squirrel、~/Library/Rime 或其他输入法。")
+            Text("卸载只会清理法墨自有文件与系统注册记录，绝不触碰 Squirrel、~/Library/Rime 或其他输入法。")
         }
     }
 
@@ -165,7 +165,7 @@ struct ContentView: View {
                     .resizable()
                     .frame(width: 56, height: 56)
 
-                Text("猫头鹰输入法")
+                Text("法墨输入法")
                     .font(.system(size: 24, weight: .bold))
 
                 Text(model.preflight.statusHeadline)
@@ -185,7 +185,7 @@ struct ContentView: View {
                     .cornerRadius(8)
             }
 
-            Text("基础输入在本机完成、不联网。AI 为默认关闭的可选功能，需自行填入大模型 API Key；启用后相关文本直接发往所选服务商，猫头鹰无自建服务器、不中转也不留存数据。")
+            Text("基础输入在本机完成、不联网。AI 为默认关闭的可选功能，需自行填入大模型 API Key；启用后相关文本直接发往所选服务商，法墨无自建服务器、不中转也不留存数据。")
                 .font(.system(size: 11.5))
                 .foregroundColor(.secondary)
                 .multilineTextAlignment(.center)
@@ -245,7 +245,7 @@ struct ContentView: View {
                     } label: {
                         Text("彻底卸载").frame(minWidth: 96)
                     }
-                    .help("停用输入源、结束进程并移除猫头鹰输入法，可选保留或清空个人词库")
+                    .help("停用输入源、结束进程并移除法墨输入法，可选保留或清空个人词库")
                     .disabled(model.isBusy)
                 }
                 .controlSize(.regular)
@@ -276,7 +276,7 @@ struct ContentView: View {
                 Button {
                     model.activateAndOpenSettings()
                 } label: {
-                    Text("切换到猫头鹰并打开设置")
+                    Text("切换到法墨并打开设置")
                         .font(.system(size: 14, weight: .semibold))
                         .frame(minWidth: 220, minHeight: 26)
                 }
