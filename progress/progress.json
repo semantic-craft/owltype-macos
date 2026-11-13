@@ -408,9 +408,9 @@
             }
           ],
           "id": "apple-silicon-only",
-          "next": "完成 2.5.1 的完整门禁、签名公证和实际升级验收后发布。",
+          "next": "完成 2.5.2 的版本门禁、签名公证、自动安装验收和公开发布。",
           "status": "in_progress",
-          "summary": "Apple Silicon 构建改动已合并，完整门禁和独立审查通过。2.6.0 候选 App 已签名公证，但未发布；按用户要求改以 2.5.1 重新构建和公证。",
+          "summary": "Apple Silicon 构建和法墨中文名已合并。按用户要求，将纯 Apple Silicon 发行版独立升级为 2.5.2。此前 2.5.1 候选未由本发布任务对外发布。",
           "title": "Apple Silicon 原生发行包"
         },
         {
