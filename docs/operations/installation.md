@@ -178,7 +178,8 @@ Before native installation, obtain user execution/approval and identify a verifi
 On failure preserve the failed App and logs, restore the agreed App only, and recheck process mapping
 and typing. App rollback does not undo the package receipt or dictionary changes. Do not remove user
 data or log out as a test workaround. Source-built acceptance artifacts, signing constraints, clean
-first-install setup, Intel, and macOS 14/15 remain explicit coverage items in the investigation.
+first-install setup and macOS 14/15 remain explicit coverage items in the investigation.
+Starting with 2.6.0, Intel Macs are unsupported; both PKGs restrict installation to Apple Silicon.
 
 ## Uninstall and repair on a user's Mac
 
