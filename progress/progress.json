@@ -309,11 +309,11 @@
         "updated_at": "2026-11-13T07:52:07Z"
       }
     ],
-    "main": "a8e63448d8244ca7759d40b300ae948e4be8eb5b",
+    "main": "c3bbde085d60bb6f97529b26487e9ad1977a5e04",
     "open_pulls": [
       {
-        "head": "f6b0104b09619acb4df68ff82287b3af9804762d",
-        "number": 420
+        "head": "59a0806ede90a593f03259d28a1f9180ef2f3905",
+        "number": 422
       }
     ],
     "pulls": [
@@ -356,7 +356,7 @@
     "docs/input-alignment.md",
     "progress/sync.py"
   ],
-  "observed_at": "2026-11-13T07:53:28.744816Z",
+  "observed_at": "2026-11-13T08:14:03.874494Z",
   "outputs": [
     "progress/index.html"
   ],
