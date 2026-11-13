@@ -1566,9 +1566,9 @@ fails `OwlSettingsUITests`; the suite is not in the gate, so both drifted unnoti
 
 ## Production-seed tests need private resource copies
 
-- Seen 2x during the 2026-11-13 release-record gate: the pure-Wubi fifth-key
-  test returned a null session before typing. Focused and standalone parallel
-  runs passed, so another blind gate retry was not a fix.
+- Seen 1 incident on 2026-11-13, reproduced in two release-record gate attempts:
+  the pure-Wubi fifth-key test returned a null session before typing. Focused
+  and standalone parallel runs passed, so another blind gate retry was not a fix.
 - Concurrent constructors attach the same writable seed during an Immediate
   SQLite transaction. Holding that seed's write lock reproduced the failure as
   `HOST_PHRASE_CLEANUP_FAILED: begin transaction: database is locked`.
