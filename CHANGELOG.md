@@ -1,9 +1,15 @@
-<a name="2.5.1"></a>
-## 2.5.1 (2026-11-13)
+<a name="2.5.2"></a>
+## 2.5.2 (2026-11-13)
 
 - 发行包仅支持 Apple Silicon。主程序、Rust 引擎、MCP 助手、Sparkle 更新器和图形安装器统一使用 `arm64`，删除 Intel 构建路径。
 - 保留 macOS 14 最低版本与现有词库、模型及输入功能。交付检查拒绝任何包含其他架构的原生组件，两种 PKG 均限制在 Apple Silicon 上安装。
 - Ship native Apple Silicon binaries throughout the app, updater, MCP helper, and installer. Retain macOS 14 support and existing input resources and features.
+
+<a name="2.5.1"></a>
+## 2.5.1 (2026-11-13)
+
+- 中文名称恢复为法墨输入法，繁体名称为法墨輸入法。保留 Owltype 系统标识、用户数据路径和更新配置。
+- Restore the Chinese display name while preserving application identity, user data, and update configuration.
 
 <a name="2.5.0"></a>
 ## 2.5.0 (2026-11-10)
