@@ -3,8 +3,8 @@
 <title>法墨输入法 · 项目进度与剩余工作</title>
 <style>body{font:16px system-ui;max-width:960px;margin:3rem auto;padding:0 1rem;color:#202936;background:#f7f8fb}article,section{padding:1rem;margin:1rem 0;background:white;border-radius:12px}a{color:#1555ac}.badge{padding:.25rem .6rem;border-radius:20px;background:#e9edf5}small{color:#566}</style>
 <h1>法墨输入法 · 项目进度与剩余工作</h1>
-<p>Observed: 2026-11-13T08:14:03.874494Z</p>
-<p>Main: <code>main: c3bbde085d60bb6f97529b26487e9ad1977a5e04</code></p>
+<p>Observed: 2026-11-13T12:06:11.918850Z</p>
+<p>Main: <code>main: 34e10e125b6e86292a482f980d4115a468b04a44</code></p>
 <section id="chinese-name"><h2>中文名称恢复</h2>
 <article id="restore-chinese-name"><h3>恢复法墨输入法中文名称</h3><span class="badge">unverified</span><p>当前界面、简繁体资源和安装文案已恢复法墨名称。隔离设置界面、三种语言编译资源及 18 项身份门禁已通过；正式安装验收未完成。</p><ul>
 <li><a href="https://github.com/semantic-craft/owltype-macos/issues/421">issue 421: 名称恢复与连续性验收范围</a></li>
@@ -12,10 +12,12 @@
 </ul><p>Next: 在正式签名安装中核对输入源名称、已有设置与数据连续性。</p></article>
 </section>
 <section id="project-review"><h2>当前结论 · 2026-11-03</h2>
-<article id="apple-silicon-only"><h3>Apple Silicon 原生发行包</h3><span class="badge">in_progress</span><p>Apple Silicon 构建和法墨中文名已合并。按用户要求，将纯 Apple Silicon 发行版独立升级为 2.5.2。此前 2.5.1 候选未由本发布任务对外发布。</p><ul>
+<article id="apple-silicon-only"><h3>Apple Silicon 原生发行包</h3><span class="badge">done</span><p>2.5.2 已公开发布为 Apple Silicon 专用版本。App、两个 PKG 和 DMG 均通过公证及装订，完整门禁和独立产物审查通过。正式包升级后，旧、新 TextEdit 进程均在 60 秒内完成自动五笔输入和保存回读。</p><ul>
 <li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/scripts/check-rust-delivery.py">file scripts/check-rust-delivery.py: 检查 App 中所有 Mach-O 只含 arm64。</a></li>
 <li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/package/Distribution-update">file package/Distribution-update: 更新包仅允许 Apple Silicon 与 macOS 14 及以上。</a></li>
-</ul><p>Next: 完成 2.5.2 的版本门禁、签名公证、自动安装验收和公开发布。</p></article>
+<li><a href="https://github.com/semantic-craft/owltype-macos/pull/424">pull 424: 2.5.2 版本提交已合并，精确提交完整门禁通过。</a></li>
+<li>note https://downloads.responsay.com/owltype/releases/2.5.2/Owltype-2.5.2.dmg: 公开十项资产、四个网站下载别名、latest.json 和 v3 appcast 均已回读校验；已安装客户端检查更新显示 2.5.2 为最新。</li>
+</ul><p>Next: 持续跟踪旧版 Sparkle 客户端的端到端下载安装覆盖；本次已验证公开更新包、v3 清单签名以及已安装 2.5.2 的检查更新入口。</p></article>
 <article id="kotone-reply-contract"><h3>Kotone 回复契约兼容检查</h3><span class="badge">in_progress</span><p>源码已增加 optional reply contract 身份与严格版本检查，旧服务缺字段兼容；冻结 12 案例直接覆盖生产解析器。本轮 34 项离线 Swift 回归通过，默认关闭、cloud gate、只读复制与普通输入路径保留。</p><ul>
 <li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/sources/UI/JEVReplyPanel.swift">file sources/UI/JEVReplyPanel.swift: 候选解析入口同时校验既有 source/status/candidates/session 与新增 contract。</a></li>
 <li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/tests/JEVReplyModelTests.swift">file tests/JEVReplyModelTests.swift: JEVReplyModelTests、JEVTransportTests、OwlSettingsActionTests 共 34 项通过；含共享样例 SHA-256/source 版本与来源提交核对。</a></li>
@@ -219,6 +221,5 @@
 </ul><p>Next: 核对工单完成证据。</p></article>
 </section>
 <section><h2>Open pull requests</h2><ul>
-<li><a href="https://github.com/semantic-craft/owltype-macos/pull/422">#422</a> <code>59a0806ede90a593f03259d28a1f9180ef2f3905</code></li>
 </ul><h2>Recent releases</h2><ul>
 </ul></section></html>

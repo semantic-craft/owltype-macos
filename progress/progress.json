@@ -306,16 +306,11 @@
         "number": 421,
         "reason": null,
         "state": "open",
-        "updated_at": "2026-11-13T07:52:07Z"
+        "updated_at": "2026-11-13T08:53:17Z"
       }
     ],
-    "main": "c3bbde085d60bb6f97529b26487e9ad1977a5e04",
-    "open_pulls": [
-      {
-        "head": "59a0806ede90a593f03259d28a1f9180ef2f3905",
-        "number": 422
-      }
-    ],
+    "main": "34e10e125b6e86292a482f980d4115a468b04a44",
+    "open_pulls": [],
     "pulls": [
       {
         "base": "46a7ccf01be992d0e9786e4aaadb40313013c981",
@@ -348,6 +343,14 @@
         "merged": true,
         "number": 406,
         "state": "closed"
+      },
+      {
+        "base": "c8b4dd42e9f0a6a0147d2ad3268df50477fbe73a",
+        "head": "b533db473f04f464161a0cfeb1d066c9eac41b26",
+        "merge_commit": "34e10e125b6e86292a482f980d4115a468b04a44",
+        "merged": true,
+        "number": 424,
+        "state": "closed"
       }
     ],
     "releases": []
@@ -356,7 +359,7 @@
     "docs/input-alignment.md",
     "progress/sync.py"
   ],
-  "observed_at": "2026-11-13T08:14:03.874494Z",
+  "observed_at": "2026-11-13T12:06:11.918850Z",
   "outputs": [
     "progress/index.html"
   ],
@@ -405,12 +408,22 @@
               "kind": "file",
               "note": "更新包仅允许 Apple Silicon 与 macOS 14 及以上。",
               "ref": "package/Distribution-update"
+            },
+            {
+              "kind": "pull",
+              "note": "2.5.2 版本提交已合并，精确提交完整门禁通过。",
+              "ref": 424
+            },
+            {
+              "kind": "note",
+              "note": "公开十项资产、四个网站下载别名、latest.json 和 v3 appcast 均已回读校验；已安装客户端检查更新显示 2.5.2 为最新。",
+              "ref": "https://downloads.responsay.com/owltype/releases/2.5.2/Owltype-2.5.2.dmg"
             }
           ],
           "id": "apple-silicon-only",
-          "next": "完成 2.5.2 的版本门禁、签名公证、自动安装验收和公开发布。",
-          "status": "in_progress",
-          "summary": "Apple Silicon 构建和法墨中文名已合并。按用户要求，将纯 Apple Silicon 发行版独立升级为 2.5.2。此前 2.5.1 候选未由本发布任务对外发布。",
+          "next": "持续跟踪旧版 Sparkle 客户端的端到端下载安装覆盖；本次已验证公开更新包、v3 清单签名以及已安装 2.5.2 的检查更新入口。",
+          "status": "done",
+          "summary": "2.5.2 已公开发布为 Apple Silicon 专用版本。App、两个 PKG 和 DMG 均通过公证及装订，完整门禁和独立产物审查通过。正式包升级后，旧、新 TextEdit 进程均在 60 秒内完成自动五笔输入和保存回读。",
           "title": "Apple Silicon 原生发行包"
         },
         {
@@ -1386,7 +1399,8 @@
       305,
       340,
       404,
-      406
+      406,
+      424
     ]
   }
 }
