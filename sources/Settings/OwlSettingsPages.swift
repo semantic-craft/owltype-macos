@@ -1,6 +1,6 @@
 //
 //  OwlSettingsPages.swift
-//  猫头鹰输入法 (Owltype) — SwiftUI settings window
+//  法墨输入法 (Owltype) — SwiftUI settings window
 //
 //  v0.3: the 关于 (About) sidebar page + the 皮肤预览 section for the
 //  NavigationSplitView shell in `OwlSettingsView`. The 候选窗外观 / 输入方案 pages
@@ -54,13 +54,13 @@ struct OwlAboutPage: View {
 
   private var infoCard: some View {
     SettingsCard(
-      title: "关于猫头鹰",
+      title: "关于法墨",
       palette: palette,
       theme: theme,
       reduceTransparency: reduceTransparency
     ) {
       VStack(alignment: .leading, spacing: 0) {
-        infoRow(label: "猫头鹰输入法", value: appVersionDisplay)
+        infoRow(label: "法墨输入法", value: appVersionDisplay)
         SettingsCardDivider(palette: palette)
         infoRow(label: "构建标识", value: appBuildIdentityDisplay)
         SettingsCardDivider(palette: palette)
@@ -289,8 +289,8 @@ struct OwlDiagnosticsPage: View {
     }
   }
 
-  /// 「设为系统默认输入法」= enable + select：系统随即把猫头鹰
-  /// 写进 `AppleSelectedInputSources`，下次登录自动恢复猫头鹰。这个按钮是全仓唯一允许调用
+  /// 「设为系统默认输入法」= enable + select：系统随即把法墨
+  /// 写进 `AppleSelectedInputSources`，下次登录自动恢复法墨。这个按钮是全仓唯一允许调用
   /// `makeDefault()` 的地方 —— 用户显式点击才动当前输入源，安装 / 更新 / 启动路径一律不得复用。
   private var makeDefaultRow: some View {
     VStack(alignment: .leading, spacing: 6) {
@@ -316,7 +316,7 @@ struct OwlDiagnosticsPage: View {
   static func makeDefaultStatusText(_ result: OwlInstaller.MakeDefaultResult?) -> String {
     switch result {
     case .none:
-      return "把猫头鹰切成当前输入源，系统会记住它：下次登录自动恢复猫头鹰。（macOS 没有「默认输入法」开关，这就是「默认」的全部含义。）"
+      return "把法墨切成当前输入源，系统会记住它：下次登录自动恢复法墨。（macOS 没有「默认输入法」开关，这就是「默认」的全部含义。）"
     case .alreadyDefault(let mode):
       return "\(mode.displayName)已经是当前系统输入源，下次登录会自动恢复它。"
     case .madeDefault(let mode):
@@ -389,7 +389,7 @@ struct OwlDiagnosticsPage: View {
   private func exportSupportBundle(_ report: OwlTISReport) {
     let panel = NSSavePanel()
     panel.nameFieldStringValue = "owl-diagnostics.txt"
-    panel.title = "导出猫头鹰诊断支持包"
+    panel.title = "导出法墨诊断支持包"
     guard panel.runModal() == .OK, let url = panel.url else { return }
     let text = Self.supportBundleText(report: report)
     try? text.write(to: url, atomically: true, encoding: .utf8)
@@ -403,7 +403,7 @@ struct OwlDiagnosticsPage: View {
     let version = OwlAboutPage.versionDisplay(info: Bundle.main.infoDictionary)
     let os = ProcessInfo.processInfo.operatingSystemVersionString
     let raw = """
-    # 猫头鹰诊断支持包
+    # 法墨诊断支持包
     版本: \(version)
     系统: \(os)
 

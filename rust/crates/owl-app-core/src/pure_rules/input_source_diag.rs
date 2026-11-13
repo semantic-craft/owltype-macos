@@ -174,7 +174,7 @@ pub fn classify_tis_diagnosis(
             ok: Some(false),
             code: Some("OWL-TIS-004".into()),
             detail: format!(
-                "当前源 {} 已选中但 enabled=false（吞键死半态）—— 先切 ABC 再重选「猫头鹰」，或系统设置→键盘→输入法重加一次",
+                "当前源 {} 已选中但 enabled=false（吞键死半态）—— 先切 ABC 再重选「法墨」，或系统设置→键盘→输入法重加一次",
                 half.id
             ),
         });
@@ -199,7 +199,7 @@ pub fn classify_tis_diagnosis(
                     layer: "select".into(),
                     ok: Some(true),
                     code: None,
-                    detail: format!("主输入源 {} 已启用且可选中；当前未选中 —— 在输入菜单选「猫头鹰」即可", primary_id),
+                    detail: format!("主输入源 {} 已启用且可选中；当前未选中 —— 在输入菜单选「法墨」即可", primary_id),
                 });
             }
         } else {
@@ -219,7 +219,7 @@ pub fn classify_tis_diagnosis(
         ok: None,
         code: None,
         detail: if primary_enabled {
-            "只读探针看不到输入菜单缓存。若已 enabled 但菜单仍不列「猫头鹰」= OWL-TIS-006（菜单缓存未刷新）：等软/硬窗自然翻绿或用手动菜单代理刷新按钮；刷新后仍不列 = 会话层拒收（TIS 全绿也无用户态解法，2026-08-12 本机实证），注销重登即愈".into()
+            "只读探针看不到输入菜单缓存。若已 enabled 但菜单仍不列「法墨」= OWL-TIS-006（菜单缓存未刷新）：等软/硬窗自然翻绿或用手动菜单代理刷新按钮；刷新后仍不列 = 会话层拒收（TIS 全绿也无用户态解法，2026-08-12 本机实证），注销重登即愈".into()
         } else {
             "未评估（主输入源未启用）".into()
         },

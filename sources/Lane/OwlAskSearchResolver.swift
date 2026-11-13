@@ -1,6 +1,6 @@
 //
 //  OwlAskSearchResolver.swift
-//  猫头鹰输入法 (Owltype) — 任意提问「联网搜索」的路由解析
+//  法墨输入法 (Owltype) — 任意提问「联网搜索」的路由解析
 //
 //  开关开启时，把这一问路由到一个**已配好密钥的 DeepSeek 档案**：先用它的 Key 调 DeepSeek Search
 //  接口取回网页，再依据结果作答，与主对话模型解耦——主模型是别家时也能真搜到。

@@ -183,7 +183,7 @@ enum OwlSessionRestart {
     case .stopOldProcesses: return "结束旧进程"
     case .enable: return "等待启用输入源"
     case .select: return "恢复选中的输入法"
-    case .launch: return "启动已安装的猫头鹰"
+    case .launch: return "启动已安装的法墨"
     case .verify: return "核验会话"
     }
   }
@@ -213,12 +213,12 @@ enum OwlSessionRestart {
       case .selectedSourceDiffers:
         return "选中的输入法与安装前不同（预期 \(expectedSource)，实际 \(observation?.selectedSource ?? "?")）"
       case .noServer:
-        return "没有运行中的猫头鹰进程"
+        return "没有运行中的法墨进程"
       case .multipleServers:
         let pids = (observation?.servers ?? []).map { String($0.pid) }.joined(separator: "、")
-        return "猫头鹰进程不止一个（pid \(pids)）"
+        return "法墨进程不止一个（pid \(pids)）"
       case .serverOutsideInstalledApp:
-        return "运行中的猫头鹰不在 /Library/Input Methods（\(server?.executable ?? "?")）"
+        return "运行中的法墨不在 /Library/Input Methods（\(server?.executable ?? "?")）"
       case .serverVersionDiffers:
         return "运行中的版本为 \(server?.version ?? "?")，预期 \(expectedVersion)"
       case .serverMapsOtherExecutable:

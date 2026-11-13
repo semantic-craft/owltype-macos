@@ -1,6 +1,6 @@
 //
 //  OwlAIContextAssembler.swift
-//  猫头鹰输入法 (Owltype) — AI conversation request assembler
+//  法墨输入法 (Owltype) — AI conversation request assembler
 //
 //  Privacy boundary: this pure assembler can receive only text the user explicitly submitted:
 //  the current question, an explicit selection, and prior conversation turns. Composition state,

@@ -126,7 +126,7 @@ enum InstallerActivationPolicy {
                 if let embeddedLabel {
                     return "本机尚未安装 · 安装包版本 \(embeddedLabel)"
                 }
-                return "本机尚未安装猫头鹰输入法"
+                return "本机尚未安装法墨输入法"
             case .upgrade:
                 if let installedLabel, let embeddedLabel {
                     return "已安装 \(installedLabel) · 可更新至 \(embeddedLabel)"
@@ -212,20 +212,20 @@ enum InstallerActivationPolicy {
             }
             return CompletionSummary(
                 title: plan.enableParentAndPrimaryModeOnce ? "安装已完成" : "更新已完成",
-                detail: "✅ 猫头鹰输入法文件已安装就绪。若右上角输入法菜单尚未显示「猫头鹰」，请点击下方「启用并切换到猫头鹰」或在「系统设置 → 键盘 → 输入法」中添加。",
+                detail: "✅ 法墨输入法文件已安装就绪。若右上角输入法菜单尚未显示「法墨」，请点击下方「启用并切换到法墨」或在「系统设置 → 键盘 → 输入法」中添加。",
                 showsActivateButton: true,
                 showsSystemSettingsButton: true)
         case .repairInstall(let status):
             if status == .ready {
                 return CompletionSummary(
                     title: "修复安装完成",
-                    detail: "✅ 已清理残留副本与输入法缓存，并重新安装启用猫头鹰输入法。你的个人词库与设置已保留。",
+                    detail: "✅ 已清理残留副本与输入法缓存，并重新安装启用法墨输入法。你的个人词库与设置已保留。",
                     showsActivateButton: true,
                     showsSystemSettingsButton: false)
             }
             return CompletionSummary(
                 title: "修复安装已完成",
-                detail: "✅ 已清理残留副本与输入法缓存，并完成文件重装。请点击下方「启用并切换到猫头鹰」完成激活。",
+                detail: "✅ 已清理残留副本与输入法缓存，并完成文件重装。请点击下方「启用并切换到法墨」完成激活。",
                 showsActivateButton: true,
                 showsSystemSettingsButton: true)
         case .clearAndRepair:
@@ -240,7 +240,7 @@ enum InstallerActivationPolicy {
                 : "已同时清空个人词库、缓存与偏好设置。"
             return CompletionSummary(
                 title: "卸载完成",
-                detail: "✅ 猫头鹰输入法已从本机移除，输入法菜单已刷新。\(dataNote)Squirrel、~/Library/Rime 及其他输入法未被触碰。",
+                detail: "✅ 法墨输入法已从本机移除，输入法菜单已刷新。\(dataNote)Squirrel、~/Library/Rime 及其他输入法未被触碰。",
                 showsActivateButton: false,
                 showsSystemSettingsButton: false)
         }

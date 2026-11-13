@@ -1,4 +1,4 @@
-// OwltypeInstaller — 猫头鹰输入法独立首装安装器（运行在用户 Aqua GUI 会话）。
+// OwltypeInstaller — 法墨输入法独立首装安装器（运行在用户 Aqua GUI 会话）。
 //
 // 设计要点（首装免注销专题 07-02，微信法首装免注销）：
 //   - 普通带窗口 App（非 agent），单窗一键安装 + 一个卸载。
@@ -17,7 +17,7 @@ struct OwltypeInstallerApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
-        WindowGroup("猫头鹰安装器") {
+        WindowGroup("法墨安装器") {
             ContentView()
         }
         .windowResizability(.contentSize)

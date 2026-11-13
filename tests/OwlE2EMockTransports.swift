@@ -298,7 +298,7 @@ public final class OwlE2EMockHotwordsExtractor: OwlE2EVoiceHotwordsExtractorProt
 
   public init(
     pinnedWords: [String] = ["人工智能", "大语言模型"],
-    customWords: [String] = ["声智科技", "猫头鹰输入法"],
+    customWords: [String] = ["声智科技", "法墨输入法"],
     frequentBigrams: [String] = ["部署上线", "快速响应"]
   ) {
     self.pinnedWords = pinnedWords

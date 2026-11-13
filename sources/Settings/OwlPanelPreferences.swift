@@ -1,6 +1,6 @@
 //
 //  OwlPanelPreferences.swift
-//  猫头鹰输入法 (Owltype) — candidate panel preference value types
+//  法墨输入法 (Owltype) — candidate panel preference value types
 //
 //  v0.2.2: user-customizable appearance for the SwiftUI candidate panel.
 //  Persistence and runtime snapshots live exclusively in `OwlCandidatePanelSettings`.

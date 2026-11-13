@@ -1,6 +1,6 @@
 //
 //  OwlSettingsWindow.swift
-//  猫头鹰输入法 (Owltype) — SwiftUI settings window
+//  法墨输入法 (Owltype) — SwiftUI settings window
 //
 //  v0.2: a standard titled NSWindow hosting `OwlSettingsView` via NSHostingView.
 //  Opened from the IME status menu. Purely additive UI — it only forwards the
@@ -30,7 +30,7 @@ final class OwlSettingsWindow: NSWindowController {
       backing: .buffered,
       defer: false
     )
-    window.title = NSLocalizedString("猫头鹰设置", comment: "Owltype Settings window title")
+    window.title = NSLocalizedString("法墨设置", comment: "Owltype Settings window title")
     window.isReleasedWhenClosed = false
     // Sidebar + detail need room; keep the sidebar usable when the user shrinks it.
     window.minSize = NSSize(width: 640, height: 460)
@@ -141,7 +141,7 @@ final class OwlSettingsWindow: NSWindowController {
     settings.target = NSApp.delegate
     appMenu.addItem(.separator())
     let quitItem = appMenu.addItem(
-      withTitle: NSLocalizedString("退出猫头鹰", comment: "Quit Owltype menu item"),
+      withTitle: NSLocalizedString("退出法墨", comment: "Quit Owltype menu item"),
       action: #selector(NSApplication.terminate(_:)),
       keyEquivalent: "q"
     )

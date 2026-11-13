@@ -597,7 +597,7 @@ final class OwlAICandidateTests: XCTestCase {
   }
 
   func testJevZeroHallucinationConstraint() {
-    let localPool = ["猫头鹰", "输入法", "智能", "本地"]
+    let localPool = ["法墨", "输入法", "智能", "本地"]
     let parsedIndex = OwlAICandidateService.parseRerankResponse("c2", candidateCount: localPool.count)
     XCTAssertNotNil(parsedIndex)
     let selectedWord = localPool[try! XCTUnwrap(parsedIndex)]

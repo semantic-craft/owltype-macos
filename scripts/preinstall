@@ -26,7 +26,7 @@ if [[ ! -L "$input_root/Owltype.app" && -f "$input_root/Owltype.app/Contents/Inf
   [[ -n "$source_before" ]] || { echo 'Owltype: cannot capture current input source.' >&2; exit 1; }
 fi
 # LaunchServices and the input menu register bundles under Input Methods, hidden or not, so a
-# leftover copy shows up as a second 猫头鹰输入法. Install intermediates now live under
+# leftover copy shows up as a second 法墨输入法. Install intermediates now live under
 # $installer_state_dir; an earlier payload or older installer's leftovers are kept for
 # inspection there, unregistered, never deleted or reused.
 lsregister='/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister'

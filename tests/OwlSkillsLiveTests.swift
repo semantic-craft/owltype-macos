@@ -925,7 +925,7 @@ final class OwlResponsesPromptEvaluationLiveTests: XCTestCase {
 
     let sayProc = Process()
     sayProc.executableURL = URL(fileURLWithPath: "/usr/bin/say")
-    sayProc.arguments = ["-v", "Tingting", "-o", aiffURL.path, "你好，今天天气很好，正在测试猫头鹰输入法的语音识别。"]
+    sayProc.arguments = ["-v", "Tingting", "-o", aiffURL.path, "你好，今天天气很好，正在测试法墨输入法的语音识别。"]
     try sayProc.run()
     sayProc.waitUntilExit()
     XCTAssertEqual(sayProc.terminationStatus, 0)
@@ -951,9 +951,9 @@ final class OwlResponsesPromptEvaluationLiveTests: XCTestCase {
       model: OwlVoiceASRCatalog.openai.defaultModel,
       apiKeyProvider: { openAIKey }
     )
-    let openAITranscript = try await openAIClient.transcribe(audioWavData: packedWav, prompt: "猫头鹰输入法")
+    let openAITranscript = try await openAIClient.transcribe(audioWavData: packedWav, prompt: "法墨输入法")
     print("KOTONE_LIVE [OpenAI ASR \(OwlVoiceASRCatalog.openai.defaultModel)] -> \(openAITranscript)")
-    XCTAssertTrue(openAITranscript.contains("猫头鹰"), "OpenAI gpt-transcribe output: \(openAITranscript)")
+    XCTAssertTrue(openAITranscript.contains("法墨"), "OpenAI gpt-transcribe output: \(openAITranscript)")
 
     let geminiClient = OwlVoiceGrokASRClient(
       providerID: OwlVoiceASRCatalog.gemini.id,
@@ -961,9 +961,9 @@ final class OwlResponsesPromptEvaluationLiveTests: XCTestCase {
       model: OwlVoiceASRCatalog.gemini.defaultModel,
       apiKeyProvider: { geminiKey }
     )
-    let geminiTranscript = try await geminiClient.transcribe(audioWavData: packedWav, prompt: "猫头鹰输入法")
+    let geminiTranscript = try await geminiClient.transcribe(audioWavData: packedWav, prompt: "法墨输入法")
     print("KOTONE_LIVE [Gemini ASR \(OwlVoiceASRCatalog.gemini.defaultModel)] -> \(geminiTranscript)")
-    XCTAssertTrue(geminiTranscript.contains("猫头鹰"), "Gemini gemini-3.5-transcribe output: \(geminiTranscript)")
+    XCTAssertTrue(geminiTranscript.contains("法墨"), "Gemini gemini-3.5-transcribe output: \(geminiTranscript)")
 
     let deepSeekKey = try OwlLiveKey.deepSeek.value()
     let polisher = OwlVoicePolisher(
@@ -972,12 +972,12 @@ final class OwlResponsesPromptEvaluationLiveTests: XCTestCase {
       isEnabledChecker: { true }
     )
     let polished = try await polisher.polishWithTimeout(
-      rawTranscript: "嗯那个你好今天天气很好正在测试猫头鹰输入法的语音识别",
-      hotwords: ["猫头鹰输入法"],
+      rawTranscript: "嗯那个你好今天天气很好正在测试法墨输入法的语音识别",
+      hotwords: ["法墨输入法"],
       preContext: nil
     )
     print("KOTONE_LIVE [DeepSeek Polisher \(polisher.model)] -> \(polished)")
-    XCTAssertTrue(polished.contains("猫头鹰输入法"), "DeepSeek polisher output: \(polished)")
+    XCTAssertTrue(polished.contains("法墨输入法"), "DeepSeek polisher output: \(polished)")
   }
 }
 

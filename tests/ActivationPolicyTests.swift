@@ -56,7 +56,7 @@ final class ActivationPolicyTests: XCTestCase {
     let text = OwlInstaller.activationGuidanceText(for: .hans)
     XCTAssertTrue(text.contains("系统设置"))
     XCTAssertTrue(text.contains("编辑"))
-    XCTAssertTrue(text.contains("猫头鹰"))
+    XCTAssertTrue(text.contains("法墨"))
     // The recovery path must be the System Settings input-source list, NOT a `defaults read` of
     // AppleEnabledInputSources — that plist omits third-party IMEs on macOS 15/26 and misleads.
     XCTAssertFalse(text.contains("defaults read com.apple.HIToolbox AppleEnabledInputSources"))
@@ -104,7 +104,7 @@ final class ActivationPolicyTests: XCTestCase {
   // —— 做什么（plan）与结果怎么翻译（result）。UI 文案第三个纯函数一并钉住。
 
   func testMakeDefaultPlanEnablesAndSelectsPrimaryWhenNothingEnabled() {
-    // 一个猫头鹰模式都没启用：回落 primary（简体），由 select(mode:) 顺手 enable 再 select。
+    // 一个法墨模式都没启用：回落 primary（简体），由 select(mode:) 顺手 enable 再 select。
     let plan = OwlInstaller.makeDefaultPlan(enabledModes: [], currentSourceID: "com.apple.keylayout.ABC")
     XCTAssertEqual(plan, .select(OwlInstaller.InputMode.primary))
   }
@@ -139,8 +139,8 @@ final class ActivationPolicyTests: XCTestCase {
     let result = OwlInstaller.makeDefaultResult(mode: .hans, outcome: .selectFailed(-50))
     guard case .failed(let reason) = result else { return XCTFail("select 失败必须落 .failed") }
     XCTAssertTrue(reason.contains("-50"), "失败文案要带上 TIS 状态码，否则用户无从报障")
-    XCTAssertTrue(reason.contains("系统设置"), "用户从输入法列表移除猫头鹰后，恢复路径只能回到系统设置")
-    XCTAssertTrue(reason.contains("重新加入"), "-50 必须明确告诉用户重新加入猫头鹰，不能只报泛化系统拒绝")
+    XCTAssertTrue(reason.contains("系统设置"), "用户从输入法列表移除法墨后，恢复路径只能回到系统设置")
+    XCTAssertTrue(reason.contains("重新加入"), "-50 必须明确告诉用户重新加入法墨，不能只报泛化系统拒绝")
   }
 
   func testMakeDefaultResultKeepsGenericGuidanceForOtherSelectFailures() {
@@ -200,7 +200,7 @@ final class ActivationPolicyTests: XCTestCase {
     enabled: Bool = false, selected: Bool = false
   ) -> TISSourceState {
     TISSourceState(
-      id: id, bundleID: OwlInstaller.inputSourcePrefix, localizedName: "猫头鹰输入法",
+      id: id, bundleID: OwlInstaller.inputSourcePrefix, localizedName: "法墨输入法",
       enableCapable: enableCapable, selectCapable: selectCapable, enabled: enabled, selected: selected)
   }
 

@@ -1,6 +1,6 @@
 //
 //  OwlPolishPromptCatalog.swift
-//  猫头鹰输入法 (Owltype) — 润色提示词变体注册表 (issue #136, A/B 挂载)
+//  法墨输入法 (Owltype) — 润色提示词变体注册表 (issue #136, A/B 挂载)
 //
 //  B4 划词「润色」的 system prompt / temperature 从 OwlSelectionPolish 的硬编码单串改为这里的
 //  变体注册表，给 A/B 对比留结构空间：

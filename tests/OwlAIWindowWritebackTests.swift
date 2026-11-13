@@ -479,7 +479,7 @@ final class OwlAIWindowWritebackTests: XCTestCase {
   }
 
   func testLargePayloadFidelity() {
-    let repeatBlock = "🦉 猫头鹰 AI 写作助手深度测试段落，包含标点、换行与空格。\n"
+    let repeatBlock = "🦉 法墨 AI 写作助手深度测试段落，包含标点、换行与空格。\n"
     let largeText = String(repeating: repeatBlock, count: 500)
     XCTAssertGreaterThan(largeText.utf8.count, 20_000)
 

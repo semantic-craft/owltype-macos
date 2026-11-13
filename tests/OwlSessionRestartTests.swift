@@ -246,7 +246,7 @@ final class OwlSessionRestartTests: XCTestCase {
     }
     let diagnosis = OwlSessionRestart.diagnose(ProbeTimedOut(), request: request(), stage: .launch, lastObservation: nil)
     XCTAssertEqual(diagnosis.reason, "Owltype --install-session-probe 超过 8 秒未结束")
-    XCTAssertEqual(diagnosis.summary, "阶段「启动已安装的猫头鹰」失败：Owltype --install-session-probe 超过 8 秒未结束")
+    XCTAssertEqual(diagnosis.summary, "阶段「启动已安装的法墨」失败：Owltype --install-session-probe 超过 8 秒未结束")
   }
 
   func testDescribeSpellsOutEachConditionAndAnEmptyListMeansHealthy() {
@@ -254,7 +254,7 @@ final class OwlSessionRestartTests: XCTestCase {
                                                     servers: [server(), server(version: "2.0.12")])
     let text = OwlSessionRestart.describe(unmet: [.sourceNotEnabled, .multipleServers], observation: observation,
                                           expectedSource: own, expectedVersion: "2.0.13")
-    XCTAssertEqual(text, "输入源未启用（父源未启用，模式未启用）；猫头鹰进程不止一个（pid 400、400）")
+    XCTAssertEqual(text, "输入源未启用（父源未启用，模式未启用）；法墨进程不止一个（pid 400、400）")
     XCTAssertEqual(OwlSessionRestart.describe(unmet: [], observation: nil, expectedSource: own, expectedVersion: "2.0.13"),
                    "全部条件已满足")
   }

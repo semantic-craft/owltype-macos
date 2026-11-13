@@ -15,7 +15,7 @@ enum OwlInputMenuTitles {
   static let deploy = "应用配置改动"
   static let resetUserDict = "重置用户词典…"
   static let onboarding = "欢迎与引导…"
-  static let configFolder = "打开猫头鹰配置目录…"
+  static let configFolder = "打开法墨配置目录…"
   static let logs = "查看诊断日志…"
 
   static func cjkInput(asciiMode: Bool) -> String {

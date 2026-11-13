@@ -77,7 +77,7 @@ final class InstallerActivationPolicyTests: XCTestCase {
   }
 
   func testStaleCurrentSourceWithoutInstallIsCleanInstallAndStillParks() {
-    // (F,F,T) 幽灵残留：TIS 说当前源是猫头鹰，但 bundle/进程都无 → 按干净首装 enable；
+    // (F,F,T) 幽灵残留：TIS 说当前源是法墨，但 bundle/进程都无 → 按干净首装 enable；
     // 策略只看「当前源」信号，替换前照样先切出系统英文键盘，装完配对切回。
     let plan = InstallerActivationPolicy.plan(
       bundlePreexisted: false, owltypeProcessWasRunning: false, owltypeWasCurrentSource: true)

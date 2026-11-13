@@ -1,6 +1,6 @@
 //
 //  OwlTextInserter.swift
-//  猫头鹰输入法 (Owltype) — Unified host delivery selection replacement adapter
+//  法墨输入法 (Owltype) — Unified host delivery selection replacement adapter
 //
 
 import Foundation

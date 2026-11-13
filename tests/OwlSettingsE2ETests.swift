@@ -62,7 +62,7 @@ final class OwlSettingsE2EContractTests: XCTestCase {
     XCTAssertEqual(OwlKeyboardPreferences.appEnglishBundleIDs, ["com.apple.Terminal"])
     XCTAssertEqual(OwlFuzzySnapshot.current().enabledCount, 3)
 
-    XCTAssertEqual(OwlCommitTransform.apply(to: "猫头鹰AI第3条"), "猫头鹰 AI 第 3 条")
+    XCTAssertEqual(OwlCommitTransform.apply(to: "法墨AI第3条"), "法墨 AI 第 3 条")
     XCTAssertEqual(OwlCommitTransform.apply(to: "1. 第一项\n"), "1. 第一项\n")
   }
 
@@ -94,7 +94,7 @@ final class OwlSettingsE2EContractTests: XCTestCase {
     let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
     defer { defaults.removePersistentDomain(forName: suiteName) }
 
-    var template = OwlTemplateEntry(title: "猫头鹰测试", body: "猫头鹰测试")
+    var template = OwlTemplateEntry(title: "法墨测试", body: "法墨测试")
     template.trigger = "mtycs"
     template.invocationMode = .candidate
     try OwlTemplateStore.save(

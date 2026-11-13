@@ -15,7 +15,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>猫头鹰输入法</string>
+	<string>法墨输入法</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleSignature</key>
@@ -108,9 +108,9 @@
 	     的理由文案）+ com.apple.security.automation.apple-events（见 Owltype.entitlements）；缺任一项
 	     直接 -1743 且不弹授权框——1.4.7 两者皆缺，主按钮从未生效过。发版断言见 check-release.sh。 -->
 	<key>NSAppleEventsUsageDescription</key>
-	<string>猫头鹰在更新后需要通过「系统事件」为你执行注销并重新登录，好让系统完整刷新输入法。</string>
+	<string>法墨在更新后需要通过「系统事件」为你执行注销并重新登录，好让系统完整刷新输入法。</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>猫头鹰输入法需要访问麦克风以支持语音输入与转写功能。</string>
+	<string>法墨输入法需要访问麦克风以支持语音输入与转写功能。</string>
 	<!-- Owltype: Sparkle points ONLY at the Owltype appcast on responsay.com. Its enclosure is an EdDSA
 	     signed, Developer ID signed and notarized Owltype-update.pkg on the responsay.com release surface.
 	     The update distribution omits RequireLogout; the package scripts preserve the selected input

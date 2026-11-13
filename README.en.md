@@ -2,7 +2,7 @@
 
 <img src="Assets.xcassets/Owltype.appiconset/icon_128x128@2x.png" width="96" alt="Owltype app icon">
 
-# Owltype · 猫头鹰输入法
+# Owltype · 法墨输入法
 
 **An open-source macOS Rust input method crafted for everyday typing and AI workflows.**
 
@@ -36,8 +36,8 @@ MSIME Rust Engine · Pinyin / Double Pinyin / Wubi 86 & 98 / Mixed Input · Clou
 
 ### Quick start in 3 steps
 
-1. Download and open [**Owltype-2.5.1.dmg**](https://downloads.responsay.com/owltype/releases/2.5.1/Owltype-2.5.1.dmg), launch **猫头鹰安装器** (`OwltypeInstaller.app`), and click **安装输入法** (Install). Approve the macOS administrator prompt when asked.
-2. The installer places the bundle at `/Library/Input Methods/Owltype.app` and converges your current login session without blocking. If Owltype is not yet enabled in your input menu, follow Step 2 in the wizard to enable **猫头鹰** under **System Settings → Keyboard → Input Sources**.
+1. Download and open [**Owltype-2.5.1.dmg**](https://downloads.responsay.com/owltype/releases/2.5.1/Owltype-2.5.1.dmg), launch **法墨安装器** (`OwltypeInstaller.app`), and click **安装输入法** (Install). Approve the macOS administrator prompt when asked.
+2. The installer places the bundle at `/Library/Input Methods/Owltype.app` and converges your current login session without blocking. If Owltype is not yet enabled in your input menu, follow Step 2 in the wizard to enable **法墨** under **System Settings → Keyboard → Input Sources**.
 3. Open Owltype Settings, select your preferred input scheme under **键盘输入** (Keyboard), and confirm local dictionary preparation. Everyday typing runs entirely on-device; configure a provider under **AI** only if you want cloud voice transcription or AI assistance.
 
 ![Owltype candidate window](docs/screenshots/candidates.png)

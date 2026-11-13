@@ -3,6 +3,21 @@
 Unit tests do not establish host typing; installed-host behaviour needs a live check.
 Release composition remains in the [publishing checklist](../PUBLISHING_CHECKLIST.md).
 
+## Chinese display name
+
+The current Chinese name is 法墨输入法, or 法墨輸入法 in Traditional Chinese.
+The English product remains Owltype. The bundle ID, TIS mode IDs, IMK connection,
+executable, installation path, preference domain, Keychain services and update feed
+remain unchanged. An upgrade uses the existing installer without data migration.
+Historical identifiers remain retired.
+
+Apple distinguishes the [display name and bundle identity](https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html).
+The compiled `InfoPlist.strings` files also determine the input menu labels.
+[The manifest check](../../scripts/check-manifest.sh) verifies their names in every supported language alongside the
+stable identifiers. [The identity check](../../scripts/check-identity-residual.sh) rejects the retired Chinese name
+in localized resources as well as the main manifest. Historical changelog entries
+and recorded incidents retain their original names.
+
 ## Acceptance data isolation
 
 Never create test templates, Agent calls or temporary preferences in the daily input method.
@@ -60,7 +75,7 @@ A failure of recovery itself stops the operation and requires inspection of both
 ### Where intermediates live
 
 LaunchServices and the input menu register bundles found under `/Library/Input Methods`, hidden
-`.Owltype.*` directories included, so each leftover copy can become a second「猫头鹰输入法」entry.
+`.Owltype.*` directories included, so each leftover copy can become a second「法墨输入法」entry.
 Up to 2.0.15 the installer kept its lock, candidates, retired contents, unpack directories and
 abandoned payloads there. Now only the live App and the PackageKit staging archive touch it:
 
@@ -187,15 +202,15 @@ Starting with 2.5.1, Intel Macs are unsupported; both PKGs restrict installation
 [owltype-maintenance-lib.sh](../../scripts/owltype-maintenance-lib.sh) and only act on
 Owltype's bundle id and paths.
 
-- `修复猫头鹰.command` runs [repair-owltype.sh](../../scripts/repair-owltype.sh). Use it when
-  the input menu shows two「猫头鹰输入法」entries or an old icon: macOS lists every bundle that
+- `修复法墨.command` runs [repair-owltype.sh](../../scripts/repair-owltype.sh). Use it when
+  the input menu shows two「法墨输入法」entries or an old icon: macOS lists every bundle that
   claims the id, so an older copy in `~/Library/Input Methods`, a leftover `.Owltype.*`
   directory from an interrupted install, or a stale LaunchServices record each add an entry.
   It removes those copies, unregisters every other claim, re-registers the installed App
   (`--activate-once`), deletes only the `com.apple.IntlDataCache.le*` caches that mention
   the id, and restarts the input menu agents. User data stays. If two entries remain, a
   logout rebuilds the list.
-- `卸载猫头鹰.command` runs [uninstall-owltype.sh](../../scripts/uninstall-owltype.sh), which
+- `卸载法墨.command` runs [uninstall-owltype.sh](../../scripts/uninstall-owltype.sh), which
   does the same cleanup and also removes the installed App, preferences, caches, the receipt
   and (unless `--keep-data`) the data root and preferences, so a reinstall starts clean.
   Without a runnable installed App it parks the input source through a surviving older copy.

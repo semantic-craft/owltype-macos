@@ -136,7 +136,7 @@ struct OwlAgentPage: View {
           OwlAgentAccessPreferences.setEnabled(enabled)
         }
         SettingsCardDivider(palette: palette)
-        note("只接受本机同一用户、由猫头鹰自带的 owltype-mcp 发起的连接。Agent 看不到你正在输入的内容，"
+        note("只接受本机同一用户、由法墨自带的 owltype-mcp 发起的连接。Agent 看不到你正在输入的内容，"
           + "只能读取下面开放的模板；它请求写入文字时，会先弹出预览，由你确认后写入一次，不会按回车。")
       }
     }

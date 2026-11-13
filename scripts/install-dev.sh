@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# install-dev.sh — build 猫头鹰输入法 (Owltype) and install it to the user's
+# install-dev.sh — build 法墨输入法 (Owltype) and install it to the user's
 # ~/Library/Input Methods (no sudo). The installed copy is signed with a stable
 # certificate identity (scripts/stable-sign-identity.sh), never ad hoc: Keychain grants
 # follow the designated requirement, and an ad hoc cdhash changes with every build.
@@ -162,8 +162,8 @@ fi
 
 echo
 echo "Installed to: $INSTALLED_APP"
-echo "Open System Settings -> Keyboard -> Text Input / Input Sources and add/select 猫头鹰输入法."
-echo "If it appears but cannot type, remove/add 猫头鹰输入法 once in System Settings."
+echo "Open System Settings -> Keyboard -> Text Input / Input Sources and add/select 法墨输入法."
+echo "If it appears but cannot type, remove/add 法墨输入法 once in System Settings."
 echo
 echo "NOT EXECUTED automatically: System Settings selection, host-app typing, logout/reboot."
 echo "These must be verified by hand on the real machine."

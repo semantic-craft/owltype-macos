@@ -1,6 +1,6 @@
 //
 //  OwlSnapshotEmitter.swift
-//  猫头鹰输入法 (Owltype) — P0 bypass candidate infrastructure (spec P0-02, emitter part)
+//  法墨输入法 (Owltype) — P0 bypass candidate infrastructure (spec P0-02, emitter part)
 //
 //  The ONE place that touches the IMK hot-path region. It runs strictly AFTER the engine and the
 //  main candidate lane have already updated (post-update / post-commit), copies the public

@@ -1,6 +1,6 @@
 //
 //  OwlKeyboardSettingsCatalog.swift
-//  猫头鹰输入法 (Owltype) — 键盘输入 on/off switches as one declarative table
+//  法墨输入法 (Owltype) — 键盘输入 on/off switches as one declarative table
 //
 //  Every boolean keyboard switch is one row: its UserDefaults key, its default, the
 //  `OwlSettingsState` mirror it seeds, and how a change reaches input. The settings seed, the

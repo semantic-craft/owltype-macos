@@ -194,13 +194,13 @@ final class OwlE2EFeatureTests: XCTestCase {
   func testT1_11_ThreeSourceHotwordsExtraction() {
     let extractor = OwlE2EMockHotwordsExtractor(
       pinnedWords: ["大模型", "架构设计"],
-      customWords: ["猫头鹰输入法", "高吞吐"],
+      customWords: ["法墨输入法", "高吞吐"],
       frequentBigrams: ["部署上线", "快速响应"]
     )
 
     let hotwords = extractor.extractHotwords(limit: 10)
     XCTAssertTrue(hotwords.contains("大模型"), "Includes pinned words")
-    XCTAssertTrue(hotwords.contains("猫头鹰输入法"), "Includes custom words")
+    XCTAssertTrue(hotwords.contains("法墨输入法"), "Includes custom words")
     XCTAssertTrue(hotwords.contains("部署上线"), "Includes personal high-frequency bigrams")
     XCTAssertEqual(hotwords.count, 6)
   }

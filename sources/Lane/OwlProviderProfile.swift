@@ -1,6 +1,6 @@
 //
 //  OwlProviderProfile.swift
-//  猫头鹰输入法 (Owltype) — multi-provider profile foundation
+//  法墨输入法 (Owltype) — multi-provider profile foundation
 //  (task 06-22-owl-multi-provider-keychain-foundation, research B1+B2)
 //
 //  Turns the single hardcoded DeepSeek cloud config into a list of named provider PROFILES.

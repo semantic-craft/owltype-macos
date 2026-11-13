@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Self-test for the artifact layers of check-identity-residual.sh — the built app,
 # installer app (including its embedded app), pkg payload and mounted dmg. Builds
-# throwaway artifacts poisoned with the old 法墨/Famo
+# throwaway artifacts poisoned with the retired Chinese brand and Famo system
 # identity — and with Squirrel's id, which the CLAIM tier forbids artifacts to claim — and
 # asserts the gate FAILS on them, PASSES with no artifacts present, and that the
 # hard/claim/product tier split and the strict flag behave as documented.
@@ -61,10 +61,11 @@ write_app() {
 PLIST
 }
 
-write_app "$work/clean-app/Owltype.app" "im.owltype.inputmethod.Owltype"
+write_app "$work/clean-app/Owltype.app" "im.owltype.inputmethod.Owltype" \
+  '<key>CFBundleName</key><string>法墨输入法</string>'
 write_app "$work/poison-app/Owltype.app" "im.famo.inputmethod.Famo"
 write_app "$work/brand-app/Owltype.app" "im.owltype.inputmethod.Owltype" \
-  '<key>CFBundleName</key><string>法墨输入法</string>'
+  '<key>CFBundleName</key><string>猫头鹰输入法</string>'
 write_app "$work/claim-app/Owltype.app" "im.rime.inputmethod.Squirrel"
 write_app "$work/binary-poison-app/Owltype.app" "im.owltype.inputmethod.Owltype" \
   '<key>CFBundleExecutable</key><string>Owltype</string>'
@@ -112,6 +113,25 @@ run_strict_clean() {
 
 # --- positive: no artifacts present → artifact layers pass (no false positive) ---
 if run_gate; then ok "positive: no artifacts present passes"; else bad "positive: no-artifact run should exit 0"; fi
+
+mkdir -p "$work/localized-app/Owltype.app/Contents/Resources/zh-Hant.lproj"
+cp "$work/clean-app/Owltype.app/Contents/Info.plist" "$work/localized-app/Owltype.app/Contents/Info.plist"
+printf '"CFBundleDisplayName" = "貓頭鷹輸入法";\n' > "$work/localized-app/Owltype.app/Contents/Resources/zh-Hant.lproj/InfoPlist.strings"
+if run_strict_clean OWL_APP="$work/localized-app/Owltype.app"; then
+  bad "localized old Chinese name should fail"
+else
+  expect_fail "localized old Chinese name fails" "FAIL: 1 product identity residue in built app (strict)"
+fi
+
+mkdir -p "$work/resource-app"
+cp -R "$work/clean-app/Owltype.app" "$work/resource-app/Owltype.app"
+mkdir -p "$work/resource-app/Owltype.app/Contents/Resources"
+touch "$work/resource-app/Owltype.app/Contents/Resources/猫头鹰-help.html"
+if run_strict_clean OWL_APP="$work/resource-app/Owltype.app"; then
+  bad "old Chinese resource name should fail"
+else
+  expect_fail "old Chinese resource name fails" "FAIL: 1 product identity residue in built app (strict)"
+fi
 
 # --- negative A: built app carries the old bundle id → fails even non-strict ---
 if run_gate OWL_APP="$work/poison-app/Owltype.app"; then

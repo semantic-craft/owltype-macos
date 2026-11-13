@@ -1,6 +1,6 @@
 //
 //  OwlStatusHUD.swift
-//  猫头鹰输入法 (Owltype) — SwiftUI status HUD (mode/schema toast)
+//  法墨输入法 (Owltype) — SwiftUI status HUD (mode/schema toast)
 //
 //  The transient toast that briefly announces a mode/schema change (e.g. 中/英、
 //  简/繁、方案切换). Reimplemented in SwiftUI to replace the legacy AppKit

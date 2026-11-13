@@ -1,6 +1,6 @@
 //
 //  OwlGoalBrief.swift
-//  猫头鹰输入法 (Owltype) — 任务书技能（目标七问）
+//  法墨输入法 (Owltype) — 任务书技能（目标七问）
 //
 //  把选中的模糊需求整理成一份「目标任务书」，供 AI Agent 独立执行数小时而不跑偏。
 //  方法来自 Khazix「目标七问」（github.com/KKKKhazix/khazix-skills leader 技能的推文提炼）：

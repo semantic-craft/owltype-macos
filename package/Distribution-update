@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <installer-gui-script minSpecVersion="1"
     xmlns:owl="https://responsay.com/owltype/release-cohort">
-    <title>猫头鹰 Owltype @VERSION@</title>
+    <title>法墨 Owltype @VERSION@</title>
     <owl:releaseCohort>@COHORT_ID@</owl:releaseCohort>
     <welcome file="welcome.html" mime-type="text/html"/>
     <conclusion file="conclusion-update.html" mime-type="text/html"/>

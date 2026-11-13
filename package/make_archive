@@ -132,10 +132,10 @@ EOF
     ls -l "${appcast_file}"
 }
 
-write_appcast 'appcast.xml' '猫头鹰输入法更新频道' '猫头鹰输入法 Appcast：Sparkle 自动下载签名+公证的 Owltype-update.pkg，并在 macOS 授权后安装（无需注销）。' 'https://responsay.com/owltype/' "${download_url}"
-write_appcast 'testing-appcast.xml' '猫头鹰输入法测试频道' '猫头鹰输入法测试版 Appcast：Sparkle 自动下载签名+公证的 Owltype-update.pkg，并在 macOS 授权后安装（无需注销）。' 'https://responsay.com/owltype/' "${download_url}"
+write_appcast 'appcast.xml' '法墨输入法更新频道' '法墨输入法 Appcast：Sparkle 自动下载签名+公证的 Owltype-update.pkg，并在 macOS 授权后安装（无需注销）。' 'https://responsay.com/owltype/' "${download_url}"
+write_appcast 'testing-appcast.xml' '法墨输入法测试频道' '法墨输入法测试版 Appcast：Sparkle 自动下载签名+公证的 Owltype-update.pkg，并在 macOS 授权后安装（无需注销）。' 'https://responsay.com/owltype/' "${download_url}"
 # 本地测试频道：enclosure 指向本地 package/Owltype-update.pkg（同一签名），便于离线验证下载/安装流程。
-write_appcast 'debug-appcast.xml' '猫头鹰输入法本地测试' '猫头鹰输入法 Appcast 本地测试：enclosure 指向本地 package/Owltype-update.pkg。' "file://${PROJECT_ROOT}/package/debug-appcast.xml" "file://${PROJECT_ROOT}/package/Owltype-update.pkg"
+write_appcast 'debug-appcast.xml' '法墨输入法本地测试' '法墨输入法 Appcast 本地测试：enclosure 指向本地 package/Owltype-update.pkg。' "file://${PROJECT_ROOT}/package/debug-appcast.xml" "file://${PROJECT_ROOT}/package/Owltype-update.pkg"
 
 python3 "$COHORT_STATE" register-output "$RELEASE_OUTPUT_ROOT" appcast \
     "$PROJECT_ROOT/package/appcast.xml"

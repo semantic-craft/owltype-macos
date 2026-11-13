@@ -1532,3 +1532,18 @@ fails `OwlSettingsUITests`; the suite is not in the gate, so both drifted unnoti
 - Regression: `test_rejects_a_misplaced_main_executable` renames the main program and also tests a replacement program without the required symbols.
 - Verify (验证点): `python3 scripts/check-rust-delivery.selftest.py` passes, and `make release` validates the built bundle before removing local signatures.
 - Seen on 1 distinct date: 2026-11-10.
+
+## A clean checkout can still have an active build
+
+- Seen 1x (2026-11-13): the Chinese-name change started from a clean release
+  checkout while another chat's full gate was still running there. Its Release
+  build picked up the new display name, so that receipt could not establish the
+  original release revision. The name change was moved into an independent
+  worktree and the original checkout was restored.
+- Before editing a checkout used for release work, check active build processes
+  and their working directories as well as Git status. Use a separate worktree
+  when another task owns a running gate. A clean Git status alone does not prove
+  exclusive ownership.
+- Verify: each gate receipt must report an unchanged source snapshot and its
+  built manifest must match the intended revision. Discard mixed-build evidence
+  and rebuild from the restored or isolated checkout.

@@ -1,6 +1,6 @@
 //
 //  OwlProviderRegistry.swift
-//  猫头鹰输入法 (Owltype) — one unit of provider profile, key and verification marker
+//  法墨输入法 (Owltype) — one unit of provider profile, key and verification marker
 //
 //  A provider the user configured lives in three stores: the profile in `providers.json`, its key
 //  in the Keychain account the profile's `secretName` names, and the verification marker in

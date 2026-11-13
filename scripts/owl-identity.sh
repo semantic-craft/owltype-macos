@@ -10,7 +10,8 @@
 
 # ---- Canonical Owltype identity ----
 OWL_PRODUCT_NAME="Owltype Input Method"
-OWL_PRODUCT_NAME_ZH="猫头鹰输入法"
+OWL_PRODUCT_NAME_ZH="法墨输入法"
+OWL_PREVIOUS_PRODUCT_NAME_ZH="猫头鹰"
 OWL_BUNDLE_ID="im.owltype.inputmethod.Owltype"
 OWL_SOURCE_ID_HANS="im.owltype.inputmethod.Owltype.Hans"
 OWL_SOURCE_ID_HANT="im.owltype.inputmethod.Owltype.Hant"
@@ -30,10 +31,6 @@ SQUIRREL_BUNDLE_ID="$(printf '%s.%s.%s.%s' im rime inputmethod Squirrel)"
 SQUIRREL_APP="/Library/Input Methods/Squirrel.app"
 
 # ---- Forbidden identity residue ----
-# HARD: the product's former self (Famo / 法墨, renamed in 2.0.0), forbidden at every
-# layer and never downgraded to a warning. A bundle still carrying these ids resolves as
-# the wrong input source, and an uninstaller still keyed to them deletes the wrong tree.
-# Mentioning them is residue too: after 2.0.0 nothing in the tree has any reason to.
 OWL_FORBIDDEN_HARD=(
   "im.famo.inputmethod.Famo"
   "Famo_Connection"
@@ -57,13 +54,10 @@ OWL_FORBIDDEN_CLAIM=(
   "im.rime.inputmethod.Squirrel"
   "rime.squirrel"
 )
-# PRODUCT: the old brand as a user reads it. Matched case-insensitively, so these two
-# tokens cover Famo / famo / FAMO_ / Famotype / famotype. Warning by default;
-# OWL_IDENTITY_STRICT=1 flips them to fail. That flag is how the rename batches
-# (plan §2.2–§2.4) prove "clean", and §2.5 requires it green before the merge to main.
 OWL_FORBIDDEN_PRODUCT=(
   "famo"
-  "法墨"
+  "$OWL_PREVIOUS_PRODUCT_NAME_ZH"
+  "貓頭鷹"
 )
 
 # owl_scan_app_identity <app_dir>
@@ -101,6 +95,17 @@ owl_scan_app_identity() {
     fi
   done
 
+  local resource
+  while IFS= read -r resource; do
+    plist_text="$(/usr/bin/plutil -convert xml1 -o - "$resource")"
+    for tok in "${OWL_FORBIDDEN_PRODUCT[@]}"; do
+      if grep -qiF "$tok" <<<"$plist_text"; then
+        printf 'PRODUCT  %s: %s\n' "${resource#"$app"/}" "$tok" >&2
+        OWL_SCAN_PRODUCT=$((OWL_SCAN_PRODUCT + 1))
+      fi
+    done
+  done < <(find "$app/Contents/Resources" -type f -name '*.strings' 2>/dev/null || true)
+
   local executable_name executable_path executable_strings
   executable_name="$(/usr/bin/plutil -extract CFBundleExecutable raw -o - "$plist" 2>/dev/null || true)"
   [[ -n "$executable_name" ]] || executable_name="Owltype"
@@ -115,12 +120,15 @@ owl_scan_app_identity() {
     done
   fi
 
-  # Product resource filenames only (SharedSupport engine data is allowlisted).
+  local name_args=(-iname '*squirrel*')
+  for tok in "${OWL_FORBIDDEN_PRODUCT[@]}"; do
+    name_args+=(-o -iname "*$tok*")
+  done
   while IFS= read -r hit; do
     [[ -n "$hit" ]] || continue
     printf 'PRODUCT  resource file: %s\n' "${hit#"$app"/}" >&2
     OWL_SCAN_PRODUCT=$((OWL_SCAN_PRODUCT + 1))
-  done < <(find "$app/Contents/Resources" \( -iname '*famo*' -o -iname '*squirrel*' \) 2>/dev/null || true)
+  done < <(find "$app/Contents/Resources" \( "${name_args[@]}" \) 2>/dev/null || true)
 
   return 0
 }

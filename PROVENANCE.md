@@ -1,6 +1,6 @@
 # 来源与许可 · Provenance
 
-猫头鹰输入法 Owltype 是自由软件，以 **GPLv3** 许可，是以下上游项目的派生作品。此文件完整记录其来源
+法墨输入法 Owltype 是自由软件，以 **GPLv3** 许可，是以下上游项目的派生作品。此文件完整记录其来源
 脉络。README 首屏聚焦产品体验，来源细节收在此文件与 README 文末「来源与许可」段落——降位不抹除。
 
 ## 上游来源 Upstream sources
@@ -77,7 +77,7 @@
 
 Owltype 使用独立身份，与已安装的鼠须管互不干扰；对鼠须管的任何文件与配置**只读**，绝不修改。
 
-| 项 | 鼠须管 Squirrel | 猫头鹰 Owltype |
+| 项 | 鼠须管 Squirrel | 法墨 Owltype |
 | --- | --- | --- |
 | Bundle ID | `im.rime.inputmethod.Squirrel` | `im.owltype.inputmethod.Owltype` |
 | 安装位置 | `/Library/Input Methods/Squirrel.app` | `/Library/Input Methods/Owltype.app` |

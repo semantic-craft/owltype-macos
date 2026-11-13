@@ -1,6 +1,6 @@
 //
 //  OwlCandidatePanelSettings.swift
-//  猫头鹰输入法 (Owltype) — candidate-panel settings lifecycle seam
+//  法墨输入法 (Owltype) — candidate-panel settings lifecycle seam
 //
 
 import AppKit
