@@ -309,7 +309,7 @@
         "updated_at": "2026-11-13T08:53:17Z"
       }
     ],
-    "main": "34e10e125b6e86292a482f980d4115a468b04a44",
+    "main": "31f709b0ffac86666687297c4fd2e5213ac4ba1d",
     "open_pulls": [],
     "pulls": [
       {
@@ -351,6 +351,14 @@
         "merged": true,
         "number": 424,
         "state": "closed"
+      },
+      {
+        "base": "34e10e125b6e86292a482f980d4115a468b04a44",
+        "head": "daf8a279e313f7abb3fb60c67c123ac38baff4cb",
+        "merge_commit": "31f709b0ffac86666687297c4fd2e5213ac4ba1d",
+        "merged": true,
+        "number": 426,
+        "state": "closed"
       }
     ],
     "releases": []
@@ -359,7 +367,7 @@
     "docs/input-alignment.md",
     "progress/sync.py"
   ],
-  "observed_at": "2026-11-13T12:06:11.918850Z",
+  "observed_at": "2026-11-13T12:46:48.466757Z",
   "outputs": [
     "progress/index.html"
   ],
@@ -418,6 +426,11 @@
               "kind": "note",
               "note": "公开十项资产、四个网站下载别名、latest.json 和 v3 appcast 均已回读校验；已安装客户端检查更新显示 2.5.2 为最新。",
               "ref": "https://downloads.responsay.com/owltype/releases/2.5.2/Owltype-2.5.2.dmg"
+            },
+            {
+              "kind": "pull",
+              "note": "收尾门禁的五笔测试词库已隔离，完整门禁与锁竞争回归通过；无发行产物变更。",
+              "ref": 426
             }
           ],
           "id": "apple-silicon-only",
@@ -1400,7 +1413,8 @@
       340,
       404,
       406,
-      424
+      424,
+      426
     ]
   }
 }
