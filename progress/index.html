@@ -3,13 +3,13 @@
 <title>Owltype · 项目进度与剩余工作</title>
 <style>body{font:16px system-ui;max-width:960px;margin:3rem auto;padding:0 1rem;color:#202936;background:#f7f8fb}article,section{padding:1rem;margin:1rem 0;background:white;border-radius:12px}a{color:#1555ac}.badge{padding:.25rem .6rem;border-radius:20px;background:#e9edf5}small{color:#566}</style>
 <h1>Owltype · 项目进度与剩余工作</h1>
-<p>Observed: 2026-11-13T06:23:05.930616Z</p>
-<p>Main: <code>main: f6eec124fab4d8ddd2500c426aa8fe267de93851</code></p>
+<p>Observed: 2026-11-13T07:41:30.589702Z</p>
+<p>Main: <code>main: a8e63448d8244ca7759d40b300ae948e4be8eb5b</code></p>
 <section id="project-review"><h2>当前结论 · 2026-11-03</h2>
-<article id="apple-silicon-only"><h3>Apple Silicon 原生发行包</h3><span class="badge">in_progress</span><p>已删除主程序、Rust、MCP、Sparkle 和安装器的 Intel 构建目标，保留 macOS 14。17 项交付检查与 2 项 Sparkle 检查通过。完整门禁、签名公证、跨版本安装和发布尚未完成。</p><ul>
+<article id="apple-silicon-only"><h3>Apple Silicon 原生发行包</h3><span class="badge">in_progress</span><p>Apple Silicon 构建改动已合并，完整门禁和独立审查通过。2.6.0 候选 App 已签名公证，但未发布；按用户要求改以 2.5.1 重新构建和公证。</p><ul>
 <li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/scripts/check-rust-delivery.py">file scripts/check-rust-delivery.py: 检查 App 中所有 Mach-O 只含 arm64。</a></li>
 <li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/package/Distribution-update">file package/Distribution-update: 更新包仅允许 Apple Silicon 与 macOS 14 及以上。</a></li>
-</ul><p>Next: 完成完整门禁及实际交付包升级验收后发布 2.6.0。</p></article>
+</ul><p>Next: 完成 2.5.1 的完整门禁、签名公证和实际升级验收后发布。</p></article>
 <article id="kotone-reply-contract"><h3>Kotone 回复契约兼容检查</h3><span class="badge">in_progress</span><p>源码已增加 optional reply contract 身份与严格版本检查，旧服务缺字段兼容；冻结 12 案例直接覆盖生产解析器。本轮 34 项离线 Swift 回归通过，默认关闭、cloud gate、只读复制与普通输入路径保留。</p><ul>
 <li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/sources/UI/JEVReplyPanel.swift">file sources/UI/JEVReplyPanel.swift: 候选解析入口同时校验既有 source/status/candidates/session 与新增 contract。</a></li>
 <li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/tests/JEVReplyModelTests.swift">file tests/JEVReplyModelTests.swift: JEVReplyModelTests、JEVTransportTests、OwlSettingsActionTests 共 34 项通过；含共享样例 SHA-256/source 版本与来源提交核对。</a></li>
