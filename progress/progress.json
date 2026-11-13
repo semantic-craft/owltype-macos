@@ -303,7 +303,7 @@
         "updated_at": "2026-11-03T14:59:50Z"
       }
     ],
-    "main": "f6eec124fab4d8ddd2500c426aa8fe267de93851",
+    "main": "a8e63448d8244ca7759d40b300ae948e4be8eb5b",
     "open_pulls": [],
     "pulls": [
       {
@@ -345,7 +345,7 @@
     "docs/input-alignment.md",
     "progress/sync.py"
   ],
-  "observed_at": "2026-11-13T06:23:05.930616Z",
+  "observed_at": "2026-11-13T07:41:30.589702Z",
   "outputs": [
     "progress/index.html"
   ],
@@ -359,23 +359,23 @@
       "id": "project-review",
       "items": [
         {
-          "id": "apple-silicon-only",
-          "title": "Apple Silicon 原生发行包",
-          "status": "in_progress",
-          "summary": "已删除主程序、Rust、MCP、Sparkle 和安装器的 Intel 构建目标，保留 macOS 14。17 项交付检查与 2 项 Sparkle 检查通过。完整门禁、签名公证、跨版本安装和发布尚未完成。",
           "evidence": [
             {
               "kind": "file",
-              "ref": "scripts/check-rust-delivery.py",
-              "note": "检查 App 中所有 Mach-O 只含 arm64。"
+              "note": "检查 App 中所有 Mach-O 只含 arm64。",
+              "ref": "scripts/check-rust-delivery.py"
             },
             {
               "kind": "file",
-              "ref": "package/Distribution-update",
-              "note": "更新包仅允许 Apple Silicon 与 macOS 14 及以上。"
+              "note": "更新包仅允许 Apple Silicon 与 macOS 14 及以上。",
+              "ref": "package/Distribution-update"
             }
           ],
-          "next": "完成完整门禁及实际交付包升级验收后发布 2.6.0。"
+          "id": "apple-silicon-only",
+          "next": "完成 2.5.1 的完整门禁、签名公证和实际升级验收后发布。",
+          "status": "in_progress",
+          "summary": "Apple Silicon 构建改动已合并，完整门禁和独立审查通过。2.6.0 候选 App 已签名公证，但未发布；按用户要求改以 2.5.1 重新构建和公证。",
+          "title": "Apple Silicon 原生发行包"
         },
         {
           "evidence": [
