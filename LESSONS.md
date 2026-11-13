@@ -1563,3 +1563,21 @@ fails `OwlSettingsUITests`; the suite is not in the gate, so both drifted unnoti
   controller, and checks that uncommitted text cannot complete practice.
 - Verify: `OwlInputHabitsIntegrationTests/testControllerRoundTrip` must produce
   `OwlPracticeProof.target` through the real engine and finish the native field.
+
+## Production-seed tests need private resource copies
+
+- Seen 1 incident on 2026-11-13, reproduced in two release-record gate attempts:
+  the pure-Wubi fifth-key test returned a null session before typing. Focused
+  and standalone parallel runs passed, so another blind gate retry was not a fix.
+- Concurrent constructors attach the same writable seed during an Immediate
+  SQLite transaction. Holding that seed's write lock reproduced the failure as
+  `HOST_PHRASE_CLEANUP_FAILED: begin transaction: database is locked`.
+- The fifth-key test now copies the complete pinned resource tree into its
+  existing TempDir before calling the production generation path. The same
+  locked-seed experiment passes with that private copy. No input assertions or
+  production code changed. Constructor failures now print the returned error.
+- Verify with the default parallel `cargo test --locked --manifest-path
+  rust/Cargo.toml --package owl-app-core --package owl-msime-ffi`. For the lock
+  regression, hold `BEGIN IMMEDIATE` on the repository seed while running only
+  `ffi_tests_roots::pure_wubi_fifth_key_tops_an_ambiguous_four_code`; the private
+  resource copy must still construct and pass its original typing assertions.
