@@ -1547,3 +1547,14 @@ fails `OwlSettingsUITests`; the suite is not in the gate, so both drifted unnoti
 - Verify: each gate receipt must report an unchanged source snapshot and its
   built manifest must match the intended revision. Discard mixed-build evidence
   and rebuild from the restored or isolated checkout.
+
+## Product-name practice needs the matching keyboard replay
+
+- Seen 1x (2026-11-13): restoring the Chinese display name also changed the
+  onboarding practice target. The full native suite still typed the former
+  name's pinyin and failed the real-engine completion assertion.
+- Keep the replay aligned with the visible target. The integration test now
+  types each syllable, selects the corresponding candidate through the input
+  controller, and checks that uncommitted text cannot complete practice.
+- Verify: `OwlInputHabitsIntegrationTests/testControllerRoundTrip` must produce
+  `OwlPracticeProof.target` through the real engine and finish the native field.

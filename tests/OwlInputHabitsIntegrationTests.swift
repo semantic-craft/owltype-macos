@@ -547,9 +547,18 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
     try type("nihao ", into: controller, client: client)
     XCTAssertEqual(client.text.string, "你好")
     XCTAssertFalse(complete)
-    try type(",maotouying", into: controller, client: client)
-    XCTAssertFalse(complete, "Uncommitted candidates cannot finish practice")
-    try type(" ", into: controller, client: client)
+    try type(",", into: controller, client: client)
+    for (syllable, text) in [("fa", "法"), ("mo", "墨")] {
+      try type(syllable, into: controller, client: client)
+      var composition = try XCTUnwrap(controller.engineSession?.composition())
+      while !composition.candidates.contains(where: { $0.text == text }) && !composition.isLastPage {
+        XCTAssertTrue(controller.page(up: false))
+        composition = try XCTUnwrap(controller.engineSession?.composition())
+      }
+      XCTAssertFalse(complete, "Uncommitted candidates cannot finish practice")
+      let index = try XCTUnwrap(composition.candidates.firstIndex { $0.text == text })
+      XCTAssertTrue(controller.selectCandidate(index))
+    }
     XCTAssertEqual(client.text.string, OwlPracticeProof.target)
     XCTAssertTrue(complete, "Real engine commits must complete the native practice field")
     clear(client)
