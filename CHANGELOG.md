@@ -1,3 +1,11 @@
+<a name="2.5.6"></a>
+## 2.5.6 (2026-11-15)
+
+- 消除 FFI 胶水层与跨层反向依赖，将 Unicode NFC 排序与大小写包含规则收口至 Rust `foundation_text`，移除 `owl-msime-ffi` 的 `StatelessHost`，拆分 `dispatch_rule` 与 `dispatch_storage`，暴露 `owl_app_abi_version`，并通过注入 `OwlStorageHost` 回调钩子解除 `Engine` 对 `Settings` 的反向依赖。（#435）
+- 迁出无状态供应商规则并清理热路径冗余与命名陈旧问题，将工作区与端点规范化收口至 `provider_wire::rule`，移除 `Session::ProviderRegistry` 与 `"uuid"` 主机回调，修复 `OwlProviderProfile.Fields.createdAt` 时间戳解码，简化 `OwlMarkedTextResendPolicy.shouldSend` 为纯 Swift，拆分子模块 `pure_rules`，合并 4 个浅层 Swift 分片并将 `OwlVoiceGrokASRClient` 更名为 `OwlVoiceASRClient`。（#435）
+- Eliminate remaining FFI glue and inverted layer dependencies by moving Unicode NFC collation and case-folding rules into Rust `foundation_text`, deleting `StatelessHost` in `owl-msime-ffi`, separating `dispatch_rule` from `dispatch_storage`, exposing `owl_app_abi_version`, and injecting `OwlStorageHost` hooks so `Engine` no longer depends on `Settings` (#435).
+- Move stateless provider rules into `provider_wire::rule`, remove `Session::ProviderRegistry` and the `"uuid"` host callback, fix `OwlProviderProfile.Fields.createdAt` timestamp decoding, simplify `OwlMarkedTextResendPolicy.shouldSend` to pure Swift, modularize `pure_rules`, fold 4 shallow Swift shards into their domain owners, and rename `OwlVoiceGrokASRClient` to `OwlVoiceASRClient` (#435).
+
 <a name="2.5.5"></a>
 ## 2.5.5 (2026-11-14)
 

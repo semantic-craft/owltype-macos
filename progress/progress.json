@@ -1,404 +1,420 @@
 {
   "facts": {
+    "main": "97ff52401e11adc93242860a76e1b4455195bdb3",
     "default_branch": "main",
+    "pulls": [
+      {
+        "number": 305,
+        "state": "closed",
+        "merged": true,
+        "head": "75de4297fc41625087c85be3a94fb62974d7e98c",
+        "base": "46a7ccf01be992d0e9786e4aaadb40313013c981",
+        "merge_commit": "86148c79295d069b0b914a99bdab9ecdc72d2bf2"
+      },
+      {
+        "number": 340,
+        "state": "closed",
+        "merged": true,
+        "head": "5bf07630f0ae0064513908722b6ea2d29fbaf972",
+        "base": "b844b238b82350ea95f288a4ef551b14e9d61e56",
+        "merge_commit": "20550a4d5c6f6c382cf92ac08782ce6504e6587f"
+      },
+      {
+        "number": 404,
+        "state": "closed",
+        "merged": true,
+        "head": "e38c743a04d010612bc2ea7a6a135ab7d66424f0",
+        "base": "f0c1ef5facc959f2d5e7c7d7a37aeee64291b308",
+        "merge_commit": "8a746308f266037ee7cba13e1dd42ae416a4f2ee"
+      },
+      {
+        "number": 406,
+        "state": "closed",
+        "merged": true,
+        "head": "28de4e7cde1f345c2705759d1d333f3d409ac628",
+        "base": "62f3839ba23192a4179a7f0299464be96d57e77a",
+        "merge_commit": "db2d2562be04fc3eee94b4f7870dad0a560c5396"
+      },
+      {
+        "number": 424,
+        "state": "closed",
+        "merged": true,
+        "head": "b533db473f04f464161a0cfeb1d066c9eac41b26",
+        "base": "c8b4dd42e9f0a6a0147d2ad3268df50477fbe73a",
+        "merge_commit": "34e10e125b6e86292a482f980d4115a468b04a44"
+      },
+      {
+        "number": 426,
+        "state": "closed",
+        "merged": true,
+        "head": "daf8a279e313f7abb3fb60c67c123ac38baff4cb",
+        "base": "34e10e125b6e86292a482f980d4115a468b04a44",
+        "merge_commit": "31f709b0ffac86666687297c4fd2e5213ac4ba1d"
+      },
+      {
+        "number": 429,
+        "state": "closed",
+        "merged": true,
+        "head": "bb52f4c4bcd99d992f69bbae344863c8c9561398",
+        "base": "958bad23d29d899ed1fc13801bd53d0c1e588d8b",
+        "merge_commit": "76b8c58e5df59f6f651defec9e68446cd367b01c"
+      },
+      {
+        "number": 430,
+        "state": "closed",
+        "merged": true,
+        "head": "3bd9dde5f94c770f181c8ecb3d4516e986fda0f6",
+        "base": "e132cdafcd7087f91d02c9381b599804bbf261dd",
+        "merge_commit": "0fad308869ed0106abb1d63c4a752346e41c5dc9"
+      },
+      {
+        "number": 431,
+        "state": "closed",
+        "merged": true,
+        "head": "63ceb0157fd55dd15c4025b6c36a3a739aff9120",
+        "base": "76b8c58e5df59f6f651defec9e68446cd367b01c",
+        "merge_commit": "30efca501d1c6bdeac50d2fb8537f60571bee27b"
+      },
+      {
+        "number": 432,
+        "state": "closed",
+        "merged": true,
+        "head": "92decb471d46e5cc88c8c43cc6de06f080be630a",
+        "base": "30efca501d1c6bdeac50d2fb8537f60571bee27b",
+        "merge_commit": "e132cdafcd7087f91d02c9381b599804bbf261dd"
+      },
+      {
+        "number": 433,
+        "state": "closed",
+        "merged": true,
+        "head": "8f1992b558055eb73891952f50cccdb07fbaa6be",
+        "base": "0fad308869ed0106abb1d63c4a752346e41c5dc9",
+        "merge_commit": "39e214a171bee8e8f2c3e8b7ded2b918e7e79041"
+      },
+      {
+        "number": 434,
+        "state": "closed",
+        "merged": true,
+        "head": "067642c68e639d17ebac413bb42a57a55b645fe0",
+        "base": "39e214a171bee8e8f2c3e8b7ded2b918e7e79041",
+        "merge_commit": "6a44f53c4fcfc9035f06a8b601bbdec703c1c49a"
+      },
+      {
+        "number": 435,
+        "state": "closed",
+        "merged": true,
+        "head": "5ecd5900942a9e5322ddfada868034ed9f60aa0a",
+        "base": "6a44f53c4fcfc9035f06a8b601bbdec703c1c49a",
+        "merge_commit": "97ff52401e11adc93242860a76e1b4455195bdb3"
+      }
+    ],
+    "open_pulls": [],
     "issues": [
       {
         "number": 204,
-        "reason": null,
         "state": "open",
+        "reason": null,
         "updated_at": "2026-10-11T10:09:05Z"
       },
       {
         "number": 205,
-        "reason": null,
         "state": "open",
+        "reason": null,
         "updated_at": "2026-10-11T10:09:09Z"
       },
       {
         "number": 207,
-        "reason": null,
         "state": "open",
+        "reason": null,
         "updated_at": "2026-10-22T01:31:17Z"
       },
       {
         "number": 208,
-        "reason": null,
         "state": "open",
+        "reason": null,
         "updated_at": "2026-10-29T11:26:59Z"
       },
       {
         "number": 247,
-        "reason": null,
         "state": "open",
+        "reason": null,
         "updated_at": "2026-10-23T02:44:36Z"
       },
       {
         "number": 269,
-        "reason": null,
         "state": "open",
+        "reason": null,
         "updated_at": "2026-10-25T12:06:51Z"
       },
       {
         "number": 278,
-        "reason": null,
         "state": "open",
+        "reason": null,
         "updated_at": "2026-11-03T13:51:06Z"
       },
       {
         "number": 280,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-11-03T13:51:10Z"
       },
       {
         "number": 281,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-26T12:58:25Z"
       },
       {
         "number": 282,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-26T12:58:25Z"
       },
       {
         "number": 283,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-26T12:58:26Z"
       },
       {
         "number": 284,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-26T12:58:26Z"
       },
       {
         "number": 285,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-26T12:58:27Z"
       },
       {
         "number": 286,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-26T12:58:27Z"
       },
       {
         "number": 287,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-26T12:58:28Z"
       },
       {
         "number": 288,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-26T12:58:28Z"
       },
       {
         "number": 289,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-26T12:58:28Z"
       },
       {
         "number": 290,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-26T12:58:29Z"
       },
       {
         "number": 291,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-26T12:58:29Z"
       },
       {
         "number": 292,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-29T15:42:25Z"
       },
       {
         "number": 293,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-29T15:42:22Z"
       },
       {
         "number": 294,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-26T14:12:45Z"
       },
       {
         "number": 295,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-26T14:10:00Z"
       },
       {
         "number": 296,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-26T14:10:01Z"
       },
       {
         "number": 297,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-26T14:10:01Z"
       },
       {
         "number": 298,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-26T14:10:02Z"
       },
       {
         "number": 299,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-26T14:10:02Z"
       },
       {
         "number": 300,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-26T14:10:02Z"
       },
       {
         "number": 301,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-26T14:10:02Z"
       },
       {
         "number": 302,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-26T14:10:03Z"
       },
       {
         "number": 303,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-26T14:10:03Z"
       },
       {
         "number": 304,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-26T14:10:03Z"
       },
       {
         "number": 314,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-29T15:42:28Z"
       },
       {
         "number": 315,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-29T08:29:41Z"
       },
       {
         "number": 316,
-        "reason": null,
         "state": "open",
+        "reason": null,
         "updated_at": "2026-10-29T16:09:49Z"
       },
       {
         "number": 317,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-28T23:41:35Z"
       },
       {
         "number": 335,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-11-03T14:36:19Z"
       },
       {
         "number": 356,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-30T20:02:50Z"
       },
       {
         "number": 357,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-30T04:39:35Z"
       },
       {
         "number": 358,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-30T05:16:25Z"
       },
       {
         "number": 359,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-30T05:50:14Z"
       },
       {
         "number": 360,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-30T06:36:13Z"
       },
       {
         "number": 361,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-30T07:34:46Z"
       },
       {
         "number": 362,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-30T14:17:13Z"
       },
       {
         "number": 363,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-30T09:23:58Z"
       },
       {
         "number": 364,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-30T10:30:57Z"
       },
       {
         "number": 365,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-30T11:18:05Z"
       },
       {
         "number": 366,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-30T15:10:22Z"
       },
       {
         "number": 367,
-        "reason": "completed",
         "state": "closed",
+        "reason": "completed",
         "updated_at": "2026-10-30T17:19:30Z"
       },
       {
         "number": 373,
-        "reason": "not_planned",
         "state": "closed",
+        "reason": "not_planned",
         "updated_at": "2026-11-03T14:59:50Z"
       },
       {
         "number": 421,
-        "reason": null,
         "state": "open",
+        "reason": null,
         "updated_at": "2026-11-13T08:53:17Z"
-      }
-    ],
-    "main": "39e214a171bee8e8f2c3e8b7ded2b918e7e79041",
-    "open_pulls": [],
-    "pulls": [
-      {
-        "base": "46a7ccf01be992d0e9786e4aaadb40313013c981",
-        "head": "75de4297fc41625087c85be3a94fb62974d7e98c",
-        "merge_commit": "86148c79295d069b0b914a99bdab9ecdc72d2bf2",
-        "merged": true,
-        "number": 305,
-        "state": "closed"
-      },
-      {
-        "base": "b844b238b82350ea95f288a4ef551b14e9d61e56",
-        "head": "5bf07630f0ae0064513908722b6ea2d29fbaf972",
-        "merge_commit": "20550a4d5c6f6c382cf92ac08782ce6504e6587f",
-        "merged": true,
-        "number": 340,
-        "state": "closed"
-      },
-      {
-        "base": "f0c1ef5facc959f2d5e7c7d7a37aeee64291b308",
-        "head": "e38c743a04d010612bc2ea7a6a135ab7d66424f0",
-        "merge_commit": "8a746308f266037ee7cba13e1dd42ae416a4f2ee",
-        "merged": true,
-        "number": 404,
-        "state": "closed"
-      },
-      {
-        "base": "62f3839ba23192a4179a7f0299464be96d57e77a",
-        "head": "28de4e7cde1f345c2705759d1d333f3d409ac628",
-        "merge_commit": "db2d2562be04fc3eee94b4f7870dad0a560c5396",
-        "merged": true,
-        "number": 406,
-        "state": "closed"
-      },
-      {
-        "base": "c8b4dd42e9f0a6a0147d2ad3268df50477fbe73a",
-        "head": "b533db473f04f464161a0cfeb1d066c9eac41b26",
-        "merge_commit": "34e10e125b6e86292a482f980d4115a468b04a44",
-        "merged": true,
-        "number": 424,
-        "state": "closed"
-      },
-      {
-        "base": "34e10e125b6e86292a482f980d4115a468b04a44",
-        "head": "daf8a279e313f7abb3fb60c67c123ac38baff4cb",
-        "merge_commit": "31f709b0ffac86666687297c4fd2e5213ac4ba1d",
-        "merged": true,
-        "number": 426,
-        "state": "closed"
-      },
-      {
-        "base": "958bad23d29d899ed1fc13801bd53d0c1e588d8b",
-        "head": "bb52f4c4bcd99d992f69bbae344863c8c9561398",
-        "merge_commit": "76b8c58e5df59f6f651defec9e68446cd367b01c",
-        "merged": true,
-        "number": 429,
-        "state": "closed"
-      },
-      {
-        "base": "e132cdafcd7087f91d02c9381b599804bbf261dd",
-        "head": "3bd9dde5f94c770f181c8ecb3d4516e986fda0f6",
-        "merge_commit": "0fad308869ed0106abb1d63c4a752346e41c5dc9",
-        "merged": true,
-        "number": 430,
-        "state": "closed"
-      },
-      {
-        "base": "76b8c58e5df59f6f651defec9e68446cd367b01c",
-        "head": "63ceb0157fd55dd15c4025b6c36a3a739aff9120",
-        "merge_commit": "30efca501d1c6bdeac50d2fb8537f60571bee27b",
-        "merged": true,
-        "number": 431,
-        "state": "closed"
-      },
-      {
-        "base": "30efca501d1c6bdeac50d2fb8537f60571bee27b",
-        "head": "92decb471d46e5cc88c8c43cc6de06f080be630a",
-        "merge_commit": "e132cdafcd7087f91d02c9381b599804bbf261dd",
-        "merged": true,
-        "number": 432,
-        "state": "closed"
-      },
-      {
-        "base": "0fad308869ed0106abb1d63c4a752346e41c5dc9",
-        "head": "8f1992b558055eb73891952f50cccdb07fbaa6be",
-        "merge_commit": "39e214a171bee8e8f2c3e8b7ded2b918e7e79041",
-        "merged": true,
-        "number": 433,
-        "state": "closed"
       }
     ],
     "releases": []
@@ -407,7 +423,7 @@
     "docs/input-alignment.md",
     "progress/sync.py"
   ],
-  "observed_at": "2026-11-14T09:44:43.720297Z",
+  "observed_at": "2026-11-14T17:52:09Z",
   "outputs": [
     "progress/index.html"
   ],
@@ -418,19 +434,103 @@
   "schema_version": 1,
   "sections": [
     {
+      "id": "release-2-5-6",
+      "items": [
+        {
+          "evidence": [
+            {
+              "kind": "pull",
+              "note": "PR #435 已合入 main（97ff524），精确提交 5ecd590 通过完整门禁（20261114T115259Z-full-cdxa96m1）。",
+              "ref": 435
+            },
+            {
+              "kind": "commit",
+              "note": "PR #435 合并至 main 的精确提交。",
+              "ref": "97ff52401e11adc93242860a76e1b4455195bdb3"
+            },
+            {
+              "kind": "file",
+              "note": "2.5.6 中英文更新说明覆盖 #435。",
+              "ref": "CHANGELOG.md"
+            },
+            {
+              "kind": "file",
+              "note": "应用与测试目标 MARKETING_VERSION 与 CURRENT_PROJECT_VERSION 均已更新为 2.5.6（共 12 处）。",
+              "ref": "Owltype.xcodeproj/project.pbxproj"
+            },
+            {
+              "kind": "file",
+              "note": "同步更新 OwlSettingsUITests 复现观测日期记录。",
+              "ref": "LESSONS.md"
+            }
+          ],
+          "id": "release-2-5-6-prep",
+          "next": "在 2.5.6 发布提交上运行最终完整门禁并提交发布 PR 合并至 main，随后执行 2.5.6 正式签名与公证、downloads.responsay.com 公开发布、资产回读与本机安装升级，最终交由用户完成真机物理打字与麦克风体验验收。",
+          "status": "in_progress",
+          "summary": "2.5.6 发布分支基于 main 97ff524，整合已合并的 PR #435（消除 FFI 胶水层、跨层反向依赖与重复纯规则并收口命名）。12 处 Xcode 版本字段已更新为 2.5.6，CHANGELOG.md、LESSONS.md 与进度页已同步。已合并 PR #435 的精确提交 5ecd590 已通过完整门禁（20261114T115259Z-full-cdxa96m1，15 项门禁全过，Swift 执行 1,478 项含 1 项跳过 0 失败，Rust owl-app-core 53 项与 owl-msime-ffi 57 项通过），但 2.5.6 发布提交本身的最终完整门禁、正式签名与公证、公开发布分发、本机安装升级以及用户真机打字与麦克风验收均尚未执行。",
+          "title": "2.5.6 发布准备与待办边界"
+        },
+        {
+          "evidence": [
+            {
+              "kind": "pull",
+              "note": "PR #435 已合并；精确提交 5ecd590 完整门禁通过（20261114T115259Z-full-cdxa96m1，15 项门禁全过，Swift 执行 1,478 项含 1 项跳过 0 失败，Rust owl-app-core 53 项与 owl-msime-ffi 57 项通过）。",
+              "ref": 435
+            },
+            {
+              "kind": "file",
+              "note": "Rust 侧实现 Unicode NFC 排序、标题排名与本地化大小写包含规则。",
+              "ref": "rust/crates/owl-app-core/src/foundation_text.rs"
+            },
+            {
+              "kind": "file",
+              "note": "新增 provider_wire::rule 承载无状态供应商工作区与端点规则。",
+              "ref": "rust/crates/owl-app-core/src/provider_wire.rs"
+            },
+            {
+              "kind": "file",
+              "note": "移除 StatelessHost 与 Session::ProviderRegistry，拆分 dispatch_rule 与 dispatch_storage 并暴露 owl_app_abi_version。",
+              "ref": "rust/crates/owl-msime-ffi/src/app_rpc.rs"
+            },
+            {
+              "kind": "file",
+              "note": "注入 OwlStorageHost 回调钩子并解除 Engine 对 Settings 的反向依赖。",
+              "ref": "sources/Engine/OwlAppCore.swift"
+            },
+            {
+              "kind": "file",
+              "note": "将 OwlVoiceGrokASRClient 更名为 OwlVoiceASRClient 并折叠相关浅层分片。",
+              "ref": "sources/Voice/OwlVoiceASRClient.swift"
+            }
+          ],
+          "id": "structural-coherence-refactor",
+          "next": "随 2.5.6 完成发布提交门禁、发布 PR 合并、正式签名公证、公开发布与本机升级；实际宿主打字、语音录音与界面生命周期体验待安装后用户验收。",
+          "status": "in_progress",
+          "summary": "PR #435 已合入 main（97ff524），将 Unicode NFC 排序与大小写包含规则收口至 Rust foundation_text，删除 owl-msime-ffi 的 StatelessHost，拆分 dispatch_rule 与 dispatch_storage，暴露 owl_app_abi_version，并通过注入 OwlStorageHost 回调钩子解除 Engine 对 Settings 的反向依赖。同时将工作区与端点规则收口至 provider_wire::rule，移除 Session::ProviderRegistry 与 uuid 主机回调，修复 OwlProviderProfile.Fields.createdAt 时间戳解码，简化 OwlMarkedTextResendPolicy.shouldSend 为纯 Swift，拆分子模块 pure_rules，合并 4 个浅层 Swift 分片并将 OwlVoiceGrokASRClient 更名为 OwlVoiceASRClient。精确提交 5ecd590 通过 15 项完整门禁（20261114T115259Z-full-cdxa96m1），尚待随 2.5.6 完成正式发版、本机升级与真机验收。",
+          "title": "消除 FFI 胶水层、反向依赖与重复纯规则"
+        }
+      ],
+      "title": "2.5.6 发布与结构一致性重构"
+    },
+    {
       "id": "release-2-5-5",
       "items": [
         {
           "evidence": [
             {
               "kind": "pull",
-              "note": "PR #433 已合入 main（39e214a），精确提交 8f1992b 通过完整门禁（20261114T090746Z-full-p6qq0o65）。",
-              "ref": 433
+              "note": "2.5.5 发布 PR 已合入 main（6a44f53），精确提交 067642c 通过完整门禁（20261114T095115Z-full-8dqft7qw）。",
+              "ref": 434
             },
             {
               "kind": "commit",
-              "note": "PR #433 合并至 main 的精确提交。",
-              "ref": "39e214a171bee8e8f2c3e8b7ded2b918e7e79041"
+              "note": "PR #434 合并提交，包含 2.5.5 版本号与发布说明。",
+              "ref": "6a44f53c4fcfc9035f06a8b601bbdec703c1c49a"
+            },
+            {
+              "kind": "pull",
+              "note": "PR #433 已合入 main（39e214a），精确提交 8f1992b 通过完整门禁（20261114T090746Z-full-p6qq0o65）并随 2.5.5 发布。",
+              "ref": 433
             },
             {
               "kind": "file",
@@ -438,19 +538,24 @@
               "ref": "CHANGELOG.md"
             },
             {
-              "kind": "file",
-              "note": "应用与测试目标 MARKETING_VERSION 与 CURRENT_PROJECT_VERSION 均已更新为 2.5.5（共 12 处）。",
-              "ref": "Owltype.xcodeproj/project.pbxproj"
+              "kind": "note",
+              "note": "downloads.responsay.com 公开 latest.json 返回 2.5.5（status 为 complete，cohortId 为 922973799f7f8341fb065f58cbd1beb9dd98af90798540b997c315e792dcc405，app、dmg、installer-pkg 与 update-pkg 均已 stapled，修订 6a44f53），本机安装版本核验为 2.5.5（PASS_VERSION_ONLY）。",
+              "ref": "https://downloads.responsay.com/owltype/latest.json"
             }
           ],
           "id": "release-2-5-5-prep",
-          "next": "在 2.5.5 发布提交上运行最终完整门禁并合并至 main，随后执行 2.5.5 正式签名与公证、downloads.responsay.com 公开发布、资产回读与本机安装升级，最终交由用户完成真机物理打字与麦克风体验验收。",
-          "status": "in_progress",
-          "summary": "2.5.5 发布分支基于 main 39e214a，整合已合并的 PR #433（全库 Swift 与 Rust 死代码清理、运行期生命周期加固与行为测试补齐）。12 处 Xcode 版本字段已更新为 2.5.5，CHANGELOG.md 与进度页已同步。已合并 PR #433 的精确提交 8f1992b 已通过完整门禁（20261114T090746Z-full-p6qq0o65，15 项门禁全过，Swift 执行 1,478 项含 1 项跳过 0 失败），但 2.5.5 发布提交本身的最终完整门禁、正式签名与公证、公开发布分发、本机安装升级以及用户真机打字与麦克风验收均尚未执行。",
-          "title": "2.5.5 发布准备与待办边界"
+          "next": "物理打字与麦克风体验验收由用户负责完成；后续结构一致性重构已由 PR #435 合入并进入 2.5.6 发布准备。",
+          "status": "unverified",
+          "summary": "PR #434（整合已合入 main 39e214a 的 PR #433 全库死代码清理、生命周期加固与行为测试补齐）精确提交 067642c 通过完整门禁（20261114T095115Z-full-8dqft7qw，15 项全过）并已合入 main（6a44f53）。2.5.5 产物（cohortId 为 922973799f7f8341fb065f58cbd1beb9dd98af90798540b997c315e792dcc405）已完成签名公证与公开发布（downloads.responsay.com），app、dmg、installer-pkg 与 update-pkg 均已 stapled，本机 /Library/Input Methods/Owltype.app 已升级至 2.5.5（PASS_VERSION_ONLY）。真机物理打字与麦克风体验仍待用户验收。",
+          "title": "2.5.5 已合并发布并完成本机升级"
         },
         {
           "evidence": [
+            {
+              "kind": "pull",
+              "note": "已随 2.5.5 发布 PR #434 合入 main（6a44f53）并完成公开发布与本机升级（PASS_VERSION_ONLY）。",
+              "ref": 434
+            },
             {
               "kind": "pull",
               "note": "PR #433 已合并；精确提交 8f1992b 完整门禁通过（20261114T090746Z-full-p6qq0o65，15 项门禁全过，Swift 执行 1,478 项含 1 项跳过 0 失败）。",
@@ -483,9 +588,9 @@
             }
           ],
           "id": "dead-code-lifecycle-sweep",
-          "next": "随 2.5.5 完成发布提交门禁、正式签名公证、公开发布与本机升级；实际宿主打字、语音录音与界面生命周期体验待安装后用户验收。",
-          "status": "in_progress",
-          "summary": "PR #433 已合入 main（39e214a），全库清理 Swift 与 Rust 死代码、无调用方封装及未使用 Cargo 依赖（unicode-segmentation、base64、rusqlite），双模式 Periphery 扫描警告清零且 sources/ 无任何 Periphery 注释豁免，并将 resetForTesting 测试钩子迁出生产源码至 tests/；加固运行期生命周期安全（OwlAgentAccess.start KVO 防重入保护、OwlApplicationDelegate 与 OwlInputStatusPanel 通知观察者注销清理、OwlQuickReplyViewModel 与 OwlAIPolishViewModel deinit 取消任务），并补齐 ai_selection、host_delivery、OwlVoiceAudioRecorder PCM 截断、provider_wire 缓存用量解析与 DeliverParams 边界测试。精确提交 8f1992b 通过 15 项完整门禁（20261114T090746Z-full-p6qq0o65），尚待随 2.5.5 完成正式发版、本机升级与真机验收。",
+          "next": "真实宿主应用中的打字、语音录音与界面生命周期体验由用户在已升级版本中验收。",
+          "status": "unverified",
+          "summary": "PR #433 已合入 main（39e214a），全库清理 Swift 与 Rust 死代码、无调用方封装及未使用 Cargo 依赖（unicode-segmentation、base64、rusqlite），双模式 Periphery 扫描警告清零且 sources/ 无任何 Periphery 注释豁免，并将 resetForTesting 测试钩子迁出生产源码至 tests/；加固运行期生命周期安全（OwlAgentAccess.start KVO 防重入保护、OwlApplicationDelegate 与 OwlInputStatusPanel 通知观察者注销清理、OwlQuickReplyViewModel 与 OwlAIPolishViewModel deinit 取消任务），并补齐 ai_selection、host_delivery、OwlVoiceAudioRecorder PCM 截断、provider_wire 缓存用量解析与 DeliverParams 边界测试。PR #433 已随 2.5.5（#434，6a44f53，cohortId 922973799f7f8341fb065f58cbd1beb9dd98af90798540b997c315e792dcc405）公开发布并完成本机升级（PASS_VERSION_ONLY），真实宿主打字、语音录音与界面生命周期体验仍待用户验收。",
           "title": "全库死代码清理、生命周期加固与行为测试补齐"
         }
       ],
@@ -1046,603 +1151,603 @@
     },
     {
       "id": "contract",
+      "title": "共同入口与领取",
       "items": [
         {
+          "id": "coordination",
+          "title": "GitHub 为真源；两个输入方案共用设施",
+          "status": "in_progress",
+          "summary": "本页是带观察时间的快照。阻塞按 GitHub 原生依赖计算；负责人只表示 GitHub 指派，不冒充 agent 会话。工单关闭不自动等于产品验收。",
+          "next": "按 docs/input-alignment.md 核对授权与现有执行者；需要跨会话委派时遵循外部协作契约。静态页面不派工。刷新：python3 progress/sync.py。",
           "evidence": [
             {
               "kind": "issue",
-              "note": "拼音规格与已存在工单",
-              "ref": 280
+              "ref": 280,
+              "note": "拼音规格与已存在工单"
             },
             {
               "kind": "issue",
-              "note": "五笔规格与十张子票",
-              "ref": 294
+              "ref": 294,
+              "note": "五笔规格与十张子票"
             },
             {
               "kind": "file",
-              "note": "共用依赖、领取及同步协议",
-              "ref": "docs/input-alignment.md"
+              "ref": "docs/input-alignment.md",
+              "note": "共用依赖、领取及同步协议"
             }
-          ],
-          "id": "coordination",
-          "next": "按 docs/input-alignment.md 核对授权与现有执行者；需要跨会话委派时遵循外部协作契约。静态页面不派工。刷新：python3 progress/sync.py。",
-          "status": "in_progress",
-          "summary": "本页是带观察时间的快照。阻塞按 GitHub 原生依赖计算；负责人只表示 GitHub 指派，不冒充 agent 会话。工单关闭不自动等于产品验收。",
-          "title": "GitHub 为真源；两个输入方案共用设施"
+          ]
         }
-      ],
-      "title": "共同入口与领取"
+      ]
     },
     {
       "id": "pinyin",
+      "title": "拼音对齐（现有执行线）",
       "items": [
         {
-          "evidence": [
-            {
-              "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 281
-            }
-          ],
           "id": "issue-281",
-          "next": "核对工单完成证据。",
+          "title": "#281 [拼音对齐 T01] 固定水杉基线，建立双端按键对照",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：semantic-craft；未关闭前置：无。",
-          "title": "#281 [拼音对齐 T01] 固定水杉基线，建立双端按键对照"
-        },
-        {
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 282
+              "ref": 281,
+              "note": "范围、当前状态和证据原件"
             }
-          ],
+          ]
+        },
+        {
           "id": "issue-282",
-          "next": "核对工单完成证据。",
+          "title": "#282 [拼音对齐 T02] 默认全拼使用水杉完整资源与组句行为",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：semantic-craft；未关闭前置：无。",
-          "title": "#282 [拼音对齐 T02] 默认全拼使用水杉完整资源与组句行为"
-        },
-        {
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 283
+              "ref": 282,
+              "note": "范围、当前状态和证据原件"
             }
-          ],
+          ]
+        },
+        {
           "id": "issue-283",
-          "next": "核对工单完成证据。",
+          "title": "#283 [拼音对齐 T03] 中英混输、纠错和模糊音对齐",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：semantic-craft；未关闭前置：无。",
-          "title": "#283 [拼音对齐 T03] 中英混输、纠错和模糊音对齐"
-        },
-        {
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 284
+              "ref": 283,
+              "note": "范围、当前状态和证据原件"
             }
-          ],
+          ]
+        },
+        {
           "id": "issue-284",
-          "next": "核对工单完成证据。",
+          "title": "#284 [拼音对齐 T04] 双拼及自定义双拼对齐",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：semantic-craft；未关闭前置：无。",
-          "title": "#284 [拼音对齐 T04] 双拼及自定义双拼对齐"
-        },
-        {
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 285
+              "ref": 284,
+              "note": "范围、当前状态和证据原件"
             }
-          ],
+          ]
+        },
+        {
           "id": "issue-285",
-          "next": "核对工单完成证据。",
+          "title": "#285 [拼音对齐 T05] 简繁、标点及特殊输入对齐",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：semantic-craft；未关闭前置：无。",
-          "title": "#285 [拼音对齐 T05] 简繁、标点及特殊输入对齐"
-        },
-        {
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 286
+              "ref": 285,
+              "note": "范围、当前状态和证据原件"
             }
-          ],
+          ]
+        },
+        {
           "id": "issue-286",
-          "next": "核对工单完成证据。",
+          "title": "#286 [拼音对齐 T06] 即时模型评分与候选排序对齐",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：semantic-craft；未关闭前置：无。",
-          "title": "#286 [拼音对齐 T06] 即时模型评分与候选排序对齐"
-        },
-        {
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 287
+              "ref": 286,
+              "note": "范围、当前状态和证据原件"
             }
-          ],
+          ]
+        },
+        {
           "id": "issue-287",
-          "next": "核对工单完成证据。",
+          "title": "#287 [拼音对齐 T07] 停顿重排和异步候选更新对齐",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：semantic-craft；未关闭前置：无。",
-          "title": "#287 [拼音对齐 T07] 停顿重排和异步候选更新对齐"
-        },
-        {
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 288
+              "ref": 287,
+              "note": "范围、当前状态和证据原件"
             }
-          ],
+          ]
+        },
+        {
           "id": "issue-288",
-          "next": "核对工单完成证据。",
+          "title": "#288 [拼音对齐 T08] 编辑、部分选词和翻页行为对齐",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：semantic-craft；未关闭前置：无。",
-          "title": "#288 [拼音对齐 T08] 编辑、部分选词和翻页行为对齐"
-        },
-        {
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 289
+              "ref": 288,
+              "note": "范围、当前状态和证据原件"
             }
-          ],
+          ]
+        },
+        {
           "id": "issue-289",
-          "next": "核对工单完成证据。",
+          "title": "#289 [拼音对齐 T09] 选词学习与重启后的调频对齐",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：semantic-craft；未关闭前置：无。",
-          "title": "#289 [拼音对齐 T09] 选词学习与重启后的调频对齐"
-        },
-        {
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 290
+              "ref": 289,
+              "note": "范围、当前状态和证据原件"
             }
-          ],
+          ]
+        },
+        {
           "id": "issue-290",
-          "next": "核对工单完成证据。",
+          "title": "#290 [拼音对齐 T11] 保留 AI、模板入口，隔离普通拼音候选",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：semantic-craft；未关闭前置：无。",
-          "title": "#290 [拼音对齐 T11] 保留 AI、模板入口，隔离普通拼音候选"
-        },
-        {
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 291
+              "ref": 290,
+              "note": "范围、当前状态和证据原件"
             }
-          ],
+          ]
+        },
+        {
           "id": "issue-291",
-          "next": "核对工单完成证据。",
+          "title": "#291 [拼音对齐 T12] 词库和模型更新、回退后仍保持对齐",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：semantic-craft；未关闭前置：无。",
-          "title": "#291 [拼音对齐 T12] 词库和模型更新、回退后仍保持对齐"
-        },
-        {
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 292
+              "ref": 291,
+              "note": "范围、当前状态和证据原件"
             }
-          ],
+          ]
+        },
+        {
           "id": "issue-292",
-          "next": "核对工单完成证据。",
+          "title": "#292 [拼音对齐 T13] 差异及跨功能风险对照收口",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：semantic-craft；未关闭前置：无。",
-          "title": "#292 [拼音对齐 T13] 差异及跨功能风险对照收口"
-        },
-        {
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 293
+              "ref": 292,
+              "note": "范围、当前状态和证据原件"
             }
-          ],
+          ]
+        },
+        {
           "id": "issue-293",
-          "next": "核对工单完成证据。",
+          "title": "#293 [拼音对齐 T14] 正式交付包与已验证版本一致性核对",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：semantic-craft；未关闭前置：无。",
-          "title": "#293 [拼音对齐 T14] 正式交付包与已验证版本一致性核对"
+          "next": "核对工单完成证据。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 293,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
         }
-      ],
-      "title": "拼音对齐（现有执行线）"
+      ]
     },
     {
       "id": "wubi",
+      "title": "五笔对齐（本轮工单）",
       "items": [
         {
-          "evidence": [
-            {
-              "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 295
-            }
-          ],
           "id": "issue-295",
-          "next": "核对工单完成证据。",
+          "title": "#295 [五笔对齐 W01] 五笔基线与双端差异样例",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：semantic-craft；未关闭前置：无。",
-          "title": "#295 [五笔对齐 W01] 五笔基线与双端差异样例"
-        },
-        {
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 296
+              "ref": 295,
+              "note": "范围、当前状态和证据原件"
             }
-          ],
+          ]
+        },
+        {
           "id": "issue-296",
-          "next": "核对工单完成证据。",
+          "title": "#296 [五笔对齐 W02] 五笔 86 正式资源与候选对齐",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：semantic-craft；未关闭前置：无。",
-          "title": "#296 [五笔对齐 W02] 五笔 86 正式资源与候选对齐"
-        },
-        {
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 297
+              "ref": 296,
+              "note": "范围、当前状态和证据原件"
             }
-          ],
+          ]
+        },
+        {
           "id": "issue-297",
-          "next": "核对工单完成证据。",
+          "title": "#297 [五笔对齐 W03] 连打与上屏规则对齐",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：semantic-craft；未关闭前置：无。",
-          "title": "#297 [五笔对齐 W03] 连打与上屏规则对齐"
-        },
-        {
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 298
+              "ref": 297,
+              "note": "范围、当前状态和证据原件"
             }
-          ],
+          ]
+        },
+        {
           "id": "issue-298",
-          "next": "核对工单完成证据。",
+          "title": "#298 [五笔对齐 W04] 五笔拼音混输对齐",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：semantic-craft；未关闭前置：无。",
-          "title": "#298 [五笔对齐 W04] 五笔拼音混输对齐"
-        },
-        {
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 299
+              "ref": 298,
+              "note": "范围、当前状态和证据原件"
             }
-          ],
+          ]
+        },
+        {
           "id": "issue-299",
-          "next": "核对工单完成证据。",
+          "title": "#299 [五笔对齐 W05] z 反查、通配与编码提示",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：semantic-craft；未关闭前置：无。",
-          "title": "#299 [五笔对齐 W05] z 反查、通配与编码提示"
-        },
-        {
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 300
+              "ref": 299,
+              "note": "范围、当前状态和证据原件"
             }
-          ],
+          ]
+        },
+        {
           "id": "issue-300",
-          "next": "核对工单完成证据。",
+          "title": "#300 [五笔对齐 W06] 五笔 98 完整输入",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：semantic-craft；未关闭前置：无。",
-          "title": "#300 [五笔对齐 W06] 五笔 98 完整输入"
-        },
-        {
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 301
+              "ref": 300,
+              "note": "范围、当前状态和证据原件"
             }
-          ],
+          ]
+        },
+        {
           "id": "issue-301",
-          "next": "核对工单完成证据。",
+          "title": "#301 [五笔对齐 W07] 五笔学习与重启恢复",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：semantic-craft；未关闭前置：无。",
-          "title": "#301 [五笔对齐 W07] 五笔学习与重启恢复"
-        },
-        {
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 302
+              "ref": 301,
+              "note": "范围、当前状态和证据原件"
             }
-          ],
+          ]
+        },
+        {
           "id": "issue-302",
-          "next": "核对工单完成证据。",
+          "title": "#302 [五笔对齐 W08] Owltype 增强入口与普通五笔隔离",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：未指派；未关闭前置：无。",
-          "title": "#302 [五笔对齐 W08] Owltype 增强入口与普通五笔隔离"
-        },
-        {
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 303
+              "ref": 302,
+              "note": "范围、当前状态和证据原件"
             }
-          ],
+          ]
+        },
+        {
           "id": "issue-303",
-          "next": "核对工单完成证据。",
+          "title": "#303 [五笔对齐 W09] 五笔资源更新与回退",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：semantic-craft；未关闭前置：无。",
-          "title": "#303 [五笔对齐 W09] 五笔资源更新与回退"
-        },
-        {
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 304
+              "ref": 303,
+              "note": "范围、当前状态和证据原件"
             }
-          ],
+          ]
+        },
+        {
           "id": "issue-304",
-          "next": "核对工单完成证据。",
+          "title": "#304 [五笔对齐 W10] 差异收口与交付一致性",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：semantic-craft；未关闭前置：无。",
-          "title": "#304 [五笔对齐 W10] 差异收口与交付一致性"
+          "next": "核对工单完成证据。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 304,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
         }
-      ],
-      "title": "五笔对齐（本轮工单）"
+      ]
     },
     {
       "id": "followup",
+      "title": "发布后跟进",
       "items": [
         {
-          "evidence": [
-            {
-              "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 314
-            }
-          ],
           "id": "issue-314",
-          "next": "核对工单完成证据。",
+          "title": "#314 [上游跟进] 词库升到 dict-v2.0.39，并固化词库与引擎重钉流程",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：未指派；未关闭前置：无。",
-          "title": "#314 [上游跟进] 词库升到 dict-v2.0.39，并固化词库与引擎重钉流程"
-        },
-        {
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 315
+              "ref": 314,
+              "note": "范围、当前状态和证据原件"
             }
-          ],
+          ]
+        },
+        {
           "id": "issue-315",
-          "next": "核对工单完成证据。",
+          "title": "#315 [设置] 精简键盘与快捷键设置页，默认值跟随水杉",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：未指派；未关闭前置：无。",
-          "title": "#315 [设置] 精简键盘与快捷键设置页，默认值跟随水杉"
-        },
-        {
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 316
+              "ref": 315,
+              "note": "范围、当前状态和证据原件"
             }
-          ],
+          ]
+        },
+        {
           "id": "issue-316",
-          "next": "读取工单和开放 PR，核对本轮授权、负责人和文件范围后开工。",
+          "title": "#316 [性能考查] 端到端输入延迟测量（合并 #274–#277）",
           "status": "planned",
           "summary": "GitHub: open；负责人：未指派；未关闭前置：无。",
-          "title": "#316 [性能考查] 端到端输入延迟测量（合并 #274–#277）"
-        },
-        {
+          "next": "读取工单和开放 PR，核对本轮授权、负责人和文件范围后开工。",
           "evidence": [
             {
               "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 317
+              "ref": 316,
+              "note": "范围、当前状态和证据原件"
             }
-          ],
+          ]
+        },
+        {
           "id": "issue-317",
-          "next": "核对工单完成证据。",
+          "title": "#317 [清理] 移除 Rime 残留子模块、构建路径与命名",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：未指派；未关闭前置：无。",
-          "title": "#317 [清理] 移除 Rime 残留子模块、构建路径与命名"
+          "next": "核对工单完成证据。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 317,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
         }
-      ],
-      "title": "发布后跟进"
+      ]
     },
     {
       "id": "rust-business",
+      "title": "Rust 业务核心迁移",
       "items": [
         {
-          "evidence": [
-            {
-              "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 356
-            }
-          ],
           "id": "issue-356",
-          "next": "核对工单完成证据。",
+          "title": "#356 [目标] 业务核心全面迁入 Rust，Swift 仅保留 macOS 界面与系统适配",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：未指派；未关闭前置：无。",
-          "title": "#356 [目标] 业务核心全面迁入 Rust，Swift 仅保留 macOS 界面与系统适配"
-        },
-        {
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 357
+              "ref": 356,
+              "note": "范围、当前状态和证据原件"
             }
-          ],
+          ]
+        },
+        {
           "id": "issue-357",
-          "next": "核对工单完成证据。",
+          "title": "#357 [Rust 业务核心] 阶段 0：建立业务归属、App FFI 与行为基线",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：未指派；未关闭前置：无。",
-          "title": "#357 [Rust 业务核心] 阶段 0：建立业务归属、App FFI 与行为基线"
-        },
-        {
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 358
+              "ref": 357,
+              "note": "范围、当前状态和证据原件"
             }
-          ],
+          ]
+        },
+        {
           "id": "issue-358",
-          "next": "核对工单完成证据。",
+          "title": "#358 [Rust 业务核心] 阶段 1：设置规则与输入配置迁入 Rust",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：未指派；未关闭前置：无。",
-          "title": "#358 [Rust 业务核心] 阶段 1：设置规则与输入配置迁入 Rust"
-        },
-        {
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 359
+              "ref": 358,
+              "note": "范围、当前状态和证据原件"
             }
-          ],
+          ]
+        },
+        {
           "id": "issue-359",
-          "next": "核对工单完成证据。",
+          "title": "#359 [Rust 业务核心] 阶段 2A：模板解析、参数校验与渲染迁入 Rust",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：未指派；未关闭前置：无。",
-          "title": "#359 [Rust 业务核心] 阶段 2A：模板解析、参数校验与渲染迁入 Rust"
-        },
-        {
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 360
+              "ref": 359,
+              "note": "范围、当前状态和证据原件"
             }
-          ],
+          ]
+        },
+        {
           "id": "issue-360",
-          "next": "核对工单完成证据。",
+          "title": "#360 [Rust 业务核心] 阶段 2B：模板库、导入导出与恢复事务迁入 Rust",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：未指派；未关闭前置：无。",
-          "title": "#360 [Rust 业务核心] 阶段 2B：模板库、导入导出与恢复事务迁入 Rust"
-        },
-        {
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 361
+              "ref": 360,
+              "note": "范围、当前状态和证据原件"
             }
-          ],
+          ]
+        },
+        {
           "id": "issue-361",
-          "next": "核对工单完成证据。",
+          "title": "#361 [Rust 业务核心] 阶段 2C：自动展开与模板调用业务状态迁入 Rust",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：未指派；未关闭前置：无。",
-          "title": "#361 [Rust 业务核心] 阶段 2C：自动展开与模板调用业务状态迁入 Rust"
-        },
-        {
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 362
+              "ref": 361,
+              "note": "范围、当前状态和证据原件"
             }
-          ],
+          ]
+        },
+        {
           "id": "issue-362",
-          "next": "核对工单完成证据。",
+          "title": "#362 [Rust 业务核心] 阶段 3：交付状态机迁 Rust 并完成 Chrome 能力适配",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：未指派；未关闭前置：无。",
-          "title": "#362 [Rust 业务核心] 阶段 3：交付状态机迁 Rust 并完成 Chrome 能力适配"
-        },
-        {
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 363
+              "ref": 362,
+              "note": "范围、当前状态和证据原件"
             }
-          ],
+          ]
+        },
+        {
           "id": "issue-363",
-          "next": "核对工单完成证据。",
+          "title": "#363 [Rust 业务核心] 阶段 4A：AI 供应商、请求协议和流解析迁入 Rust",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：未指派；未关闭前置：无。",
-          "title": "#363 [Rust 业务核心] 阶段 4A：AI 供应商、请求协议和流解析迁入 Rust"
-        },
-        {
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 364
+              "ref": 363,
+              "note": "范围、当前状态和证据原件"
             }
-          ],
+          ]
+        },
+        {
           "id": "issue-364",
-          "next": "核对工单完成证据。",
+          "title": "#364 [Rust 业务核心] 阶段 4B：AI 搜索、写作与聊天业务状态迁入 Rust",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：未指派；未关闭前置：无。",
-          "title": "#364 [Rust 业务核心] 阶段 4B：AI 搜索、写作与聊天业务状态迁入 Rust"
-        },
-        {
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 365
+              "ref": 364,
+              "note": "范围、当前状态和证据原件"
             }
-          ],
+          ]
+        },
+        {
           "id": "issue-365",
-          "next": "核对工单完成证据。",
+          "title": "#365 [Rust 业务核心] 阶段 5：资源代次与用户数据事务迁入 Rust",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：未指派；未关闭前置：无。",
-          "title": "#365 [Rust 业务核心] 阶段 5：资源代次与用户数据事务迁入 Rust"
-        },
-        {
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 366
+              "ref": 365,
+              "note": "范围、当前状态和证据原件"
             }
-          ],
+          ]
+        },
+        {
           "id": "issue-366",
-          "next": "核对工单完成证据。",
+          "title": "#366 [Rust 业务核心] 阶段 6：Agent App 侧业务、去重与交付调度迁入 Rust",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：未指派；未关闭前置：无。",
-          "title": "#366 [Rust 业务核心] 阶段 6：Agent App 侧业务、去重与交付调度迁入 Rust"
-        },
-        {
+          "next": "核对工单完成证据。",
           "evidence": [
             {
               "kind": "issue",
-              "note": "范围、当前状态和证据原件",
-              "ref": 367
+              "ref": 366,
+              "note": "范围、当前状态和证据原件"
             }
-          ],
+          ]
+        },
+        {
           "id": "issue-367",
-          "next": "核对工单完成证据。",
+          "title": "#367 [Rust 业务核心] 阶段 7：生命周期收尾与 Swift 业务残留审计",
           "status": "unverified",
           "summary": "GitHub: closed；负责人：未指派；未关闭前置：无。",
-          "title": "#367 [Rust 业务核心] 阶段 7：生命周期收尾与 Swift 业务残留审计"
+          "next": "核对工单完成证据。",
+          "evidence": [
+            {
+              "kind": "issue",
+              "ref": 367,
+              "note": "范围、当前状态和证据原件"
+            }
+          ]
         }
-      ],
-      "title": "Rust 业务核心迁移"
+      ]
     }
   ],
   "title": "法墨输入法 · 项目进度与剩余工作",
@@ -1711,7 +1816,9 @@
       430,
       431,
       432,
-      433
+      433,
+      434,
+      435
     ]
   }
 }

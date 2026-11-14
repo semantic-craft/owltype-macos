@@ -269,7 +269,7 @@ fails `OwlSettingsUITests`; the suite is not in the gate, so both drifted unnoti
 - Verify (验证点): `xcodebuild test -project Owltype.xcodeproj -scheme OwltypeUITests
   -destination 'platform=macOS' -only-testing:OwltypeUITests/OwlSettingsUITests` passes; on a
   miss, the attached tree names the role the control has.
-- Seen on 1 distinct date: 2026-10-29.
+- Seen on 2 distinct dates: 2026-10-29, 2026-11-13.
 
 ## A host field that comes back after a window is not the IMK client you captured
 
