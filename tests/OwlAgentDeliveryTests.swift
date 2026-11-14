@@ -16,12 +16,18 @@ private final class FakeTarget: OwlAgentDeliveryTarget {
   var isTerminated = false
   var outcome = OwlTemplateDeliveryOutcome.confirmed
   var writes: [String] = []
+  var deferCompletion = false
+  var completions: [(OwlTemplateDeliveryOutcome) -> Void] = []
 
   init(_ process: pid_t) { processIdentifier = process }
 
   func write(_ text: String, completion: @escaping (OwlTemplateDeliveryOutcome) -> Void) {
     writes.append(text)
-    completion(outcome)
+    if deferCompletion {
+      completions.append(completion)
+    } else {
+      completion(outcome)
+    }
   }
 }
 
@@ -52,10 +58,12 @@ private final class FakePreview: OwlAgentDeliveryPreview {
   var targets: [String?] = []
   var dismissed = 0
   var decide: ((Bool) -> Void)?
+  var onShow: (() -> Void)?
 
   func show(text: String, agentName: String, decide: @escaping (Bool) -> Void) {
     shown.append("\(agentName): \(text)")
     self.decide = decide
+    onShow?()
   }
   func showTarget(_ name: String?) { targets.append(name) }
   func dismiss() { dismissed += 1 }
@@ -112,6 +120,199 @@ final class OwlAgentDeliveryTests: XCTestCase {
     preview.decide?(false)
     XCTAssertEqual(try result(reply()).status, .cancelled)
     XCTAssertTrue(host.target.writes.isEmpty)
+  }
+
+  func testConfirmationKeepsTheOriginallyBoundFieldInTheSameApp() throws {
+    let reply = start(params())
+    let otherField = FakeTarget(host.target.processIdentifier)
+    host.bindResult = .success(otherField)
+
+    preview.decide?(true)
+
+    XCTAssertEqual(try result(reply()), .init(requestId: "r1", status: .delivered(verified: true), replayed: false))
+    XCTAssertEqual(host.target.writes, ["你好"])
+    XCTAssertTrue(otherField.writes.isEmpty)
+  }
+
+  func testBusyRequestCannotReplaceTheActiveRequestsBoundField() throws {
+    let active = start(params("active"))
+    let otherField = FakeTarget(host.target.processIdentifier)
+    host.bindResult = .success(otherField)
+    let busy = start(params("busy", text: "other"))
+    guard case .failure(let error) = try XCTUnwrap(busy()) else { return XCTFail("expected delivery_busy") }
+    XCTAssertEqual(error.code, .deliveryBusy)
+    host.bindResult = .failure(.noTarget)
+
+    preview.decide?(true)
+
+    XCTAssertEqual(try result(active()), .init(requestId: "active", status: .delivered(verified: true), replayed: false))
+    XCTAssertEqual(host.target.writes, ["你好"])
+    XCTAssertTrue(otherField.writes.isEmpty)
+  }
+
+  func testReplayedRequestCannotReplaceTheActiveRequestsBoundField() throws {
+    let completed = start(params("completed"))
+    preview.decide?(false)
+    XCTAssertEqual(try result(completed()).status, .cancelled)
+    let active = start(params("active"))
+    let otherField = FakeTarget(host.target.processIdentifier)
+    host.bindResult = .success(otherField)
+    let replay = start(params("completed"))
+    XCTAssertEqual(try result(replay()), .init(requestId: "completed", status: .cancelled, replayed: true))
+    host.bindResult = .failure(.noTarget)
+
+    preview.decide?(true)
+
+    XCTAssertEqual(try result(active()), .init(requestId: "active", status: .delivered(verified: true), replayed: false))
+    XCTAssertEqual(host.target.writes, ["你好"])
+    XCTAssertTrue(otherField.writes.isEmpty)
+  }
+
+  func testCompletedRequestsTimeoutCannotExpireTheNextRequest() throws {
+    let first = start(params("first", timeout: 5_000))
+    preview.decide?(false)
+    XCTAssertEqual(try result(first()).status, .cancelled)
+    let next = start(params("next", text: "next", timeout: 120_000))
+
+    host.fire(5)
+
+    XCTAssertNil(next())
+    XCTAssertTrue(coordinator.isWaiting)
+    XCTAssertTrue(host.target.writes.isEmpty)
+    preview.decide?(true)
+    XCTAssertEqual(try result(next()), .init(requestId: "next", status: .delivered(verified: true), replayed: false))
+    XCTAssertEqual(host.target.writes, ["next"])
+  }
+
+  func testExpiredRequestsPreviewCannotConfirmTheNextRequest() throws {
+    let first = start(params("first", timeout: 5_000))
+    let oldDecision = try XCTUnwrap(preview.decide)
+    host.fire(5)
+    XCTAssertEqual(try result(first()).status, .expired)
+    let next = start(params("next", text: "next"))
+
+    oldDecision(true)
+
+    XCTAssertNil(next())
+    XCTAssertTrue(coordinator.isWaiting)
+    XCTAssertTrue(host.target.writes.isEmpty)
+    preview.decide?(true)
+    XCTAssertEqual(try result(next()), .init(requestId: "next", status: .delivered(verified: true), replayed: false))
+    XCTAssertEqual(host.target.writes, ["next"])
+  }
+
+  func testCompletedRequestsHostReceiptCannotCompleteTheNextWrite() throws {
+    host.target.deferCompletion = true
+    let first = start(params("first", text: "first"))
+    preview.decide?(true)
+    let oldCompletion = try XCTUnwrap(host.target.completions.first)
+    host.target.isTerminated = true
+    coordinator.applicationDidTerminate(host.target.processIdentifier)
+    XCTAssertEqual(try result(first()).status, .targetChanged(.targetQuit))
+
+    let nextTarget = FakeTarget(300)
+    nextTarget.deferCompletion = true
+    host.frontmostProcess = nextTarget.processIdentifier
+    host.bindResult = .success(nextTarget)
+    let next = start(params("next", text: "next"))
+    preview.decide?(true)
+    let nextCompletion = try XCTUnwrap(nextTarget.completions.first)
+
+    oldCompletion(.confirmed)
+
+    XCTAssertNil(next())
+    XCTAssertTrue(coordinator.isWaiting)
+    XCTAssertEqual(host.target.writes, ["first"])
+    XCTAssertEqual(nextTarget.writes, ["next"])
+    nextCompletion(.attemptedUnverified)
+    XCTAssertEqual(try result(next()), .init(requestId: "next", status: .delivered(verified: false), replayed: false))
+    XCTAssertFalse(coordinator.isWaiting)
+    XCTAssertEqual(nextTarget.writes, ["next"])
+  }
+
+  func testChainedDeliveryInsideWaiterReplyKeepsHostBinding() throws {
+    var firstReply: OwlAgentBridgeReply?
+    var secondReply: (() -> OwlAgentBridgeReply?)?
+    coordinator.deliver(params("first", text: "first"), from: client, cancellation: .init()) { [unowned self] reply in
+      firstReply = reply
+      secondReply = self.start(self.params("second", text: "second"))
+    }
+    preview.decide?(true)
+
+    XCTAssertEqual(try result(firstReply), .init(requestId: "first", status: .delivered(verified: true), replayed: false))
+    let secondBox = try XCTUnwrap(secondReply)
+    XCTAssertNil(secondBox())
+    XCTAssertTrue(coordinator.isWaiting)
+    XCTAssertEqual(preview.shown, ["grok-build: first", "grok-build: second"])
+    XCTAssertEqual(host.target.writes, ["first"])
+
+    preview.decide?(true)
+    XCTAssertEqual(try result(secondBox()), .init(requestId: "second", status: .delivered(verified: true), replayed: false))
+    XCTAssertFalse(coordinator.isWaiting)
+    XCTAssertEqual(host.target.writes, ["first", "second"])
+  }
+
+  func testCancelledWaiterReleasesReplyClosureAndPreCancelledDeliverIsIgnored() throws {
+    final class ReplyToken {}
+    weak var weakCancellation: OwlAgentBridgeCancellation?
+    weak var weakToken: ReplyToken?
+    var secondReply: OwlAgentBridgeReply?
+    let keepAliveCancellation = OwlAgentBridgeCancellation()
+
+    do {
+      let cancellation1 = OwlAgentBridgeCancellation()
+      let token = ReplyToken()
+      weakCancellation = cancellation1
+      weakToken = token
+      coordinator.deliver(params("r1"), from: client, cancellation: cancellation1) { _ in
+        _ = token
+      }
+      coordinator.deliver(params("r1"), from: client, cancellation: keepAliveCancellation) { secondReply = $0 }
+      cancellation1.cancel()
+    }
+
+    let drained = expectation(description: "main")
+    DispatchQueue.main.async { drained.fulfill() }
+    wait(for: [drained], timeout: 2)
+
+    XCTAssertNil(weakCancellation)
+    XCTAssertNil(weakToken)
+    XCTAssertTrue(coordinator.isWaiting)
+    preview.decide?(true)
+    XCTAssertEqual(try result(secondReply), .init(requestId: "r1", status: .delivered(verified: true), replayed: true))
+    XCTAssertEqual(host.target.writes, ["你好"])
+
+    let preCancelled = OwlAgentBridgeCancellation()
+    preCancelled.cancel()
+    var preCancelledCalled = false
+    coordinator.deliver(params("precancel"), from: client, cancellation: preCancelled) { _ in
+      preCancelledCalled = true
+    }
+    let drainedPre = expectation(description: "main-precancel")
+    DispatchQueue.main.async { drainedPre.fulfill() }
+    wait(for: [drainedPre], timeout: 2)
+
+    XCTAssertFalse(preCancelledCalled)
+    XCTAssertFalse(coordinator.isWaiting)
+    XCTAssertEqual(preview.shown.count, 1)
+
+    let fresh = start(params("precancel", text: "fresh"))
+    XCTAssertNil(fresh())
+    XCTAssertTrue(coordinator.isWaiting)
+    preview.decide?(true)
+    XCTAssertEqual(try result(fresh()), .init(requestId: "precancel", status: .delivered(verified: true), replayed: false))
+    XCTAssertEqual(host.target.writes, ["你好", "fresh"])
+  }
+
+  func testReentrantDispatchDuringPreviewShowPreservesInitialBindTarget() throws {
+    preview.onShow = { [unowned self] in
+      self.coordinator.applicationDidActivate(getpid())
+    }
+    let reply = start(params("reentrant", text: "hello"))
+    preview.decide?(true)
+
+    XCTAssertEqual(try result(reply()), .init(requestId: "reentrant", status: .delivered(verified: true), replayed: false))
+    XCTAssertEqual(host.target.writes, ["hello"])
   }
 
   func testNoDecisionExpiresAndALateClickCannotWrite() throws {

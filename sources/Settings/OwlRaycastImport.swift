@@ -59,7 +59,6 @@ struct OwlRaycastImport {
   func preview(data: Data) throws -> Preview { try OwlStorageHost(dataDir: dataDir).call("import_preview", ["bytes": Array(data)]) }
   func commit(_ preview: Preview, checkpoint: @escaping (String) throws -> Void = { _ in }) throws -> OwlTemplateLibrary {
     let result: OwlTemplateLibrary = try OwlStorageHost(dataDir: dataDir, checkpoint: checkpoint).call("import_commit", ["preview": OwlAppCore.payload(preview)])
-    OwlTemplateStore.notifyCommittedLibrary(dataDir: dataDir)
     return result
   }
   static func compatibilityIssues(_ entry: OwlTemplateEntry) -> [OwlTemplateEngine.Diagnostic] {

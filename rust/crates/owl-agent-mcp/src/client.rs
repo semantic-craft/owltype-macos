@@ -9,7 +9,7 @@ use crate::bridge::{
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::{Path, PathBuf};
 use std::time::Duration;
-use tokio::io::{AsyncBufReadExt, AsyncWriteExt, BufReader};
+use tokio::io::{AsyncBufRead, AsyncBufReadExt, AsyncWriteExt, BufReader};
 use tokio::net::UnixStream;
 
 /// Overrides the socket location; tests and development builds use it.
@@ -143,23 +143,22 @@ impl BridgeConnection {
     }
 }
 
-async fn read_line(reader: &mut BufReader<tokio::net::unix::OwnedReadHalf>) -> Result<Vec<u8>, BridgeError> {
+async fn read_line(reader: &mut (impl AsyncBufRead + Unpin)) -> Result<Vec<u8>, BridgeError> {
     let mut line = Vec::new();
     loop {
         let buffer = reader.fill_buf().await.map_err(|error| BridgeError::Io(error.to_string()))?;
         if buffer.is_empty() {
             return Err(BridgeError::Io("Owltype closed the connection".into()));
         }
-        if let Some(end) = buffer.iter().position(|&byte| byte == b'\n') {
-            line.extend_from_slice(&buffer[..end]);
-            reader.consume(end + 1);
-            return Ok(line);
-        }
-        let taken = buffer.len();
-        line.extend_from_slice(buffer);
-        reader.consume(taken);
+        let end = buffer.iter().position(|&byte| byte == b'\n');
+        let taken = end.unwrap_or(buffer.len());
+        line.extend_from_slice(&buffer[..taken]);
+        reader.consume(taken + usize::from(end.is_some()));
         if line.len() > MAX_LINE_BYTES {
             return Err(BridgeError::Protocol("answer longer than 1 MiB".into()));
+        }
+        if end.is_some() {
+            return Ok(line);
         }
     }
 }
@@ -182,5 +181,57 @@ pub async fn call_once(call: &Call, agent_client: Option<Component>, timeout: Du
     let path = socket_path()?;
     let mut connection = BridgeConnection::open(&path, agent_client).await?;
     connection.call(call, timeout).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::Cursor;
+    use tokio::io::AsyncReadExt;
+
+    async fn buffered_answer(bytes: &[u8]) -> BufReader<tokio::net::unix::OwnedReadHalf> {
+        let (mut sender, receiver) = UnixStream::pair().unwrap();
+        sender.write_all(bytes).await.unwrap();
+        sender.shutdown().await.unwrap();
+        let (receiver, _) = receiver.into_split();
+        let mut reader = BufReader::with_capacity(bytes.len(), receiver);
+        assert_eq!(reader.fill_buf().await.unwrap(), bytes);
+        reader
+    }
+
+    #[tokio::test]
+    async fn rejects_oversized_answer_when_newline_arrives_with_final_byte() {
+        let tail = buffered_answer(b"a\n").await;
+        let mut reader = Cursor::new(vec![b'a'; MAX_LINE_BYTES]).chain(tail);
+        let result = read_line(&mut reader).await;
+        assert!(
+            matches!(result, Err(BridgeError::Protocol(_))),
+            "expected Protocol, received an answer with {:?} bytes",
+            result.as_ref().map(Vec::len)
+        );
+    }
+
+    #[tokio::test]
+    async fn accepts_maximum_sized_answer_with_newline() {
+        let tail = buffered_answer(b"\n").await;
+        let mut reader = Cursor::new(vec![b'a'; MAX_LINE_BYTES]).chain(tail);
+        assert_eq!(read_line(&mut reader).await.unwrap(), vec![b'a'; MAX_LINE_BYTES]);
+    }
+
+    #[tokio::test]
+    async fn rejects_oversized_unterminated_answer() {
+        let tail = buffered_answer(b"a").await;
+        let mut reader = Cursor::new(vec![b'a'; MAX_LINE_BYTES]).chain(tail);
+        assert!(matches!(read_line(&mut reader).await, Err(BridgeError::Protocol(_))));
+    }
+
+    #[tokio::test]
+    async fn preserves_utf8_and_following_lines_and_reports_eof() {
+        let mut reader = buffered_answer("猫头鹰\nnext\npartial".as_bytes()).await;
+        assert_eq!(read_line(&mut reader).await.unwrap(), "猫头鹰".as_bytes());
+        assert_eq!(read_line(&mut reader).await.unwrap(), b"next");
+        assert!(matches!(read_line(&mut reader).await, Err(BridgeError::Io(_))));
+        assert!(matches!(read_line(&mut reader).await, Err(BridgeError::Io(_))));
+    }
 }
 

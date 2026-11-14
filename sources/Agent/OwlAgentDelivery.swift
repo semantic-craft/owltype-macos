@@ -85,6 +85,8 @@ final class OwlAgentDeliveryCoordinator {
 
   private struct ActionWire: Decodable {
     let action: String
+    let invocationId: UInt64?
+    let targetId: UInt64?
     let text: String?
     let agentName: String?
     let name: String?
@@ -99,6 +101,8 @@ final class OwlAgentDeliveryCoordinator {
 
     enum CodingKeys: String, CodingKey {
       case action
+      case invocationId = "invocation_id"
+      case targetId = "target_id"
       case text
       case agentName = "agent_name"
       case name
@@ -113,13 +117,22 @@ final class OwlAgentDeliveryCoordinator {
     }
   }
 
+  private struct BoundTarget {
+    let invocationID: UInt64
+    let targetID: UInt64
+    let target: OwlAgentDeliveryTarget
+  }
+
   private let host: OwlAgentDeliveryHost
   private let makePreview: () -> OwlAgentDeliveryPreview
-  private var preview: OwlAgentDeliveryPreview?
   private let now: () -> Date
   private let core: OwlAppSession
 
-  private var currentTarget: OwlAgentDeliveryTarget?
+  private var activeInvocationID: UInt64?
+  private var activePreview: (invocationID: UInt64, preview: OwlAgentDeliveryPreview)?
+  private var boundTarget: BoundTarget?
+  private var nextTargetID: UInt64 = 1
+  private var candidateTargets: [UInt64: OwlAgentDeliveryTarget] = [:]
   private var nextWaiterID: UInt64 = 1
   private var waiters: [UInt64: (reply: Reply, cancellation: OwlAgentBridgeCancellation)] = [:]
 
@@ -138,8 +151,29 @@ final class OwlAgentDeliveryCoordinator {
     core.call("is_waiting")
   }
 
+  private func probeCandidateTarget() -> (payload: [String: Any], candidateID: UInt64?) {
+    switch host.bindFrontmost() {
+    case .success(let target):
+      let targetID = nextTargetID
+      nextTargetID += 1
+      candidateTargets[targetID] = target
+      return ([
+        "Ok": [
+          "target_id": targetID,
+          "process_id": target.processIdentifier,
+          "application_name": target.applicationName,
+          "is_terminated": target.isTerminated
+        ]
+      ], targetID)
+    case .failure(let reason):
+      return (["Err": reason.rawValue], nil)
+    }
+  }
+
   func deliver(_ params: Wire.DeliverParams, from client: OwlAgentBridgeClient,
                cancellation: OwlAgentBridgeCancellation, reply: @escaping Reply) {
+    guard !cancellation.isCancelled else { return }
+
     let waiterID = nextWaiterID
     nextWaiterID += 1
     waiters[waiterID] = (reply, cancellation)
@@ -150,24 +184,20 @@ final class OwlAgentDeliveryCoordinator {
       }
     }
 
-    let initialBindPayload: [String: Any]
+    let initialBindProbe: (payload: [String: Any], candidateID: UInt64?)?
     let front = host.frontmostProcess
     let isAncestor = front.map { host.ancestors(of: client.processID).contains($0) } ?? false
-    if !isAncestor && !host.isSecureInputEnabled {
-      switch host.bindFrontmost() {
-      case .success(let target):
-        self.currentTarget = target
-        initialBindPayload = ["Ok": [
-          "process_id": target.processIdentifier,
-          "application_name": target.applicationName,
-          "is_terminated": target.isTerminated
-        ]]
-      case .failure(let reason):
-        initialBindPayload = ["Err": reason.rawValue]
-      }
+    if activeInvocationID == nil && !isAncestor && !host.isSecureInputEnabled {
+      initialBindProbe = probeCandidateTarget()
     } else {
-      initialBindPayload = ["Err": "no_target"]
+      initialBindProbe = nil
     }
+    defer {
+      if let id = initialBindProbe?.candidateID {
+        candidateTargets.removeValue(forKey: id)
+      }
+    }
+    let initialBindPayload = initialBindProbe?.payload ?? ["Err": "no_target"]
 
     let event: [String: Any] = [
       "event": "submit_request",
@@ -201,26 +231,24 @@ final class OwlAgentDeliveryCoordinator {
     ])
   }
 
-  private func handleUserDecision(_ confirmed: Bool) {
-    let rebindPayload: [String: Any]
-    if let front = host.frontmostProcess, !host.isSecureInputEnabled {
-      switch host.bindFrontmost() {
-      case .success(let target):
-        self.currentTarget = target
-        rebindPayload = ["Ok": [
-          "process_id": target.processIdentifier,
-          "application_name": target.applicationName,
-          "is_terminated": target.isTerminated
-        ]]
-      case .failure(let reason):
-        rebindPayload = ["Err": reason.rawValue]
-      }
+  private func handleUserDecision(_ confirmed: Bool, invocationID: UInt64) {
+    guard activeInvocationID == invocationID else { return }
+    let rebindProbe: (payload: [String: Any], candidateID: UInt64?)?
+    if confirmed && boundTarget == nil && host.frontmostProcess != nil && !host.isSecureInputEnabled {
+      rebindProbe = probeCandidateTarget()
     } else {
-      rebindPayload = ["Err": "no_target"]
+      rebindProbe = nil
     }
+    defer {
+      if let id = rebindProbe?.candidateID {
+        candidateTargets.removeValue(forKey: id)
+      }
+    }
+    let rebindPayload = rebindProbe?.payload ?? ["Err": "no_target"]
 
     dispatch([
       "event": "user_decision",
+      "invocation_id": invocationID,
       "confirmed": confirmed,
       "frontmost_pid": host.frontmostProcess as Any? ?? NSNull(),
       "is_secure_input": host.isSecureInputEnabled,
@@ -228,51 +256,57 @@ final class OwlAgentDeliveryCoordinator {
     ])
   }
 
-  private func handleTimeout() {
-    dispatch(["event": "timeout_fired"])
+  private func handleTimeout(_ invocationID: UInt64) {
+    guard activeInvocationID == invocationID else { return }
+    dispatch([
+      "event": "timeout_fired",
+      "invocation_id": invocationID
+    ])
   }
 
-  private func handlePoll() {
-    let bindPayload: [String: Any]
+  private func handlePoll(_ invocationID: UInt64) {
+    guard activeInvocationID == invocationID, boundTarget == nil else { return }
+    let bindProbe: (payload: [String: Any], candidateID: UInt64?)?
     if !host.isSecureInputEnabled {
-      switch host.bindFrontmost() {
-      case .success(let target):
-        self.currentTarget = target
-        bindPayload = ["Ok": [
-          "process_id": target.processIdentifier,
-          "application_name": target.applicationName,
-          "is_terminated": target.isTerminated
-        ]]
-      case .failure(let reason):
-        bindPayload = ["Err": reason.rawValue]
-      }
+      bindProbe = probeCandidateTarget()
     } else {
-      bindPayload = ["Err": "secure_input"]
+      bindProbe = nil
     }
+    defer {
+      if let id = bindProbe?.candidateID {
+        candidateTargets.removeValue(forKey: id)
+      }
+    }
+    let bindPayload = bindProbe?.payload ?? ["Err": "secure_input"]
 
     dispatch([
       "event": "poll_fired",
+      "invocation_id": invocationID,
       "frontmost_pid": host.frontmostProcess as Any? ?? NSNull(),
       "bind_result": bindPayload
     ])
   }
 
-  private func handleLeaveSettle() {
+  private func handleLeaveSettle(_ invocationID: UInt64) {
+    guard let bound = boundTarget, bound.invocationID == invocationID else { return }
     dispatch([
       "event": "leave_settle_fired",
-      "target_terminated": currentTarget?.isTerminated ?? true
+      "invocation_id": invocationID,
+      "target_terminated": bound.target.isTerminated
     ])
   }
 
-  private func handleWriteCompleted(outcomeCode: String, targetTerminated: Bool) {
+  private func handleWriteCompleted(invocationID: UInt64, outcomeCode: String, targetTerminated: Bool) {
     dispatch([
       "event": "host_write_completed",
+      "invocation_id": invocationID,
       "outcome_code": outcomeCode,
       "target_terminated": targetTerminated
     ])
   }
 
   private func cancelWaiter(_ waiterID: UInt64) {
+    waiters.removeValue(forKey: waiterID)
     dispatch([
       "event": "cancel_waiter",
       "waiter_id": waiterID
@@ -298,10 +332,14 @@ final class OwlAgentDeliveryCoordinator {
     switch action.action {
     case "show_preview", "show_target", "dismiss_preview":
       dispatchPreviewAction(action)
+    case "bind_target":
+      dispatchBindTarget(action)
     case "schedule_timeout", "schedule_poll", "schedule_leave_settle":
       dispatchScheduleAction(action)
     case "perform_write":
       dispatchPerformWrite(action)
+    case "finish_invocation":
+      dispatchFinishInvocation(action)
     case "complete_waiter", "complete_waiters", "reject_waiter":
       dispatchWaiterAction(action)
     default:
@@ -309,19 +347,37 @@ final class OwlAgentDeliveryCoordinator {
     }
   }
 
+  private func dispatchBindTarget(_ action: ActionWire) {
+    guard let invID = action.invocationId,
+          let targetID = action.targetId,
+          activeInvocationID == nil || activeInvocationID == invID,
+          let target = candidateTargets[targetID] else { return }
+    activeInvocationID = invID
+    boundTarget = BoundTarget(invocationID: invID, targetID: targetID, target: target)
+  }
+
   private func dispatchPreviewAction(_ action: ActionWire) {
     switch action.action {
     case "show_preview":
+      guard let invID = action.invocationId else { return }
+      activeInvocationID = invID
       let preview = makePreview()
-      self.preview = preview
+      activePreview = (invID, preview)
       preview.show(text: action.text ?? "", agentName: action.agentName ?? "") { [weak self] confirmed in
-        self?.handleUserDecision(confirmed)
+        self?.handleUserDecision(confirmed, invocationID: invID)
       }
     case "show_target":
-      preview?.showTarget(action.name)
+      guard let invID = action.invocationId,
+            let active = activePreview,
+            active.invocationID == invID else { return }
+      active.preview.showTarget(action.name)
     case "dismiss_preview":
-      preview?.dismiss()
-      preview = nil
+      guard let invID = action.invocationId,
+            let active = activePreview,
+            active.invocationID == invID else { return }
+      let preview = active.preview
+      activePreview = nil
+      preview.dismiss()
     default:
       break
     }
@@ -330,27 +386,52 @@ final class OwlAgentDeliveryCoordinator {
   private func dispatchScheduleAction(_ action: ActionWire) {
     switch action.action {
     case "schedule_timeout":
-      guard let seconds = action.timeoutSeconds else { return }
-      host.schedule(after: seconds) { [weak self] in self?.handleTimeout() }
+      guard let invID = action.invocationId, let seconds = action.timeoutSeconds else { return }
+      host.schedule(after: seconds) { [weak self] in self?.handleTimeout(invID) }
     case "schedule_poll":
-      guard let interval = action.intervalSeconds else { return }
-      host.schedule(after: interval) { [weak self] in self?.handlePoll() }
+      guard let invID = action.invocationId, let interval = action.intervalSeconds else { return }
+      host.schedule(after: interval) { [weak self] in self?.handlePoll(invID) }
     case "schedule_leave_settle":
-      guard let seconds = action.seconds else { return }
-      host.schedule(after: seconds) { [weak self] in self?.handleLeaveSettle() }
+      guard let invID = action.invocationId, let seconds = action.seconds else { return }
+      host.schedule(after: seconds) { [weak self] in self?.handleLeaveSettle(invID) }
     default:
       break
     }
   }
 
   private func dispatchPerformWrite(_ action: ActionWire) {
-    guard let text = action.text, let target = currentTarget else {
-      handleWriteCompleted(outcomeCode: "missing_host", targetTerminated: true)
+    guard let invID = action.invocationId else { return }
+    guard let targetID = action.targetId,
+          let text = action.text,
+          let bound = boundTarget,
+          bound.invocationID == invID,
+          bound.targetID == targetID else {
+      handleWriteCompleted(
+        invocationID: invID,
+        outcomeCode: "missing_host",
+        targetTerminated: boundTarget?.target.isTerminated ?? false
+      )
       return
     }
+    let target = bound.target
     target.write(text) { [weak self] outcome in
       let code = Self.outcomeCode(for: outcome)
-      self?.handleWriteCompleted(outcomeCode: code, targetTerminated: target.isTerminated)
+      self?.handleWriteCompleted(invocationID: invID, outcomeCode: code, targetTerminated: target.isTerminated)
+    }
+  }
+
+  private func dispatchFinishInvocation(_ action: ActionWire) {
+    guard let invID = action.invocationId else { return }
+    if let active = activePreview, active.invocationID == invID {
+      let preview = active.preview
+      activePreview = nil
+      preview.dismiss()
+    }
+    if boundTarget?.invocationID == invID {
+      boundTarget = nil
+    }
+    if activeInvocationID == invID {
+      activeInvocationID = nil
     }
   }
 
