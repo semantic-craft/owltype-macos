@@ -652,7 +652,7 @@
             {
               "kind": "file",
               "note": "73 项语音相关测试通过，验证请求格式、密钥复用及回归；20261113T235029Z-swift-jd8g1s91，source_unchanged=true。",
-              "ref": "tests/OwlVoiceGrokASRClientTests.swift"
+              "ref": "tests/OwlVoiceASRClientTests.swift"
             },
             {
               "kind": "file",

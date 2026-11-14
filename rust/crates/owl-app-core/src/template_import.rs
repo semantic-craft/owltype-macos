@@ -84,12 +84,12 @@ fn meaning(e: &Entry) -> String {
         .collect();
     json!({"title":e.title,"body":e.body,"trigger":e.trigger.as_ref().filter(|v|!v.is_empty()),"bodyType":e.body_type,"syntax":if e.body_type==BodyType::PlainText{Syntax::Standard}else{e.syntax},"parameters":parameters}).to_string()
 }
-fn row<H: Host>(host: &mut H, v: &Value, number: usize) -> Result<Row> {
+fn row(v: &Value, number: usize) -> Result<Row> {
     let title = v["name"].as_str();
     let body = v["text"].as_str();
     let keyword = v["keyword"].as_str();
     let mut r = Row {
-        id: uuid(host)?,
+        id: next_uuid_v4(),
         number,
         original_title: title
             .map(str::to_owned)
@@ -120,7 +120,7 @@ fn row<H: Host>(host: &mut H, v: &Value, number: usize) -> Result<Row> {
         .collect();
     if let (Some(title), Some(body)) = (title, body) {
         if r.field_errors.is_empty() {
-            let mut e = Entry::new(uuid(host)?, title.into(), body.into());
+            let mut e = Entry::new(next_uuid_v4(), title.into(), body.into());
             e.trigger = keyword.filter(|s| !s.is_empty()).map(str::to_owned);
             e.import_source = Some(ImportSource {
                 version: 1,
@@ -273,7 +273,7 @@ pub fn preview<H: Host>(host: &mut H, bytes: &[u8]) -> Result<Preview> {
     let baseline = tx::current(host)?;
     let mut rows = vec![];
     for (i, v) in objects.iter().enumerate() {
-        let mut r = row(host, v, i + 1)?;
+        let mut r = row(v, i + 1)?;
         r.selected = r.entry.as_ref().is_some_and(|e| e.review_state.is_none());
         rows.push(r)
     }
@@ -284,12 +284,8 @@ pub fn preview<H: Host>(host: &mut H, bytes: &[u8]) -> Result<Preview> {
     }
     Ok(preview)
 }
-pub fn dispatch<H: Host>(host: &mut H, operation: &str, args: Value) -> Result<Value> {
+pub fn dispatch_rule(operation: &str, args: Value) -> Result<Value> {
     match operation {
-        "import_preview" => {
-            let bytes: Vec<u8> = decode(args["bytes"].clone())?;
-            Ok(json!(preview(host, &bytes)?))
-        }
         "import_assessment" => {
             let p: Preview = decode(args["preview"].clone())?;
             Ok(json!(p.assessment()))
@@ -360,6 +356,15 @@ pub fn dispatch<H: Host>(host: &mut H, operation: &str, args: Value) -> Result<V
                 }
             }
             Ok(json!(p))
+        }
+        _ => Err("unknown_operation".into()),
+    }
+}
+pub fn dispatch_storage<H: Host>(host: &mut H, operation: &str, args: Value) -> Result<Value> {
+    match operation {
+        "import_preview" => {
+            let bytes: Vec<u8> = decode(args["bytes"].clone())?;
+            Ok(json!(preview(host, &bytes)?))
         }
         "import_commit" => {
             let p: Preview = decode(args["preview"].clone())?;

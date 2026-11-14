@@ -6,6 +6,17 @@ struct OwlAutomaticExpansionIndex {
     case invalidTrigger, duplicateTrigger, immediatePrefixConflict
     case invalidTemplate(String)
 
+    init?(coreCode: String) {
+      switch coreCode {
+      case "automatic_invalid": self = .invalidTrigger
+      case "automatic_duplicate": self = .duplicateTrigger
+      case "automatic_prefix": self = .immediatePrefixConflict
+      default:
+        guard coreCode.hasPrefix("automatic_template:") else { return nil }
+        self = .invalidTemplate(String(coreCode.dropFirst("automatic_template:".count)))
+      }
+    }
+
     var errorDescription: String? {
       switch self {
       case .invalidTrigger: return "自动触发词须为双分号后接字母、数字、下划线或连字符。"
@@ -21,7 +32,7 @@ struct OwlAutomaticExpansionIndex {
   static let empty = try! OwlAutomaticExpansionIndex(entries: [])
   init(entries: [OwlTemplateEntry]) throws {
     do { core = try OwlAppSession("index", args: OwlAppCore.payload(entries)) }
-    catch let error as OwlAppCore.Failure { throw OwlStorageHost.failure(error.code) }
+    catch let error as OwlAppCore.Failure { throw ValidationError(coreCode: error.code) ?? error }
   }
 }
 

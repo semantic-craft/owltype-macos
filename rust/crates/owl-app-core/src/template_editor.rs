@@ -1,7 +1,8 @@
 //! Draft mutation policy. Native view state is an editable projection; Rust returns accepted
 //! drafts and commit plans, and failed persistence never publishes that plan to readers.
-use crate::foundation_text::trim;
-use crate::{storage::*, template, template_import, template_library::*};
+use crate::foundation_text::{case_contains, trim};
+use crate::storage::{decode, Result};
+use crate::{template, template_import, template_library::*};
 use serde_json::{json, Value};
 fn options(s: &str) -> Vec<String> {
     if s.is_empty() {
@@ -26,23 +27,12 @@ fn field(p: &Parameter, anonymous: bool) -> String {
     }
     text + "}"
 }
-pub fn dispatch<H: Host>(host: &mut H, operation: &str, args: Value) -> Result<Value> {
+pub fn dispatch(operation: &str, args: Value) -> Result<Value> {
     if operation == "editor_disabled_apps" {
         let mut values: Vec<String> = decode(args["values"].clone())?;
         let text = args["text"].as_str().unwrap_or("");
         if args["remove"] == true {
-            let mut kept = vec![];
-            for value in values {
-                let equal: bool = decode(effect(
-                    host,
-                    "case_contains",
-                    json!({"values":[value], "value":text}),
-                )?)?;
-                if !equal {
-                    kept.push(value);
-                }
-            }
-            values = kept;
+            values.retain(|value| !case_contains(std::slice::from_ref(value), text));
         } else {
             let value = trim(text).to_lowercase();
             if !value.contains('.')
@@ -52,12 +42,7 @@ pub fn dispatch<H: Host>(host: &mut H, operation: &str, args: Value) -> Result<V
             {
                 return Err("请输入应用的完整 bundle ID，例如 com.apple.TextEdit。".into());
             }
-            let exists: bool = decode(effect(
-                host,
-                "case_contains",
-                json!({"values":values,"value":value}),
-            )?)?;
-            if !exists {
+            if !case_contains(&values, &value) {
                 values.push(value);
             }
         }
@@ -127,12 +112,7 @@ pub fn dispatch<H: Host>(host: &mut H, operation: &str, args: Value) -> Result<V
         }
         "tag" => {
             let tag = trim(args["text"].as_str().unwrap_or(""));
-            let exists: bool = decode(effect(
-                host,
-                "case_contains",
-                json!({"values":draft.tags,"value":tag}),
-            )?)?;
-            if !tag.is_empty() && !exists {
+            if !tag.is_empty() && !case_contains(&draft.tags, tag) {
                 draft.tags.push(tag.into())
             }
         }

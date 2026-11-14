@@ -84,17 +84,30 @@ enum OwlTemplateStore {
   static let fileName = "owl_templates.json"
   static let candidatePrefix = "🦉["
   enum Mode: Equatable { case empty, unified, unavailable(String) }
+  static func mapFailure(_ code: String) -> Error {
+    if code == "changed_on_disk" { return OwlTemplateError.changedOnDisk }
+    return OwlAutomaticExpansionIndex.ValidationError(coreCode: code) ?? OwlTemplateError.invalid(code)
+  }
   static func core<T: Decodable>(_ operation: String, _ args: [String: Any] = [:]) -> T {
     OwlAppCore.required(["operation": "template_rule", "rule": operation, "args": args])
+  }
+  static func tryCore<T: Decodable>(_ operation: String, _ args: [String: Any] = [:]) throws -> T {
+    do { return try OwlAppCore.call(["operation": "template_rule", "rule": operation, "args": args]) }
+    catch let failure as OwlAppCore.Failure { throw mapFailure(failure.code) }
+  }
+  static func storage(dataDir: URL, checkpointItems: [String] = [],
+                      checkpoint: @escaping (String) throws -> Void = { _ in }) -> OwlStorageHost {
+    OwlStorageHost(dataDir: dataDir, checkpointItems: checkpointItems, checkpoint: checkpoint,
+                   onCommit: notifyCommittedLibrary, mapError: mapFailure)
   }
   static func exclusively<T>(_ action: () throws -> T) rethrows -> T { try OwlStorageHost.exclusively(action) }
   static func mode(dataDir: URL = OwlApp.userDir) -> Mode {
     struct State: Decodable { let kind: String; let message: String? }
-    guard let value: State = try? OwlStorageHost(dataDir: dataDir).call("library_mode") else { return .unavailable("模板库无法读取。") }
+    guard let value: State = try? Self.storage(dataDir: dataDir).call("library_mode") else { return .unavailable("模板库无法读取。") }
     switch value.kind { case "empty": return .empty; case "unified": return .unified; default: return .unavailable(value.message ?? "模板库无法读取。") }
   }
   static func load(dataDir: URL = OwlApp.userDir) throws -> OwlTemplateLibrary {
-    try exclusively { try OwlStorageHost(dataDir: dataDir).call("library_load") }
+    try exclusively { try Self.storage(dataDir: dataDir).call("library_load") }
   }
   static func sorted(_ entries: [OwlTemplateEntry]) -> [OwlTemplateEntry] { core("library_sorted", ["entries": OwlAppCore.payload(entries)]) }
   static func filtered(_ entries: [OwlTemplateEntry], query: String = "", tag: String? = nil, promptOnly: Bool = false) -> [OwlTemplateEntry] {
@@ -119,13 +132,13 @@ enum OwlTemplateStore {
   }
   static func save(_ library: OwlTemplateLibrary, dataDir: URL = OwlApp.userDir, expectedLibrary: OwlTemplateLibrary? = nil, beforeWrite: (String) throws -> Void = { _ in }) throws {
     try withoutActuallyEscaping(beforeWrite) { checkpoint in
-      let _: Bool = try OwlStorageHost(dataDir: dataDir, checkpoint: checkpoint).call("library_save",
+      let _: Bool = try Self.storage(dataDir: dataDir, checkpointItems: [fileName], checkpoint: checkpoint).call("library_save",
         ["library": OwlAppCore.payload(library), "expected": expectedLibrary.map(OwlAppCore.payload) ?? NSNull()])
     }
   }
   static func delete(id: UUID, expected: OwlTemplateLibrary, dataDir: URL = OwlApp.userDir, beforeWrite: (String) throws -> Void = { _ in }) throws -> OwlTemplateLibrary {
     let result: OwlTemplateLibrary = try withoutActuallyEscaping(beforeWrite) { checkpoint in
-      try OwlStorageHost(dataDir: dataDir, checkpoint: checkpoint).call("library_delete",
+      try Self.storage(dataDir: dataDir, checkpointItems: [fileName], checkpoint: checkpoint).call("library_delete",
         ["id": id.uuidString, "expected": OwlAppCore.payload(expected)])
     }
     return result
@@ -133,7 +146,11 @@ enum OwlTemplateStore {
   static let libraryDidCommit = Notification.Name("OwlTemplateLibraryDidCommit")
   static func notifyCommittedLibrary(dataDir: URL) { NotificationCenter.default.post(name: libraryDidCommit, object: dataDir.standardizedFileURL) }
   static func encoded(_ library: OwlTemplateLibrary) throws -> Data {
-    let bytes: [UInt8] = try OwlAppCore.call(["operation": "template_encode", "library": OwlAppCore.payload(library)])
-    return Data(bytes)
+    do {
+      let bytes: [UInt8] = try OwlAppCore.call(["operation": "template_encode", "library": OwlAppCore.payload(library)])
+      return Data(bytes)
+    } catch let failure as OwlAppCore.Failure {
+      throw mapFailure(failure.code)
+    }
   }
 }

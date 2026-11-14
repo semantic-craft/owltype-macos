@@ -1,12 +1,12 @@
 //
-//  OwlVoiceGrokASRClientTests.swift
-//  OwltypeTests — Lane B: xAI Grok Cloud ASR Client Tests (#393)
+//  OwlVoiceASRClientTests.swift
+//  OwltypeTests — Lane B: Cloud ASR Client Tests
 //
 
 import XCTest
 @testable import Owltype
 
-final class OwlVoiceGrokASRClientTests: XCTestCase {
+final class OwlVoiceASRClientTests: XCTestCase {
 
   func testDeepSeekUploadsOnlyWAVAndDecodesTranscript() async throws {
     let wav = OwlWAVPacker.pack16kMono(pcmData: Data([1, 2, 3, 4]))
@@ -23,7 +23,7 @@ final class OwlVoiceGrokASRClientTests: XCTestCase {
       let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
       return (Data(#"{"request_id":"asr-test","text":" 今天开会。 ","duration_ms":1000}"#.utf8), response)
     }
-    let client = OwlVoiceGrokASRClient(
+    let client = OwlVoiceASRClient(
       providerID: "deepseek", transport: transport, apiKeyProvider: { "test-deepseek" })
     let transcript = try await client.transcribe(audioWavData: wav, prompt: "不应发送的上下文")
     XCTAssertEqual(transcript, "今天开会。")
@@ -34,7 +34,7 @@ final class OwlVoiceGrokASRClientTests: XCTestCase {
   func testMultipartPayloadEncoding() {
     let mockWav = OwlWAVPacker.pack16kMono(pcmData: Data([0x01, 0x02, 0x03, 0x04]))
     let boundary = "Boundary-TEST-UUID"
-    let body = OwlVoiceGrokASRClient.buildMultipartBody(
+    let body = OwlVoiceASRClient.buildMultipartBody(
       audioData: mockWav,
       model: "grok-asr",
       prompt: "前文：你好\n热词：法墨输入法",
@@ -54,7 +54,7 @@ final class OwlVoiceGrokASRClientTests: XCTestCase {
     let mockWav = OwlWAVPacker.pack16kMono(pcmData: Data([0x01, 0x02]))
     let boundary = "Boundary-TEST-UUID"
 
-    let bodyNil = OwlVoiceGrokASRClient.buildMultipartBody(
+    let bodyNil = OwlVoiceASRClient.buildMultipartBody(
       audioData: mockWav,
       model: "grok-asr",
       prompt: nil,
@@ -62,7 +62,7 @@ final class OwlVoiceGrokASRClientTests: XCTestCase {
     )
     XCTAssertFalse(String(decoding: bodyNil, as: UTF8.self).contains("name=\"prompt\""))
 
-    let bodyEmpty = OwlVoiceGrokASRClient.buildMultipartBody(
+    let bodyEmpty = OwlVoiceASRClient.buildMultipartBody(
       audioData: mockWav,
       model: "grok-asr",
       prompt: "",
@@ -84,7 +84,7 @@ final class OwlVoiceGrokASRClientTests: XCTestCase {
       return (Data(json.utf8), resp)
     }
 
-    let client = OwlVoiceGrokASRClient(transport: stubTransport, apiKeyProvider: { "test-key-123" })
+    let client = OwlVoiceASRClient(transport: stubTransport, apiKeyProvider: { "test-key-123" })
     let mockWav = OwlWAVPacker.pack16kMono(pcmData: Data([0x01, 0x02, 0x03, 0x04]))
     let result = try await client.transcribe(audioWavData: mockWav, prompt: "开会")
     XCTAssertEqual(result, "今天天气很好我们去开会")
@@ -99,7 +99,7 @@ final class OwlVoiceGrokASRClientTests: XCTestCase {
       return (Data(json.utf8), resp)
     }
 
-    let client = OwlVoiceGrokASRClient(transport: stubTransport, apiKeyProvider: { "test-key" })
+    let client = OwlVoiceASRClient(transport: stubTransport, apiKeyProvider: { "test-key" })
     let mockWav = OwlWAVPacker.pack16kMono(pcmData: Data([0x01, 0x02]))
     do {
       _ = try await client.transcribe(audioWavData: mockWav, prompt: nil)
@@ -115,7 +115,7 @@ final class OwlVoiceGrokASRClientTests: XCTestCase {
 
   func testMissingAPIKeyThrowsWithoutNetwork() async {
     let stubTransport = OwlStubVoiceTransport()
-    let client = OwlVoiceGrokASRClient(transport: stubTransport, apiKeyProvider: { nil })
+    let client = OwlVoiceASRClient(transport: stubTransport, apiKeyProvider: { nil })
     let mockWav = OwlWAVPacker.pack16kMono(pcmData: Data([0x01, 0x02]))
 
     do {
@@ -131,7 +131,7 @@ final class OwlVoiceGrokASRClientTests: XCTestCase {
 
   func testEmptyAudioDataThrowsWithoutNetwork() async {
     let stubTransport = OwlStubVoiceTransport()
-    let client = OwlVoiceGrokASRClient(transport: stubTransport, apiKeyProvider: { "test-key" })
+    let client = OwlVoiceASRClient(transport: stubTransport, apiKeyProvider: { "test-key" })
 
     do {
       _ = try await client.transcribe(audioWavData: Data(), prompt: nil)
@@ -153,7 +153,7 @@ final class OwlVoiceGrokASRClientTests: XCTestCase {
       return (Data(json.utf8), resp)
     }
 
-    let client = OwlVoiceGrokASRClient(transport: stubTransport, apiKeyProvider: { "bad-key" })
+    let client = OwlVoiceASRClient(transport: stubTransport, apiKeyProvider: { "bad-key" })
     let mockWav = OwlWAVPacker.pack16kMono(pcmData: Data([0x01, 0x02]))
 
     do {
@@ -174,7 +174,7 @@ final class OwlVoiceGrokASRClientTests: XCTestCase {
       return (Data(json.utf8), resp)
     }
 
-    let client = OwlVoiceGrokASRClient(transport: stubTransport, apiKeyProvider: { secretKey })
+    let client = OwlVoiceASRClient(transport: stubTransport, apiKeyProvider: { secretKey })
     let mockWav = OwlWAVPacker.pack16kMono(pcmData: Data([0x01, 0x02]))
 
     do {
@@ -199,7 +199,7 @@ final class OwlVoiceGrokASRClientTests: XCTestCase {
       return (Data(html.utf8), resp)
     }
 
-    let client = OwlVoiceGrokASRClient(transport: stubTransport, apiKeyProvider: { "key" })
+    let client = OwlVoiceASRClient(transport: stubTransport, apiKeyProvider: { "key" })
     let mockWav = OwlWAVPacker.pack16kMono(pcmData: Data([0x01, 0x02]))
 
     do {
@@ -217,7 +217,7 @@ final class OwlVoiceGrokASRClientTests: XCTestCase {
   func testStrictRFC7578CRLFBoundariesAndHeaders() {
     let mockWav = OwlWAVPacker.pack16kMono(pcmData: Data([0xAA, 0xBB, 0xCC, 0xDD]))
     let boundary = "STRICT-BOUNDARY-42"
-    let body = OwlVoiceGrokASRClient.buildMultipartBody(
+    let body = OwlVoiceASRClient.buildMultipartBody(
       audioData: mockWav,
       model: "grok-asr-adv",
       prompt: "热词：测试",
@@ -247,7 +247,7 @@ final class OwlVoiceGrokASRClientTests: XCTestCase {
       return (Data(html.utf8), resp)
     }
 
-    let client = OwlVoiceGrokASRClient(transport: stubTransport, apiKeyProvider: { "valid-key" })
+    let client = OwlVoiceASRClient(transport: stubTransport, apiKeyProvider: { "valid-key" })
     let mockWav = OwlWAVPacker.pack16kMono(pcmData: Data([0x01, 0x02]))
 
     do {
@@ -267,7 +267,7 @@ final class OwlVoiceGrokASRClientTests: XCTestCase {
       return (Data(html.utf8), resp)
     }
 
-    let client = OwlVoiceGrokASRClient(transport: stubTransport, apiKeyProvider: { "valid-key" })
+    let client = OwlVoiceASRClient(transport: stubTransport, apiKeyProvider: { "valid-key" })
     let mockWav = OwlWAVPacker.pack16kMono(pcmData: Data([0x01, 0x02]))
 
     do {
@@ -287,7 +287,7 @@ final class OwlVoiceGrokASRClientTests: XCTestCase {
       throw URLError(.timedOut)
     }
 
-    let client = OwlVoiceGrokASRClient(transport: stubTransport, apiKeyProvider: { "valid-key" })
+    let client = OwlVoiceASRClient(transport: stubTransport, apiKeyProvider: { "valid-key" })
     let mockWav = OwlWAVPacker.pack16kMono(pcmData: Data([0x01, 0x02]))
 
     do {
@@ -305,7 +305,7 @@ final class OwlVoiceGrokASRClientTests: XCTestCase {
       throw URLError(.networkConnectionLost)
     }
 
-    let client = OwlVoiceGrokASRClient(transport: stubTransport, apiKeyProvider: { "valid-key" })
+    let client = OwlVoiceASRClient(transport: stubTransport, apiKeyProvider: { "valid-key" })
     let mockWav = OwlWAVPacker.pack16kMono(pcmData: Data([0x01, 0x02]))
 
     do {
@@ -357,7 +357,7 @@ final class OwlVoiceGrokASRClientTests: XCTestCase {
       return (Data(json.utf8), resp)
     }
 
-    let client = OwlVoiceGrokASRClient(
+    let client = OwlVoiceASRClient(
       providerID: OwlVoiceASRCatalog.gemini.id,
       endpoint: URL(string: "https://generativelanguage.googleapis.com/v1beta/models")!,
       model: "gemini-3.5-transcribe",
@@ -369,14 +369,14 @@ final class OwlVoiceGrokASRClientTests: XCTestCase {
     XCTAssertEqual(transcript, "用 Gemini 3.5 Transcribe 识别出来的语音内容")
 
     // Also verify general multimodal Gemini models (e.g. gemini-3.8-flash) returning parts[*].text
-    let flashDecoded = try OwlVoiceGrokASRClient.decodeTranscript(
+    let flashDecoded = try OwlVoiceASRClient.decodeTranscript(
       from: Data("{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"  Gemini 3.8 Flash 文本结果 \"}]}}]}".utf8),
       isGeminiGenerateContent: true
     )
     XCTAssertEqual(flashDecoded, "Gemini 3.8 Flash 文本结果")
 
     // Verify stale /audio/transcriptions endpoint is normalized to native :generateContent when provider is Gemini
-    let normalized = OwlVoiceGrokASRClient.resolveGeminiGenerateContentEndpoint(
+    let normalized = OwlVoiceASRClient.resolveGeminiGenerateContentEndpoint(
       baseEndpoint: URL(string: "https://generativelanguage.googleapis.com/v1beta/openai/audio/transcriptions")!,
       model: "gemini-3.5-transcribe"
     )

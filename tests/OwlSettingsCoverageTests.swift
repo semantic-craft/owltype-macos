@@ -200,7 +200,7 @@ final class OwlSettingsCoverageTests: XCTestCase {
     // 标签随之离开 settings- 源文件（与录制器其余文案同一策略）。
     "粘贴",
     // 语音输入 · 云端语音识别：预设、端点、模型、拉取模型、ASR API Key 存取与 OpenAI 账号登录状态/验证，
-    // 行为由 OwlAIVoiceTests 与 OwlVoiceGrokASRClientTests 覆盖。
+    // 行为由 OwlAIVoiceTests 与 OwlVoiceASRClientTests 覆盖。
     "已设置 ●●●●●●（输入新 Key 可覆盖）",
     "保存",
     "清除",

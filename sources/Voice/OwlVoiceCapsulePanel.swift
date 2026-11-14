@@ -6,6 +6,15 @@
 import AppKit
 import SwiftUI
 
+enum OwlVoiceCapsuleState: Equatable, Sendable {
+  case idle
+  case recording(level: Float, duration: TimeInterval, isHandsFreeLocked: Bool)
+  case recognizing
+  case polishing(rawTranscript: String)
+  case completed(finalText: String)
+  case failed(String)
+}
+
 @MainActor
 class OwlVoiceCapsulePanel: OwlFloatingPanel {
   static let shared = OwlVoiceCapsulePanel()

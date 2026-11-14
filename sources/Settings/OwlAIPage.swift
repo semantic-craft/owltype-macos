@@ -830,7 +830,7 @@ struct OwlAIPage: View {
   }
 
   private func resolvedQwenEndpoint() -> URL? {
-    let value: String? = OwlProviderHost().required("resolvedWorkspace", ["input": qwenWorkspaceInput])
+    let value: String? = OwlProviderCore.call("resolvedWorkspace", ["input": qwenWorkspaceInput])
     return value.flatMap(URL.init(string:))
   }
 

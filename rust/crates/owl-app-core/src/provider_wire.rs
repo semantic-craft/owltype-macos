@@ -240,6 +240,61 @@ pub(crate) fn effective_temperature(model: &str, value: Value) -> Value {
     }
 }
 
+pub fn workspace_host(raw: &str) -> Option<String> {
+    let t = trim(raw).to_lowercase();
+    if t.is_empty() {
+        return None;
+    }
+    let suffix = ".cn-beijing.maas.aliyuncs.com";
+    let host = if t.contains("://") {
+        if t.chars().any(|c| c.is_whitespace() || c.is_control() || c == '\\') {
+            return None;
+        }
+        let rest = t.strip_prefix("https://")?;
+        let auth = rest.split(['/', '?', '#']).next().unwrap_or("");
+        // Foundation URL rejects userinfo/ports differently from url::Url, which strips :443.
+        if auth.is_empty() || auth.contains('@') || auth.contains(':') {
+            return None;
+        }
+        let parsed = url::Url::parse(&t).ok()?;
+        parsed.host_str()?.to_owned()
+    } else {
+        if t.contains(['/', '@', ':', '?', '#']) {
+            return None;
+        }
+        if t.contains('.') {
+            t
+        } else {
+            format!("{t}{suffix}")
+        }
+    };
+    if !host.starts_with("ws-") || !host.ends_with(suffix) {
+        return None;
+    }
+    let id = &host[..host.len() - suffix.len()];
+    if id.len() > 3 && id.bytes().all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'-') {
+        Some(host)
+    } else {
+        None
+    }
+}
+
+pub fn prepare_workspace(raw: &str) -> Option<String> {
+    if trim(raw).is_empty() {
+        Some(String::new())
+    } else {
+        workspace_host(raw)
+    }
+}
+
+pub fn workspace_endpoint(host: &str) -> String {
+    if host.is_empty() {
+        "https://dashscope.aliyuncs.com/compatible-mode/v1/responses".into()
+    } else {
+        format!("https://{host}/compatible-mode/v1/responses")
+    }
+}
+
 pub fn rule(op: &str, a: Value) -> Value {
     match op {
         "curatedModels" => {
@@ -581,6 +636,16 @@ pub fn rule(op: &str, a: Value) -> Value {
                 .extend(extra.as_object().unwrap().clone());
             out
         }
+        "workspace" => json!(workspace_host(s(&a, "input"))),
+        "workspaceEndpoint" => workspace_host(s(&a, "input"))
+            .map(|v| json!(workspace_endpoint(&v)))
+            .unwrap_or(Value::Null),
+        "storedWorkspaceEndpoint" => json!(workspace_endpoint(
+            &workspace_host(s(&a, "input")).unwrap_or_default()
+        )),
+        "resolvedWorkspace" => prepare_workspace(s(&a, "input"))
+            .map(|v| json!(workspace_endpoint(&v)))
+            .unwrap_or(Value::Null),
         _ => crate::provider_search::rule(op, &a),
     }
 }
@@ -736,5 +801,67 @@ mod tests {
         assert_eq!(parsed_deepseek["usage"]["totalTokens"].as_i64(), Some(15));
         assert_eq!(parsed_deepseek["usage"]["promptCacheHitTokens"].as_i64(), Some(7));
         assert_eq!(parsed_deepseek["usage"]["promptCacheMissTokens"].as_i64(), Some(3));
+    }
+
+    #[test]
+    fn workspace_normalization_and_rules_match_constraints() {
+        let host = "ws-abc123.cn-beijing.maas.aliyuncs.com";
+        let endpoint = "https://ws-abc123.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/responses";
+        let default_endpoint = "https://dashscope.aliyuncs.com/compatible-mode/v1/responses";
+
+        assert_eq!(workspace_host("  WS-ABC123  "), Some(host.into()));
+        assert_eq!(workspace_host(host), Some(host.into()));
+        assert_eq!(
+            workspace_host(&format!("https://{host}/compatible-mode/v1/responses?x=1#y")),
+            Some(host.into())
+        );
+        assert_eq!(workspace_host(""), None);
+        assert_eq!(workspace_host("ws-"), None);
+        assert_eq!(workspace_host(&format!("http://{host}")), None);
+        assert_eq!(workspace_host(&format!("https://user@{host}")), None);
+        assert_eq!(workspace_host(&format!("https://{host}:443/v1")), None);
+        assert_eq!(
+            workspace_host("ws-abc123.cn-shanghai.maas.aliyuncs.com"),
+            None
+        );
+        assert_eq!(workspace_host(&format!("https://{host}/a\\b")), None);
+
+        assert_eq!(prepare_workspace("  \t "), Some(String::new()));
+        assert_eq!(prepare_workspace("ws-abc123"), Some(host.into()));
+        assert_eq!(prepare_workspace("http://ws-abc123"), None);
+
+        assert_eq!(workspace_endpoint(""), default_endpoint);
+        assert_eq!(workspace_endpoint(host), endpoint);
+
+        assert_eq!(rule("workspace", json!({"input": "ws-abc123"})), json!(host));
+        assert_eq!(rule("workspace", json!({"input": "   "})), Value::Null);
+        assert_eq!(
+            rule("workspaceEndpoint", json!({"input": host})),
+            json!(endpoint)
+        );
+        assert_eq!(
+            rule("workspaceEndpoint", json!({"input": format!("https://{host}:443")})),
+            Value::Null
+        );
+        assert_eq!(
+            rule("storedWorkspaceEndpoint", json!({"input": ""})),
+            json!(default_endpoint)
+        );
+        assert_eq!(
+            rule("storedWorkspaceEndpoint", json!({"input": host})),
+            json!(endpoint)
+        );
+        assert_eq!(
+            rule("resolvedWorkspace", json!({"input": "  "})),
+            json!(default_endpoint)
+        );
+        assert_eq!(
+            rule("resolvedWorkspace", json!({"input": host})),
+            json!(endpoint)
+        );
+        assert_eq!(
+            rule("resolvedWorkspace", json!({"input": format!("http://{host}")})),
+            Value::Null
+        );
     }
 }

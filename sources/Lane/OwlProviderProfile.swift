@@ -95,11 +95,11 @@ enum OwlLLMProviderCatalog {
 /// 北京地域 Workspace Host，避免把任意用户输入直接插进 URL host。
 enum OwlQwenWorkspace {
   static func normalizedAPIHost(_ rawValue: String) -> String? {
-    OwlProviderHost().required("workspace", ["input": rawValue])
+    OwlProviderCore.call("workspace", ["input": rawValue])
   }
 
   static func responsesEndpoint(for rawValue: String) -> URL? {
-    let value: String? = OwlProviderHost().required("workspaceEndpoint", ["input": rawValue])
+    let value: String? = OwlProviderCore.call("workspaceEndpoint", ["input": rawValue])
     return value.flatMap(URL.init(string:))
   }
 
@@ -118,7 +118,7 @@ enum OwlQwenWorkspaceSettings {
   }
 
   static func responsesEndpoint(defaults: UserDefaults = OwlDefaults.standard) -> URL {
-    let value: String = OwlProviderHost().required("storedWorkspaceEndpoint", ["input": apiHost(defaults: defaults)])
+    let value: String = OwlProviderCore.call("storedWorkspaceEndpoint", ["input": apiHost(defaults: defaults)])
     return URL(string: value)!
   }
 }
@@ -194,13 +194,13 @@ struct OwlProviderProfile: Codable, Identifiable, Equatable, Sendable {
     ]
     struct Fields: Decodable {
       let id: String; let displayName: String; let kind: OwlProviderKind; let endpoint: URL
-      let model: String; let providerID: String?; let secretName: String; let isDefault: Bool; let createdAt: Date
+      let model: String; let providerID: String?; let secretName: String; let isDefault: Bool; let createdAt: Double
     }
     let decoded: Fields? = OwlProviderCore.call("profileDefaults", ["profile": raw])
     guard let value = decoded else { throw OwlAppCore.Failure(code: "malformed_profile") }
     self.init(id: value.id, displayName: value.displayName, kind: value.kind, endpoint: value.endpoint,
       model: value.model, providerID: value.providerID, secretName: value.secretName,
-      isDefault: value.isDefault, createdAt: value.createdAt)
+      isDefault: value.isDefault, createdAt: Date(timeIntervalSinceReferenceDate: value.createdAt))
   }
 
   /// Secret-name convention: `owltype.provider.<id>.apiKey`. Keeps every profile's key under a

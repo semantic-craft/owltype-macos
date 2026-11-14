@@ -8,6 +8,10 @@ import AVFoundation
 import Foundation
 import InputMethodKit
 
+protocol OwlVoicePolishServiceProtocol: Sendable {
+  func polish(rawTranscript: String, hotwords: [String], preContext: String?) async throws -> String
+}
+
 struct OwlVoiceTargetSnapshot: @unchecked Sendable {
   weak var client: IMKTextInput?
   let frontmostApp: NSRunningApplication?
@@ -62,7 +66,7 @@ final class OwlVoiceInputCoordinator {
 
   // Dependencies (Injected or defaulted for production & offline testing)
   var audioRecorder: OwlAudioRecordingProtocol = OwlVoiceAudioRecorder.shared
-  var asrClient: OwlVoiceASRServiceProtocol = OwlVoiceGrokASRClient.shared
+  var asrClient: OwlVoiceASRServiceProtocol = OwlVoiceASRClient.shared
   var hotwordsExtractor: OwlVoiceHotwordsExtracting = OwlVoiceHotwordsExtractor.shared
   var postProcessor: OwlVoicePolishServiceProtocol? = OwlVoicePolisher.shared
   var hudPanel: OwlVoiceCapsulePanel = OwlVoiceCapsulePanel.shared

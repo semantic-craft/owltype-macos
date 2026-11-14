@@ -107,17 +107,16 @@ therefore retain their existing Foundation semantics. Library storage and invoca
 
 `owl_app_storage_call` is the synchronous storage ABI alongside the bounded pure dispatcher.
 It borrows requests and native service context for one calling-thread operation. Rust invokes
-one explicit native primitive at a time (read, atomic write/rename, permissions, lock, UUID,
-collation fact or commit notification); it owns the complete operation, journal phases and
-error recovery. Native effect errors use opaque per-call tokens so the original Swift Error
+one explicit native primitive at a time (read, atomic write/rename, permissions, lock or
+commit notification); it owns the complete operation, journal phases and error recovery. Native effect errors use opaque per-call tokens so the original Swift Error
 can cross back without serializing it. Domain validation still returns user-facing messages.
 No callback/context is retained or sent to a worker thread. These storage operations preserve
 the existing callers' scheduling; ordinary keys do not invoke filesystem effects.
 
 `template_library`, `template_editor`, `picker`, and `template_import`
 own their models and decisions. UI projections remain Codable
-DTOs. Foundation supplies title ranks, case comparison and localized substring facts; Rust
-chooses pin priority, deduplication representatives and ordering. `foundation_text` preserves
+DTOs. `foundation_text` computes Unicode NFC title ranks, case comparison and localized
+substring containment natively in Rust; Rust chooses pin priority, deduplication representatives and ordering. `foundation_text` preserves
 Foundation whitespaces/newlines (including U+200B) without normalizing authored content.
 The automatic trie and conflict validation are built once by Rust; per-key recognition
 consumes immutable native-decoded nodes via the session ABI below.
@@ -237,7 +236,7 @@ field change during native text queries from authorizing a write into the new ta
 `provider_store.rs` owns profile defaults, catalog inference, active/default selection and CRUD,
 legacy migration, scheme/host/default-port origin checks, Qwen Workspace rules and registry
 transactions. The native provider host supplies raw atomic file writes, ISO-8601 formatting,
-Foundation URL facts, UUID/time, preferences and the unchanged Keychain APIs. `providers.json`
+Foundation URL facts, timestamps, preferences and the unchanged Keychain APIs. `providers.json`
 keeps schema 1, its existing path, optional-field omission and secret-name convention. Keys never
 enter that file or telemetry. The synchronous storage ABI carries explicit provider operations;
 callback errors retain opaque tokens so public store failures preserve their native Error values.
@@ -245,8 +244,8 @@ callback errors retain opaque tokens so public store failures preserve their nat
 The registry stages independent credential references before committing a profile. A thrown write
 rereads the file; ambiguous contents retain both old and staged keys. Only a proved unreferenced
 key is retired. Workspace batches can settle a proved landed write, while single-profile edits
-retain the original failure outcome. A separate owned `providerRegistry` session holds only the
-probe digest; native per-call key references supply digest facts and perform Keychain effects.
+retain the original failure outcome. Native `OwlProviderProbeState` holds only the in-memory
+probe digest for the registry instance; native per-call key references supply digest facts and perform Keychain effects.
 Fresh references do not inherit verification markers. Optional session facts use object envelopes.
 
 `provider_wire.rs`, `provider_search.rs` and `provider_catalog.json` own capabilities, payloads,

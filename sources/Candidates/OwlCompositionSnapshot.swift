@@ -28,3 +28,43 @@ final class OwlSnapshotIDGenerator: @unchecked Sendable {
     return result
   }
 }
+
+/// MainActor-isolated holder of the live composition snapshot.
+@MainActor
+final class OwlSnapshotRegistry {
+  static let shared = OwlSnapshotRegistry()
+
+  private(set) var current: OwlCompositionSnapshot?
+
+  init() {}
+
+  func update(_ snapshot: OwlCompositionSnapshot?) {
+    current = snapshot
+  }
+}
+
+@MainActor
+final class OwlSnapshotEmitter {
+  static let shared = OwlSnapshotEmitter()
+
+  private var wasComposing: Bool = false
+
+  init() {}
+
+  func emitComposing(rawInput: String) {
+    let snapshot = OwlCompositionSnapshot(
+      id: OwlSnapshotIDGenerator.shared.next(),
+      rawInput: rawInput
+    )
+
+    OwlSnapshotRegistry.shared.update(snapshot)
+
+    wasComposing = true
+  }
+
+  func emitCleared() {
+    guard wasComposing else { return }
+    OwlSnapshotRegistry.shared.update(nil)
+    wasComposing = false
+  }
+}

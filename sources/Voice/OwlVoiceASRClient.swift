@@ -1,5 +1,5 @@
 //
-//  OwlVoiceGrokASRClient.swift
+//  OwlVoiceASRClient.swift
 //  Owltype — Voice Input Subsystem
 //
 
@@ -9,8 +9,8 @@ protocol OwlVoiceASRServiceProtocol: Sendable {
   func transcribe(audioWavData: Data, prompt: String?) async throws -> String
 }
 
-public final class OwlVoiceGrokASRClient: OwlVoiceASRServiceProtocol, @unchecked Sendable {
-  public static let shared = OwlVoiceGrokASRClient()
+public final class OwlVoiceASRClient: OwlVoiceASRServiceProtocol, @unchecked Sendable {
+  public static let shared = OwlVoiceASRClient()
 
   private let explicitProviderID: String?
   private let explicitEndpoint: URL?

@@ -27,7 +27,7 @@ final class OwlVoiceInputIntegrationTests: XCTestCase {
       let resp = HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
       return (Data(json.utf8), resp)
     }
-    let asrClient = OwlVoiceGrokASRClient(transport: stubTransport, apiKeyProvider: { "mock-key" })
+    let asrClient = OwlVoiceASRClient(transport: stubTransport, apiKeyProvider: { "mock-key" })
     coordinator.asrClient = asrClient
 
     let mockClient = MockVoiceTextInputClient()
@@ -81,7 +81,7 @@ final class OwlVoiceInputIntegrationTests: XCTestCase {
       let resp = HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
       return (Data(json.utf8), resp)
     }
-    coordinator.asrClient = OwlVoiceGrokASRClient(transport: stubTransport, apiKeyProvider: { "mock-key" })
+    coordinator.asrClient = OwlVoiceASRClient(transport: stubTransport, apiKeyProvider: { "mock-key" })
 
     let mockClient = MockVoiceTextInputClient()
     coordinator.targetSnapshotProvider = {
@@ -333,7 +333,7 @@ final class OwlVoiceInputIntegrationTests: XCTestCase {
     coordinator.audioRecorder = mockRecorder
 
     let stubTransport = OwlStubVoiceTransport()
-    coordinator.asrClient = OwlVoiceGrokASRClient(transport: stubTransport, apiKeyProvider: { "mock-key" })
+    coordinator.asrClient = OwlVoiceASRClient(transport: stubTransport, apiKeyProvider: { "mock-key" })
 
     // Right Option Down -> starts recording (.holding)
     let down = try makeKeyEvent(
@@ -370,7 +370,7 @@ final class OwlVoiceInputIntegrationTests: XCTestCase {
     coordinator.audioRecorder = mockRecorder
 
     let stubTransport = OwlStubVoiceTransport()
-    coordinator.asrClient = OwlVoiceGrokASRClient(transport: stubTransport, apiKeyProvider: { "mock-key" })
+    coordinator.asrClient = OwlVoiceASRClient(transport: stubTransport, apiKeyProvider: { "mock-key" })
 
     // Right Option Down -> starts recording (.holding)
     let down = try makeKeyEvent(
@@ -405,7 +405,7 @@ final class OwlVoiceInputIntegrationTests: XCTestCase {
     coordinator.audioRecorder = mockRecorder
 
     let stubTransport = OwlStubVoiceTransport()
-    coordinator.asrClient = OwlVoiceGrokASRClient(transport: stubTransport, apiKeyProvider: { "mock-key" })
+    coordinator.asrClient = OwlVoiceASRClient(transport: stubTransport, apiKeyProvider: { "mock-key" })
 
     let keyCodes: [UInt16] = [61, 61, 49, 61, 53, 61, 49, 53, 61, 61, 61]
     let types: [NSEvent.EventType] = [.flagsChanged, .keyDown]
@@ -440,7 +440,7 @@ final class OwlVoiceInputIntegrationTests: XCTestCase {
       let resp = HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
       return (Data(json.utf8), resp)
     }
-    coordinator.asrClient = OwlVoiceGrokASRClient(transport: stubTransport, apiKeyProvider: { "mock-key" })
+    coordinator.asrClient = OwlVoiceASRClient(transport: stubTransport, apiKeyProvider: { "mock-key" })
 
     let trackingPanel = TestTrackingVoiceCapsulePanel()
     coordinator.hudPanel = trackingPanel
@@ -511,7 +511,7 @@ final class OwlVoiceInputIntegrationTests: XCTestCase {
       let resp = HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
       return (Data(json.utf8), resp)
     }
-    let asrClient = OwlVoiceGrokASRClient(transport: stubTransport, apiKeyProvider: { "mock-key" })
+    let asrClient = OwlVoiceASRClient(transport: stubTransport, apiKeyProvider: { "mock-key" })
     coordinator.asrClient = asrClient
 
     let mockExtractor = OwlMockHotwordsExtractor()
@@ -571,7 +571,7 @@ final class OwlVoiceInputIntegrationTests: XCTestCase {
       let resp = HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
       return (Data(json.utf8), resp)
     }
-    coordinator.asrClient = OwlVoiceGrokASRClient(transport: stubTransport, apiKeyProvider: { "mock-key" })
+    coordinator.asrClient = OwlVoiceASRClient(transport: stubTransport, apiKeyProvider: { "mock-key" })
 
     let trackingPanel = TestTrackingVoiceCapsulePanel()
     coordinator.hudPanel = trackingPanel
@@ -617,7 +617,7 @@ final class OwlVoiceInputIntegrationTests: XCTestCase {
       let resp = HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
       return (Data(json.utf8), resp)
     }
-    coordinator.asrClient = OwlVoiceGrokASRClient(transport: stubTransport, apiKeyProvider: { "mock-key" })
+    coordinator.asrClient = OwlVoiceASRClient(transport: stubTransport, apiKeyProvider: { "mock-key" })
 
     let mockPolisher = OwlMockVoicePolisher()
     mockPolisher.polishHandler = { _, _, _ in
@@ -653,7 +653,7 @@ final class OwlVoiceInputIntegrationTests: XCTestCase {
       let resp = HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
       return (Data(json.utf8), resp)
     }
-    coordinator.asrClient = OwlVoiceGrokASRClient(transport: stubTransport, apiKeyProvider: { "mock-key" })
+    coordinator.asrClient = OwlVoiceASRClient(transport: stubTransport, apiKeyProvider: { "mock-key" })
 
     let trackingPanel = TestTrackingVoiceCapsulePanel()
     coordinator.hudPanel = trackingPanel
@@ -736,7 +736,7 @@ final class OwlVoiceInputIntegrationTests: XCTestCase {
     let original = MockVoiceTextInputClient()
     let next = MockVoiceTextInputClient()
     coordinator.audioRecorder = recorder
-    coordinator.asrClient = OwlVoiceGrokASRClient(
+    coordinator.asrClient = OwlVoiceASRClient(
       transport: OwlStubVoiceTransport(), apiKeyProvider: { "mock-key" })
     coordinator.postProcessor = polisher
     coordinator.hotwordsExtractor = OwlMockHotwordsExtractor()

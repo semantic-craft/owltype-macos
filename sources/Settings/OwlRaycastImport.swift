@@ -51,10 +51,11 @@ struct OwlRaycastImport {
     mutating func convertToPlainText(at index: Int) { change(at: index, action: "plain") }
   }
   let dataDir: URL
-  func preview(data: Data) throws -> Preview { try OwlStorageHost(dataDir: dataDir).call("import_preview", ["bytes": Array(data)]) }
+  func preview(data: Data) throws -> Preview { try OwlTemplateStore.storage(dataDir: dataDir).call("import_preview", ["bytes": Array(data)]) }
   func commit(_ preview: Preview, checkpoint: @escaping (String) throws -> Void = { _ in }) throws -> OwlTemplateLibrary {
-    let result: OwlTemplateLibrary = try OwlStorageHost(dataDir: dataDir, checkpoint: checkpoint).call("import_commit", ["preview": OwlAppCore.payload(preview)])
-    return result
+    try OwlTemplateStore
+      .storage(dataDir: dataDir, checkpointItems: [OwlTemplateStore.fileName], checkpoint: checkpoint)
+      .call("import_commit", ["preview": OwlAppCore.payload(preview)])
   }
   static func compatibilityIssues(_ entry: OwlTemplateEntry) -> [OwlTemplateEngine.Diagnostic] {
     OwlTemplateStore.core("import_compatibility", ["entry": OwlAppCore.payload(entry)])

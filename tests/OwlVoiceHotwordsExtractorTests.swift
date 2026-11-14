@@ -327,7 +327,7 @@ final class OwlVoiceHotwordsExtractorTests: XCTestCase {
       return (Data(json.utf8), resp)
     }
 
-    coordinator.asrClient = OwlVoiceGrokASRClient(transport: stubTransport, apiKeyProvider: { "mock-key" })
+    coordinator.asrClient = OwlVoiceASRClient(transport: stubTransport, apiKeyProvider: { "mock-key" })
 
     // Inject custom hotwords extractor
     let mockExtractor = OwlVoiceHotwordsExtractor(

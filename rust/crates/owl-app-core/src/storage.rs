@@ -51,9 +51,6 @@ pub fn remove<H: Host>(host: &mut H, name: &str) -> Result<()> {
     effect(host, "remove", json!({"name":name}))?;
     Ok(())
 }
-pub fn uuid<H: Host>(host: &mut H) -> Result<String> {
-    decode(effect(host, "uuid", json!({}))?)
-}
 pub fn locked<H: Host, T>(host: &mut H, action: impl FnOnce(&mut H) -> Result<T>) -> Result<T> {
     effect(host, "lock", json!({}))?;
     let result = action(host);
@@ -69,7 +66,7 @@ pub fn locked<H: Host, T>(host: &mut H, action: impl FnOnce(&mut H) -> Result<T>
 
 static COUNTER: AtomicU64 = AtomicU64::new(1);
 
-fn next_uuid_v4() -> String {
+pub fn next_uuid_v4() -> String {
     let mut bytes = [0u8; 16];
     if let Ok(mut f) = fs::File::open("/dev/urandom") {
         let _ = f.read_exact(&mut bytes);
@@ -252,7 +249,6 @@ impl Host for FilesystemHost {
                 self.committed_library = true;
                 Ok(Value::Bool(true))
             }
-            "uuid" => Ok(json!(next_uuid_v4())),
             "checkpoint" | "user_native_checkpoint" => {
                 let name = args["name"].as_str().unwrap_or("");
                 if self.fail_checkpoint.as_deref() == Some(name) {
@@ -261,39 +257,6 @@ impl Host for FilesystemHost {
                 Ok(Value::Bool(true))
             }
             "lock" | "unlock" => Ok(Value::Bool(true)),
-            "title_ranks" => {
-                let titles: Vec<String> = decode(args["titles"].clone()).unwrap_or_default();
-                let keys: Vec<String> = titles
-                    .iter()
-                    .map(|t| crate::template_library::nfc(t).to_lowercase())
-                    .collect();
-                let mut order: Vec<usize> = (0..titles.len()).collect();
-                order.sort_by(|&a, &b| keys[a].cmp(&keys[b]));
-                let mut ranks = vec![0usize; titles.len()];
-                let mut rank = 0usize;
-                for (pos, &idx) in order.iter().enumerate() {
-                    if pos > 0 && keys[order[pos - 1]] != keys[idx] {
-                        rank += 1;
-                    }
-                    ranks[idx] = rank;
-                }
-                Ok(json!(ranks))
-            }
-            "case_contains" => {
-                let values: Vec<String> = decode(args["values"].clone()).unwrap_or_default();
-                let target =
-                    crate::template_library::nfc(args["value"].as_str().unwrap_or("")).to_lowercase();
-                Ok(json!(values
-                    .iter()
-                    .any(|v| crate::template_library::nfc(v).to_lowercase() == target)))
-            }
-            "localized_contains" => {
-                let text =
-                    crate::template_library::nfc(args["text"].as_str().unwrap_or("")).to_lowercase();
-                let query =
-                    crate::template_library::nfc(args["query"].as_str().unwrap_or("")).to_lowercase();
-                Ok(json!(text.contains(&query)))
-            }
             "user_native_kind" => {
                 let target = self.resolve(args["name"].as_str().unwrap_or(""));
                 match fs::symlink_metadata(&target) {
@@ -355,14 +318,15 @@ pub fn dispatch_storage(
     let mut host = FilesystemHost::new(PathBuf::from(data_dir), fail_checkpoint);
     let result = if operation.starts_with("user_") {
         crate::user_data::dispatch(&mut host, operation, args)
-    } else if operation.starts_with("picker_") {
-        crate::picker::dispatch(&mut host, operation, args)
-    } else if operation.starts_with("editor_") {
-        crate::template_editor::dispatch(&mut host, operation, args)
-    } else if operation.starts_with("import_") {
-        crate::template_import::dispatch(&mut host, operation, args)
+    } else if matches!(operation, "import_preview" | "import_commit") {
+        crate::template_import::dispatch_storage(&mut host, operation, args)
+    } else if matches!(
+        operation,
+        "library_mode" | "library_load" | "library_save" | "library_delete"
+    ) {
+        crate::template_library::dispatch_storage(&mut host, operation, args)
     } else {
-        crate::template_library::dispatch(&mut host, operation, args)
+        Err("invalid_storage_operation".into())
     };
     result.map(|v| (v, host.committed_library))
 }

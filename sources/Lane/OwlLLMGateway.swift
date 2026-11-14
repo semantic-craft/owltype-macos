@@ -423,7 +423,7 @@ struct OwlLLMGateway: Sendable {
 enum OwlProviderCore {
   static func httpAccepted(_ status: Int) -> Bool { call("httpAccepted", ["status": status]) }
   static func call<T: Decodable>(_ rule: String, _ args: [String: Any] = [:]) -> T {
-    OwlProviderHost().required("rule", ["rule": rule, "args": args])
+    OwlAppCore.required(["operation": "provider_rule", "rule": rule, "args": args])
   }
   static func object(_ rule: String, _ args: [String: Any] = [:]) -> [String: Any] {
     let value: OwlJSONValue = call(rule, args)

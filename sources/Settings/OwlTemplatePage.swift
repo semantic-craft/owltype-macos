@@ -75,7 +75,7 @@ final class OwlTemplateEditorModel: ObservableObject {
   @discardableResult
   func addDisabledBundleID(_ text: String) -> Bool {
     do {
-      disabledBundleIDs = try OwlStorageHost(dataDir: dataDir).call("editor_disabled_apps", ["values": disabledBundleIDs, "text": text, "remove": false])
+      disabledBundleIDs = try OwlTemplateStore.tryCore("editor_disabled_apps", ["values": disabledBundleIDs, "text": text, "remove": false])
       defaults.set(disabledBundleIDs, forKey: OwlAutomaticExpansionRuntime.disabledBundleIDsKey)
       reloadAutomaticConfiguration()
       return true
@@ -94,7 +94,7 @@ final class OwlTemplateEditorModel: ObservableObject {
     struct Result: Decodable { let draft: OwlTemplateEntry; let status: String? }
     var args = values; args["action"] = action; args["draft"] = OwlAppCore.payload(draft)
     do {
-      let result: Result = try OwlStorageHost(dataDir: dataDir).call("editor_edit", args)
+      let result: Result = try OwlTemplateStore.tryCore("editor_edit", args)
       draft = result.draft
       if let message = result.status { status = message }
       return true
@@ -160,7 +160,7 @@ final class OwlTemplateEditorModel: ObservableObject {
     guard canEdit else { return false }
     struct Result: Decodable { let draft: OwlTemplateEntry; let library: OwlTemplateLibrary; let status: String }
     do {
-      let result: Result = try OwlStorageHost(dataDir: dataDir).call("editor_save", ["draft": OwlAppCore.payload(draft), "library": OwlAppCore.payload(library)])
+      let result: Result = try OwlTemplateStore.tryCore("editor_save", ["draft": OwlAppCore.payload(draft), "library": OwlAppCore.payload(library)])
       try write(result.library, library)
       library = result.library; draft = result.draft; status = result.status
       return true
