@@ -309,7 +309,7 @@
         "updated_at": "2026-11-13T08:53:17Z"
       }
     ],
-    "main": "76b8c58e5df59f6f651defec9e68446cd367b01c",
+    "main": "e132cdafcd7087f91d02c9381b599804bbf261dd",
     "open_pulls": [],
     "pulls": [
       {
@@ -359,6 +359,30 @@
         "merged": true,
         "number": 426,
         "state": "closed"
+      },
+      {
+        "base": "958bad23d29d899ed1fc13801bd53d0c1e588d8b",
+        "head": "bb52f4c4bcd99d992f69bbae344863c8c9561398",
+        "merge_commit": "76b8c58e5df59f6f651defec9e68446cd367b01c",
+        "merged": true,
+        "number": 429,
+        "state": "closed"
+      },
+      {
+        "base": "76b8c58e5df59f6f651defec9e68446cd367b01c",
+        "head": "63ceb0157fd55dd15c4025b6c36a3a739aff9120",
+        "merge_commit": "30efca501d1c6bdeac50d2fb8537f60571bee27b",
+        "merged": true,
+        "number": 431,
+        "state": "closed"
+      },
+      {
+        "base": "30efca501d1c6bdeac50d2fb8537f60571bee27b",
+        "head": "92decb471d46e5cc88c8c43cc6de06f080be630a",
+        "merge_commit": "e132cdafcd7087f91d02c9381b599804bbf261dd",
+        "merged": true,
+        "number": 432,
+        "state": "closed"
       }
     ],
     "releases": []
@@ -367,7 +391,7 @@
     "docs/input-alignment.md",
     "progress/sync.py"
   ],
-  "observed_at": "2026-11-14T02:12:17.986017Z",
+  "observed_at": "2026-11-14T04:43:09Z",
   "outputs": [
     "progress/index.html"
   ],
@@ -377,6 +401,109 @@
   "repository": "semantic-craft/owltype-macos",
   "schema_version": 1,
   "sections": [
+    {
+      "id": "release-2-5-4",
+      "items": [
+        {
+          "evidence": [
+            {
+              "kind": "pull",
+              "note": "恢复最早版墨滴应用与菜单栏图标，已合并至 main（76b8c58）。",
+              "ref": 429
+            },
+            {
+              "kind": "pull",
+              "note": "Agent 投递调用归属、MCP 1 MiB 换行帧上限与模板单次提交广播，已合并至 main（30efca5）。",
+              "ref": 431
+            },
+            {
+              "kind": "pull",
+              "note": "清理无调用方 Swift/Rust 封装并集中模板复制与重试预算规则，已合并至 main（e132cda）。",
+              "ref": 432
+            },
+            {
+              "kind": "file",
+              "note": "2.5.4 中英文更新说明覆盖 #429、#431 与 #432。",
+              "ref": "CHANGELOG.md"
+            },
+            {
+              "kind": "file",
+              "note": "应用与测试目标 MARKETING_VERSION 与 CURRENT_PROJECT_VERSION 均为 2.5.4。",
+              "ref": "Owltype.xcodeproj/project.pbxproj"
+            }
+          ],
+          "id": "release-2-5-4-prep",
+          "next": "区分已合并 PR 与自动门禁和待完成发版：待在最终发布提交执行完整门禁与合并，随后完成 2.5.4 正式签名、公证、发布、公开资产回读及本机安装，并由用户进行真实打字与麦克风体验验收。",
+          "status": "in_progress",
+          "summary": "2.5.4 发布分支已变基至 main e132cda，整合 PR #429（墨滴图标）、#431（Agent/MCP/模板存储加固）与 #432（Swift/Rust 冗余封装清理与策略收口）；12 处 Xcode 版本字段已设为 2.5.4，更新说明与进度页已同步。三项 PR 的合并前自动门禁均已通过，发布提交本身的最终完整门禁、签名公证发布与本机安装尚未执行。",
+          "title": "2.5.4 发布整合与发版状态"
+        },
+        {
+          "evidence": [
+            {
+              "kind": "pull",
+              "note": "PR #431 已合并；精确提交 63ceb01 完整门禁通过（20261114T033929Z-full-bmimmdd9，SecureInput: false）。",
+              "ref": 431
+            },
+            {
+              "kind": "file",
+              "note": "DeliveryCoordinatorCore 以单调 invocation_id 与 target_id 隔离投递状态与回调。",
+              "ref": "rust/crates/owl-app-core/src/agent.rs"
+            },
+            {
+              "kind": "file",
+              "note": "MCP Unix 套接字 read_line 强制校验 1 MiB 换行帧上限。",
+              "ref": "rust/crates/owl-agent-mcp/src/client.rs"
+            },
+            {
+              "kind": "file",
+              "note": "按次调用目标绑定、取消释放与重入安全回归测试。",
+              "ref": "tests/OwlAgentDeliveryTests.swift"
+            },
+            {
+              "kind": "file",
+              "note": "记录 Agent 投递按 invocation_id 归属的不变量与验证命令。",
+              "ref": "LESSONS.md"
+            }
+          ],
+          "id": "agent-mcp-template-ownership",
+          "next": "合并并随 2.5.4 完成签名、公证、发布与本机安装；真实宿主应用中的打字及 Agent 投递体验待安装后用户验收。",
+          "status": "in_progress",
+          "summary": "MCP Unix 套接字 read_line 在尾字节与换行同读入时也强制校验 1 MiB 上限；模板存储仅由 OwlStorageHost 已提交回执发出单次 libraryDidCommit 通知；DeliveryCoordinatorCore 与 OwlAgentDeliveryCoordinator 以单调 invocation_id 和 target_id 隔离目标绑定、预览、超时与写回回调。PR #431 已合入 main 且合并门禁通过，正随 2.5.4 发布。",
+          "title": "Agent 投递调用归属、MCP 帧上限与模板单次提交"
+        },
+        {
+          "evidence": [
+            {
+              "kind": "pull",
+              "note": "PR #432 已合并；精确提交 92decb4 通过 15 项完整门禁（20261114T042251Z-full-wvmz5kzw）。",
+              "ref": 432
+            },
+            {
+              "kind": "file",
+              "note": "在 owl-app-core 集中实现 Entry::duplicated，供两条模板复制入口共用。",
+              "ref": "rust/crates/owl-app-core/src/template_library.rs"
+            },
+            {
+              "kind": "file",
+              "note": "集中定义 provider_wire::max_attempts 重试预算规则。",
+              "ref": "rust/crates/owl-app-core/src/provider_wire.rs"
+            },
+            {
+              "kind": "file",
+              "note": "承接从生产路径迁出的 OwlStubVoiceTransport 测试桩。",
+              "ref": "tests/OwlE2EMockTransports.swift"
+            }
+          ],
+          "id": "swift-rust-cleanup-centralization",
+          "next": "随 2.5.4 最终完整门禁、签名公证发布与本机安装完成交付；实际输入法与语音场景体验待安装后用户验收。",
+          "status": "in_progress",
+          "summary": "移除无调用方的 Swift/Rust 封装及无效投递状态（AttachWaiter、CompleteWaiters、Decided 等），将 OwlStubVoiceTransport 迁入测试桩文件；在 owl-app-core 集中实现 Entry::duplicated 统一模板复制逻辑，并集中 valid_id 与 provider_wire::max_attempts 规则。PR #432 已合入 main 且 15 项完整门禁（Swift 1,578 通过、1 跳过，Rust 通过）及三模型审查通过，正随 2.5.4 发布。",
+          "title": "Swift/Rust 冗余封装清理与复制及重试策略收口"
+        }
+      ],
+      "title": "2.5.4 发布与近期修复"
+    },
     {
       "id": "ink-icons",
       "items": [
@@ -396,12 +523,17 @@
               "kind": "file",
               "note": "PDF 非空、墨滴主体及透明边缘的 AppKit 测试通过；20261114T011339Z-swift-lf05gr68，source_unchanged=true。",
               "ref": "tests/ActivationPolicyTests.swift"
+            },
+            {
+              "kind": "pull",
+              "note": "PR #429 已合并；精确提交 bb52f4c 完整门禁通过（20261114T011547Z-full-b17xw46h）。",
+              "ref": 429
             }
           ],
           "id": "restore-ink-icons",
-          "next": "完成 2.5.4 签名、公证、发布、公开资产回读和本机安装核对。",
+          "next": "完成 2.5.4 完整门禁、签名、公证、发布、公开资产回读及本机安装，并在已安装输入法中核对实际外观与打字、麦克风体验。",
           "status": "in_progress",
-          "summary": "应用全部 10 档 PNG 和菜单栏 PDF 从最早公开提交 e966feb 原样恢复；菜单 SVG 与历史 PDF 的墨滴路径一致。AppKit 原生绘制通过，16×16 pt 菜单图标有 329 个不透明像素。 原稿恢复已合并 PR #429；正在准备 2.5.4 补丁发布与本机升级。",
+          "summary": "应用全部 10 档 PNG 和菜单栏 PDF 从最早公开提交 e966feb 原样恢复；菜单 SVG 与历史 PDF 的墨滴路径一致。AppKit 原生绘制通过，16×16 pt 菜单图标有 329 个不透明像素。原稿恢复已合并 PR #429 且 PR 合并门禁通过，正随 2.5.4 发布分支推进正式发版与本机升级。",
           "title": "恢复最早版墨滴图标"
         }
       ],
@@ -1028,7 +1160,7 @@
           "title": "#293 [拼音对齐 T14] 正式交付包与已验证版本一致性核对"
         }
       ],
-      "title": "历史工单快照（非当前待办） · 拼音对齐（现有执行线）"
+      "title": "拼音对齐（现有执行线）"
     },
     {
       "id": "wubi",
@@ -1174,7 +1306,7 @@
           "title": "#304 [五笔对齐 W10] 差异收口与交付一致性"
         }
       ],
-      "title": "历史工单快照（非当前待办） · 五笔对齐（本轮工单）"
+      "title": "五笔对齐（本轮工单）"
     },
     {
       "id": "followup",
@@ -1236,7 +1368,7 @@
           "title": "#317 [清理] 移除 Rime 残留子模块、构建路径与命名"
         }
       ],
-      "title": "历史工单快照（非当前待办） · 发布后跟进"
+      "title": "发布后跟进"
     },
     {
       "id": "rust-business",
@@ -1410,7 +1542,7 @@
           "title": "#367 [Rust 业务核心] 阶段 7：生命周期收尾与 Swift 业务残留审计"
         }
       ],
-      "title": "历史工单快照（非当前待办） · Rust 业务核心迁移"
+      "title": "Rust 业务核心迁移"
     }
   ],
   "title": "法墨输入法 · 项目进度与剩余工作",
@@ -1474,7 +1606,10 @@
       404,
       406,
       424,
-      426
+      426,
+      429,
+      431,
+      432
     ]
   }
 }

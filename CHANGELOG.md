@@ -1,8 +1,12 @@
 <a name="2.5.4"></a>
 ## 2.5.4 (2026-11-14)
 
-- 应用图标恢复为最早版酒红底墨滴，菜单栏同步恢复原版单色墨滴。
-- Restore the original ink-drop app and input-menu icons.
+- 应用图标恢复为最早版酒红底墨滴，菜单栏同步恢复原版单色墨滴。（#429）
+- 加固 Agent 投递的按次调用目标绑定与回调归属校验、MCP Unix 套接字 1 MiB 换行帧上限，以及模板存储单次提交广播。（#431）
+- 清理无调用方的 Swift/Rust 封装与无效投递状态，统一模板复制逻辑（`Entry::duplicated`）与供应商重试预算规则。（#432）
+- Restore the earliest burgundy-background ink-drop app icon and monochrome ink-drop menu bar icon (#429).
+- Enforce Agent delivery per-invocation target binding and callback ownership, a 1 MiB MCP Unix-socket newline frame limit, and single template storage commit notifications (#431).
+- Remove zero-caller Swift/Rust wrappers and dead delivery states while centralizing template duplication (`Entry::duplicated`) and provider retry budget rules (#432).
 
 <a name="2.5.3"></a>
 ## 2.5.3 (2026-11-14)
