@@ -58,10 +58,12 @@ private final class FakePreview: OwlAgentDeliveryPreview {
   var targets: [String?] = []
   var dismissed = 0
   var decide: ((Bool) -> Void)?
+  var onShow: (() -> Void)?
 
   func show(text: String, agentName: String, decide: @escaping (Bool) -> Void) {
     shown.append("\(agentName): \(text)")
     self.decide = decide
+    onShow?()
   }
   func showTarget(_ name: String?) { targets.append(name) }
   func dismiss() { dismissed += 1 }
@@ -226,6 +228,91 @@ final class OwlAgentDeliveryTests: XCTestCase {
     XCTAssertEqual(try result(next()), .init(requestId: "next", status: .delivered(verified: false), replayed: false))
     XCTAssertFalse(coordinator.isWaiting)
     XCTAssertEqual(nextTarget.writes, ["next"])
+  }
+
+  func testChainedDeliveryInsideWaiterReplyKeepsHostBinding() throws {
+    var firstReply: OwlAgentBridgeReply?
+    var secondReply: (() -> OwlAgentBridgeReply?)?
+    coordinator.deliver(params("first", text: "first"), from: client, cancellation: .init()) { [unowned self] reply in
+      firstReply = reply
+      secondReply = self.start(self.params("second", text: "second"))
+    }
+    preview.decide?(true)
+
+    XCTAssertEqual(try result(firstReply), .init(requestId: "first", status: .delivered(verified: true), replayed: false))
+    let secondBox = try XCTUnwrap(secondReply)
+    XCTAssertNil(secondBox())
+    XCTAssertTrue(coordinator.isWaiting)
+    XCTAssertEqual(preview.shown, ["grok-build: first", "grok-build: second"])
+    XCTAssertEqual(host.target.writes, ["first"])
+
+    preview.decide?(true)
+    XCTAssertEqual(try result(secondBox()), .init(requestId: "second", status: .delivered(verified: true), replayed: false))
+    XCTAssertFalse(coordinator.isWaiting)
+    XCTAssertEqual(host.target.writes, ["first", "second"])
+  }
+
+  func testCancelledWaiterReleasesReplyClosureAndPreCancelledDeliverIsIgnored() throws {
+    final class ReplyToken {}
+    weak var weakCancellation: OwlAgentBridgeCancellation?
+    weak var weakToken: ReplyToken?
+    var secondReply: OwlAgentBridgeReply?
+    let keepAliveCancellation = OwlAgentBridgeCancellation()
+
+    do {
+      let cancellation1 = OwlAgentBridgeCancellation()
+      let token = ReplyToken()
+      weakCancellation = cancellation1
+      weakToken = token
+      coordinator.deliver(params("r1"), from: client, cancellation: cancellation1) { _ in
+        _ = token
+      }
+      coordinator.deliver(params("r1"), from: client, cancellation: keepAliveCancellation) { secondReply = $0 }
+      cancellation1.cancel()
+    }
+
+    let drained = expectation(description: "main")
+    DispatchQueue.main.async { drained.fulfill() }
+    wait(for: [drained], timeout: 2)
+
+    XCTAssertNil(weakCancellation)
+    XCTAssertNil(weakToken)
+    XCTAssertTrue(coordinator.isWaiting)
+    preview.decide?(true)
+    XCTAssertEqual(try result(secondReply), .init(requestId: "r1", status: .delivered(verified: true), replayed: true))
+    XCTAssertEqual(host.target.writes, ["你好"])
+
+    let preCancelled = OwlAgentBridgeCancellation()
+    preCancelled.cancel()
+    var preCancelledCalled = false
+    coordinator.deliver(params("precancel"), from: client, cancellation: preCancelled) { _ in
+      preCancelledCalled = true
+    }
+    let drainedPre = expectation(description: "main-precancel")
+    DispatchQueue.main.async { drainedPre.fulfill() }
+    wait(for: [drainedPre], timeout: 2)
+
+    XCTAssertFalse(preCancelledCalled)
+    XCTAssertFalse(coordinator.isWaiting)
+    XCTAssertEqual(preview.shown.count, 1)
+
+    let fresh = start(params("precancel", text: "fresh"))
+    XCTAssertNil(fresh())
+    XCTAssertTrue(coordinator.isWaiting)
+    preview.decide?(true)
+    XCTAssertEqual(try result(fresh()), .init(requestId: "precancel", status: .delivered(verified: true), replayed: false))
+    XCTAssertEqual(host.target.writes, ["你好", "fresh"])
+  }
+
+  func testReentrantDispatchDuringPreviewShowPreservesInitialBindTarget() throws {
+    preview.onShow = { [unowned self] in
+      self.coordinator.applicationDidActivate(getpid())
+    }
+    let reply = start(params("reentrant", text: "hello"))
+    preview.decide?(true)
+
+    XCTAssertEqual(try result(reply()), .init(requestId: "reentrant", status: .delivered(verified: true), replayed: false))
+    XCTAssertEqual(host.target.writes, ["hello"])
   }
 
   func testNoDecisionExpiresAndALateClickCannotWrite() throws {

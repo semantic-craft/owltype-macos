@@ -733,6 +733,8 @@ pub struct DeliveryWaiter {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct TargetInfo {
+    #[serde(default)]
+    pub target_id: u64,
     pub process_id: i32,
     pub application_name: String,
     pub is_terminated: bool,
@@ -751,6 +753,7 @@ pub enum DeliveryPhase {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct PendingDelivery {
+    pub invocation_id: u64,
     pub request_id: String,
     pub text: String,
     pub ancestors: BTreeSet<i32>,
@@ -785,18 +788,22 @@ pub enum DeliveryEvent {
         waiter_id: u64,
     },
     UserDecision {
+        invocation_id: u64,
         confirmed: bool,
         #[serde(default)]
         frontmost_pid: Option<i32>,
         is_secure_input: bool,
         rebind_if_needed: Result<TargetInfo, TargetChangedReason>,
     },
-    TimeoutFired,
+    TimeoutFired {
+        invocation_id: u64,
+    },
     ApplicationActivated {
         process_id: i32,
         own_pid: i32,
     },
     PollFired {
+        invocation_id: u64,
         #[serde(default)]
         frontmost_pid: Option<i32>,
         bind_result: Result<TargetInfo, TargetChangedReason>,
@@ -805,9 +812,11 @@ pub enum DeliveryEvent {
         process_id: i32,
     },
     LeaveSettleFired {
+        invocation_id: u64,
         target_terminated: bool,
     },
     HostWriteCompleted {
+        invocation_id: u64,
         #[serde(default)]
         outcome: Option<TemplateHostDeliveryOutcome>,
         #[serde(default)]
@@ -820,25 +829,41 @@ pub enum DeliveryEvent {
 #[serde(tag = "action", rename_all = "snake_case")]
 pub enum DeliveryAction {
     ShowPreview {
+        invocation_id: u64,
         text: String,
         agent_name: String,
     },
+    BindTarget {
+        invocation_id: u64,
+        target_id: u64,
+    },
     ShowTarget {
+        invocation_id: u64,
         name: Option<String>,
     },
-    DismissPreview,
+    DismissPreview {
+        invocation_id: u64,
+    },
     ScheduleTimeout {
+        invocation_id: u64,
         timeout_seconds: f64,
     },
     SchedulePoll {
+        invocation_id: u64,
         interval_seconds: f64,
     },
     ScheduleLeaveSettle {
+        invocation_id: u64,
         seconds: f64,
     },
     PerformWrite {
+        invocation_id: u64,
+        target_id: u64,
         text: String,
         target_pid: i32,
+    },
+    FinishInvocation {
+        invocation_id: u64,
     },
     CompleteWaiter {
         waiter_id: u64,
@@ -854,10 +879,17 @@ pub enum DeliveryAction {
     },
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct DeliveryCoordinatorCore {
     pub outcomes: OutcomeCache,
     pub pending: Option<PendingDelivery>,
+    pub next_invocation_id: u64,
+}
+
+impl Default for DeliveryCoordinatorCore {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl DeliveryCoordinatorCore {
@@ -865,7 +897,31 @@ impl DeliveryCoordinatorCore {
         Self {
             outcomes: OutcomeCache::default(),
             pending: None,
+            next_invocation_id: 1,
         }
+    }
+
+    fn active_pending(&self, invocation_id: u64) -> Option<PendingDelivery> {
+        self.pending
+            .as_ref()
+            .filter(|p| p.invocation_id == invocation_id)
+            .cloned()
+    }
+
+    fn bind_target(
+        actions: &mut Vec<DeliveryAction>,
+        pending: &mut PendingDelivery,
+        target: TargetInfo,
+    ) {
+        actions.push(DeliveryAction::BindTarget {
+            invocation_id: pending.invocation_id,
+            target_id: target.target_id,
+        });
+        actions.push(DeliveryAction::ShowTarget {
+            invocation_id: pending.invocation_id,
+            name: Some(target.application_name.clone()),
+        });
+        pending.target = Some(target);
     }
 
     pub fn handle_event(&mut self, event: DeliveryEvent, now_secs: u64) -> Vec<DeliveryAction> {
@@ -917,9 +973,12 @@ impl DeliveryCoordinatorCore {
                 }
 
                 // 3. Begin new pending request
+                let invocation_id = self.next_invocation_id;
+                self.next_invocation_id += 1;
                 let timeout_sec =
                     timeout_ms.unwrap_or(DEFAULT_DELIVER_TIMEOUT_MS) as f64 / 1000.0;
                 let mut pending = PendingDelivery {
+                    invocation_id,
                     request_id: request_id.clone(),
                     text: text.clone(),
                     ancestors: ancestors.clone(),
@@ -931,21 +990,43 @@ impl DeliveryCoordinatorCore {
                     }],
                 };
 
+                let is_ancestor = frontmost_pid
+                    .map(|front| ancestors.contains(&front))
+                    .unwrap_or(false);
+                let initial_error = if !is_ancestor && !is_secure_input {
+                    match initial_bind {
+                        Ok(target) => {
+                            actions.push(DeliveryAction::BindTarget {
+                                invocation_id,
+                                target_id: target.target_id,
+                            });
+                            pending.target = Some(target);
+                            pending.phase = DeliveryPhase::ReadyForUser;
+                            None
+                        }
+                        Err(reason) => Some(reason),
+                    }
+                } else {
+                    None
+                };
+
                 actions.push(DeliveryAction::ScheduleTimeout {
+                    invocation_id,
                     timeout_seconds: timeout_sec,
                 });
                 actions.push(DeliveryAction::ShowPreview {
+                    invocation_id,
                     text: text.clone(),
                     agent_name,
                 });
 
-                // Check terminal ancestor vs initial bind
-                if let Some(front) = frontmost_pid {
-                    if ancestors.contains(&front) {
-                        actions.push(DeliveryAction::ShowTarget { name: None });
-                        self.pending = Some(pending);
-                        return actions;
-                    }
+                if is_ancestor {
+                    actions.push(DeliveryAction::ShowTarget {
+                        invocation_id,
+                        name: None,
+                    });
+                    self.pending = Some(pending);
+                    return actions;
                 }
 
                 if is_secure_input {
@@ -960,24 +1041,22 @@ impl DeliveryCoordinatorCore {
                     return actions;
                 }
 
-                match initial_bind {
-                    Ok(target) => {
-                        actions.push(DeliveryAction::ShowTarget {
-                            name: Some(target.application_name.clone()),
-                        });
-                        pending.target = Some(target);
-                        pending.phase = DeliveryPhase::ReadyForUser;
-                        self.pending = Some(pending);
-                    }
-                    Err(reason) => {
-                        self.finish(
-                            &mut actions,
-                            &pending,
-                            DeliverStatus::TargetChanged { reason },
-                            now_secs,
-                        );
-                    }
+                if let Some(reason) = initial_error {
+                    self.finish(
+                        &mut actions,
+                        &pending,
+                        DeliverStatus::TargetChanged { reason },
+                        now_secs,
+                    );
+                    return actions;
                 }
+
+                let app_name = pending.target.as_ref().map(|t| t.application_name.clone());
+                actions.push(DeliveryAction::ShowTarget {
+                    invocation_id,
+                    name: app_name,
+                });
+                self.pending = Some(pending);
             }
 
             DeliveryEvent::AttachWaiter {
@@ -1003,8 +1082,10 @@ impl DeliveryCoordinatorCore {
 
             DeliveryEvent::CancelWaiter { waiter_id } => {
                 if let Some(ref mut pending) = self.pending {
+                    let before = pending.waiters.len();
                     pending.waiters.retain(|w| w.id != waiter_id);
-                    if pending.waiters.is_empty()
+                    if pending.waiters.len() < before
+                        && pending.waiters.is_empty()
                         && !matches!(pending.phase, DeliveryPhase::Writing { .. })
                     {
                         let req = pending.clone();
@@ -1014,12 +1095,13 @@ impl DeliveryCoordinatorCore {
             }
 
             DeliveryEvent::UserDecision {
+                invocation_id,
                 confirmed,
                 frontmost_pid,
                 is_secure_input,
                 rebind_if_needed,
             } => {
-                let Some(mut pending) = self.pending.clone() else {
+                let Some(mut pending) = self.active_pending(invocation_id) else {
                     return actions;
                 };
                 if pending.phase == DeliveryPhase::Decided
@@ -1039,12 +1121,15 @@ impl DeliveryCoordinatorCore {
                     if let Some(front) = frontmost_pid {
                         if !pending.ancestors.contains(&front) {
                             if let Ok(target) = rebind_if_needed {
-                                pending.target = Some(target);
+                                Self::bind_target(&mut actions, &mut pending, target);
                             }
                         }
                     }
                     if pending.target.is_none() {
-                        actions.push(DeliveryAction::ShowTarget { name: None });
+                        actions.push(DeliveryAction::ShowTarget {
+                            invocation_id,
+                            name: None,
+                        });
                         self.pending = Some(pending);
                         return actions;
                     }
@@ -1078,16 +1163,18 @@ impl DeliveryCoordinatorCore {
                 pending.phase = DeliveryPhase::Writing {
                     target_process_id: target.process_id,
                 };
-                actions.push(DeliveryAction::DismissPreview);
+                actions.push(DeliveryAction::DismissPreview { invocation_id });
                 actions.push(DeliveryAction::PerformWrite {
+                    invocation_id,
+                    target_id: target.target_id,
                     text: pending.text.clone(),
                     target_pid: target.process_id,
                 });
                 self.pending = Some(pending);
             }
 
-            DeliveryEvent::TimeoutFired => {
-                if let Some(pending) = self.pending.clone() {
+            DeliveryEvent::TimeoutFired { invocation_id } => {
+                if let Some(pending) = self.active_pending(invocation_id) {
                     if !matches!(pending.phase, DeliveryPhase::Writing { .. })
                         && !matches!(pending.phase, DeliveryPhase::Leaving { .. })
                     {
@@ -1107,6 +1194,7 @@ impl DeliveryCoordinatorCore {
                     return actions;
                 }
 
+                let invocation_id = pending.invocation_id;
                 if let Some(ref target) = pending.target {
                     if process_id != target.process_id
                         && process_id != own_pid
@@ -1116,8 +1204,9 @@ impl DeliveryCoordinatorCore {
                         pending.phase = DeliveryPhase::Leaving {
                             target_process_id: target.process_id,
                         };
-                        actions.push(DeliveryAction::DismissPreview);
+                        actions.push(DeliveryAction::DismissPreview { invocation_id });
                         actions.push(DeliveryAction::ScheduleLeaveSettle {
+                            invocation_id,
                             seconds: LEAVE_SETTLE_SECS,
                         });
                         self.pending = Some(pending);
@@ -1132,6 +1221,7 @@ impl DeliveryCoordinatorCore {
                         polls_left: BIND_POLLS,
                     };
                     actions.push(DeliveryAction::SchedulePoll {
+                        invocation_id,
                         interval_seconds: BIND_POLL_INTERVAL_SECS,
                     });
                     self.pending = Some(pending);
@@ -1139,10 +1229,11 @@ impl DeliveryCoordinatorCore {
             }
 
             DeliveryEvent::PollFired {
+                invocation_id,
                 frontmost_pid,
                 bind_result,
             } => {
-                let Some(mut pending) = self.pending.clone() else {
+                let Some(mut pending) = self.active_pending(invocation_id) else {
                     return actions;
                 };
                 let DeliveryPhase::AwaitingInputSession {
@@ -1157,10 +1248,7 @@ impl DeliveryCoordinatorCore {
                 }
 
                 if let Ok(target) = bind_result {
-                    actions.push(DeliveryAction::ShowTarget {
-                        name: Some(target.application_name.clone()),
-                    });
-                    pending.target = Some(target);
+                    Self::bind_target(&mut actions, &mut pending, target);
                     pending.phase = DeliveryPhase::ReadyForUser;
                     self.pending = Some(pending);
                     return actions;
@@ -1172,6 +1260,7 @@ impl DeliveryCoordinatorCore {
                         polls_left: polls_left - 1,
                     };
                     actions.push(DeliveryAction::SchedulePoll {
+                        invocation_id,
                         interval_seconds: BIND_POLL_INTERVAL_SECS,
                     });
                 } else {
@@ -1180,6 +1269,7 @@ impl DeliveryCoordinatorCore {
                         polls_left: 0,
                     };
                     actions.push(DeliveryAction::SchedulePoll {
+                        invocation_id,
                         interval_seconds: SLOW_BIND_POLL_INTERVAL_SECS,
                     });
                 }
@@ -1203,8 +1293,11 @@ impl DeliveryCoordinatorCore {
                 }
             }
 
-            DeliveryEvent::LeaveSettleFired { target_terminated } => {
-                if let Some(pending) = self.pending.clone() {
+            DeliveryEvent::LeaveSettleFired {
+                invocation_id,
+                target_terminated,
+            } => {
+                if let Some(pending) = self.active_pending(invocation_id) {
                     if matches!(pending.phase, DeliveryPhase::Leaving { .. }) {
                         let reason = if target_terminated {
                             TargetChangedReason::TargetQuit
@@ -1222,11 +1315,15 @@ impl DeliveryCoordinatorCore {
             }
 
             DeliveryEvent::HostWriteCompleted {
+                invocation_id,
                 outcome,
                 outcome_code,
                 target_terminated,
             } => {
-                if let Some(pending) = self.pending.clone() {
+                if let Some(pending) = self.active_pending(invocation_id) {
+                    if !matches!(pending.phase, DeliveryPhase::Writing { .. }) {
+                        return actions;
+                    }
                     let status = if let Some(code) = outcome_code.as_deref() {
                         map_outcome_code(code, target_terminated)
                     } else if let Some(out) = outcome {
@@ -1249,10 +1346,12 @@ impl DeliveryCoordinatorCore {
         status: DeliverStatus,
         now_secs: u64,
     ) {
+        let invocation_id = request.invocation_id;
         self.pending = None;
-        actions.push(DeliveryAction::DismissPreview);
         self.outcomes
             .store(request.request_id.clone(), status.clone(), now_secs);
+        actions.push(DeliveryAction::DismissPreview { invocation_id });
+        actions.push(DeliveryAction::FinishInvocation { invocation_id });
 
         for waiter in &request.waiters {
             actions.push(DeliveryAction::CompleteWaiter {
@@ -1853,11 +1952,37 @@ mod tests {
         assert!(cache.outcomes.contains_key("r3"));
     }
 
+    fn assert_finish_order(actions: &[DeliveryAction], expected_inv_id: u64) {
+        let dismiss_pos = actions
+            .iter()
+            .position(|a| {
+                matches!(
+                    a,
+                    DeliveryAction::DismissPreview { invocation_id } if *invocation_id == expected_inv_id
+                )
+            })
+            .expect("expected DismissPreview");
+        let finish_pos = actions
+            .iter()
+            .position(|a| {
+                matches!(
+                    a,
+                    DeliveryAction::FinishInvocation { invocation_id } if *invocation_id == expected_inv_id
+                )
+            })
+            .expect("expected FinishInvocation");
+        let first_complete_pos = actions
+            .iter()
+            .position(|a| matches!(a, DeliveryAction::CompleteWaiter { .. }))
+            .expect("expected CompleteWaiter");
+        assert!(dismiss_pos < finish_pos);
+        assert!(finish_pos < first_complete_pos);
+    }
+
     #[test]
     fn test_delivery_coordinator_state_machine() {
         let mut coord = DeliveryCoordinatorCore::new();
 
-        // 1. Submit request
         let mut ancestors = BTreeSet::new();
         ancestors.insert(10);
 
@@ -1872,6 +1997,7 @@ mod tests {
                 frontmost_pid: Some(20),
                 is_secure_input: false,
                 initial_bind: Ok(TargetInfo {
+                    target_id: 11,
                     process_id: 20,
                     application_name: "Notes".to_string(),
                     is_terminated: false,
@@ -1881,18 +2007,50 @@ mod tests {
             100,
         );
 
-        assert!(actions.contains(&DeliveryAction::ScheduleTimeout {
-            timeout_seconds: 60.0
-        }));
-        assert!(actions.contains(&DeliveryAction::ShowPreview {
-            text: "Text to write".to_string(),
-            agent_name: "grok".to_string(),
-        }));
-        assert!(actions.contains(&DeliveryAction::ShowTarget {
-            name: Some("Notes".to_string())
-        }));
+        let bind_pos = actions
+            .iter()
+            .position(|a| {
+                matches!(
+                    a,
+                    DeliveryAction::BindTarget {
+                        invocation_id: 1,
+                        target_id: 11,
+                    }
+                )
+            })
+            .expect("expected BindTarget");
+        let timeout_pos = actions
+            .iter()
+            .position(|a| {
+                matches!(
+                    a,
+                    DeliveryAction::ScheduleTimeout {
+                        invocation_id: 1,
+                        ..
+                    }
+                )
+            })
+            .expect("expected ScheduleTimeout");
+        let preview_pos = actions
+            .iter()
+            .position(|a| matches!(a, DeliveryAction::ShowPreview { invocation_id: 1, .. }))
+            .expect("expected ShowPreview");
+        let target_pos = actions
+            .iter()
+            .position(|a| {
+                matches!(
+                    a,
+                    DeliveryAction::ShowTarget {
+                        invocation_id: 1,
+                        name: Some(ref n),
+                    } if n == "Notes"
+                )
+            })
+            .expect("expected ShowTarget");
+        assert!(bind_pos < timeout_pos);
+        assert!(timeout_pos < preview_pos);
+        assert!(preview_pos < target_pos);
 
-        // 2. Second request while busy
         let busy_actions = coord.handle_event(
             DeliveryEvent::SubmitRequest {
                 request_id: "req-2".to_string(),
@@ -1904,6 +2062,7 @@ mod tests {
                 frontmost_pid: Some(20),
                 is_secure_input: false,
                 initial_bind: Ok(TargetInfo {
+                    target_id: 12,
                     process_id: 20,
                     application_name: "Notes".to_string(),
                     is_terminated: false,
@@ -1921,13 +2080,14 @@ mod tests {
             other => panic!("expected reject, got {other:?}"),
         }
 
-        // 3. User confirms -> writes
         let write_actions = coord.handle_event(
             DeliveryEvent::UserDecision {
+                invocation_id: 1,
                 confirmed: true,
                 frontmost_pid: Some(20),
                 is_secure_input: false,
                 rebind_if_needed: Ok(TargetInfo {
+                    target_id: 11,
                     process_id: 20,
                     application_name: "Notes".to_string(),
                     is_terminated: false,
@@ -1935,22 +2095,23 @@ mod tests {
             },
             110,
         );
-        assert!(write_actions.contains(&DeliveryAction::DismissPreview));
+        assert!(write_actions.contains(&DeliveryAction::DismissPreview { invocation_id: 1 }));
         assert!(write_actions.contains(&DeliveryAction::PerformWrite {
+            invocation_id: 1,
+            target_id: 11,
             text: "Text to write".to_string(),
             target_pid: 20,
         }));
 
-        // 4. Host write completed -> delivers
         let complete_actions = coord.handle_event(
             DeliveryEvent::HostWriteCompleted {
+                invocation_id: 1,
                 outcome: Some(TemplateHostDeliveryOutcome::Confirmed),
                 outcome_code: None,
                 target_terminated: false,
             },
             112,
         );
-        assert!(complete_actions.contains(&DeliveryAction::DismissPreview));
         assert!(complete_actions.contains(&DeliveryAction::CompleteWaiter {
             waiter_id: 1,
             result: DeliverResult::Delivered {
@@ -1959,8 +2120,8 @@ mod tests {
                 replayed: false,
             },
         }));
+        assert_finish_order(&complete_actions, 1);
 
-        // 5. Idempotent replay of req-1
         let replay_actions = coord.handle_event(
             DeliveryEvent::SubmitRequest {
                 request_id: "req-1".to_string(),
@@ -1972,6 +2133,7 @@ mod tests {
                 frontmost_pid: Some(20),
                 is_secure_input: false,
                 initial_bind: Ok(TargetInfo {
+                    target_id: 13,
                     process_id: 20,
                     application_name: "Notes".to_string(),
                     is_terminated: false,
@@ -1999,7 +2161,6 @@ mod tests {
         let mut ancestors = BTreeSet::new();
         ancestors.insert(10);
 
-        // 1. Submit request 1 -> waiter 1
         let a1 = coord.handle_event(
             DeliveryEvent::SubmitRequest {
                 request_id: "req-1".to_string(),
@@ -2011,6 +2172,7 @@ mod tests {
                 frontmost_pid: Some(20),
                 is_secure_input: false,
                 initial_bind: Ok(TargetInfo {
+                    target_id: 1,
                     process_id: 20,
                     application_name: "Notes".to_string(),
                     is_terminated: false,
@@ -2020,11 +2182,15 @@ mod tests {
             100,
         );
         assert!(a1.contains(&DeliveryAction::ShowPreview {
+            invocation_id: 1,
             text: "Hello".to_string(),
             agent_name: "grok".to_string(),
         }));
+        assert!(a1.contains(&DeliveryAction::BindTarget {
+            invocation_id: 1,
+            target_id: 1,
+        }));
 
-        // 2. Submit same request 1 while pending -> waiter 2 (concurrent duplicate)
         let a2 = coord.handle_event(
             DeliveryEvent::SubmitRequest {
                 request_id: "req-1".to_string(),
@@ -2036,6 +2202,7 @@ mod tests {
                 frontmost_pid: Some(20),
                 is_secure_input: false,
                 initial_bind: Ok(TargetInfo {
+                    target_id: 2,
                     process_id: 20,
                     application_name: "Notes".to_string(),
                     is_terminated: false,
@@ -2046,13 +2213,14 @@ mod tests {
         );
         assert!(a2.is_empty(), "concurrent duplicate does not show second preview");
 
-        // 3. User confirms
         coord.handle_event(
             DeliveryEvent::UserDecision {
+                invocation_id: 1,
                 confirmed: true,
                 frontmost_pid: Some(20),
                 is_secure_input: false,
                 rebind_if_needed: Ok(TargetInfo {
+                    target_id: 1,
                     process_id: 20,
                     application_name: "Notes".to_string(),
                     is_terminated: false,
@@ -2061,9 +2229,9 @@ mod tests {
             110,
         );
 
-        // 4. Host write completed -> completes both waiters, waiter 1 replayed=false, waiter 2 replayed=true!
         let complete = coord.handle_event(
             DeliveryEvent::HostWriteCompleted {
+                invocation_id: 1,
                 outcome: Some(TemplateHostDeliveryOutcome::Confirmed),
                 outcome_code: None,
                 target_terminated: false,
@@ -2086,6 +2254,269 @@ mod tests {
                 replayed: true,
             },
         }));
+        assert_finish_order(&complete, 1);
+    }
+
+    #[test]
+    fn test_delivery_coordinator_rejects_stale_invocation_callbacks() {
+        let mut coord = DeliveryCoordinatorCore::default();
+        assert_eq!(coord.next_invocation_id, 1);
+
+        let mut ancestors = BTreeSet::new();
+        ancestors.insert(10);
+
+        let first = coord.handle_event(
+            DeliveryEvent::SubmitRequest {
+                request_id: "req-1".to_string(),
+                text: "First".to_string(),
+                timeout_ms: None,
+                agent_name: "grok".to_string(),
+                client_pid: 10,
+                ancestors: ancestors.clone(),
+                frontmost_pid: Some(20),
+                is_secure_input: false,
+                initial_bind: Ok(TargetInfo {
+                    target_id: 10,
+                    process_id: 20,
+                    application_name: "Notes".to_string(),
+                    is_terminated: false,
+                }),
+                waiter_id: 1,
+            },
+            100,
+        );
+        assert!(first.contains(&DeliveryAction::BindTarget {
+            invocation_id: 1,
+            target_id: 10,
+        }));
+
+        let cancelled = coord.handle_event(
+            DeliveryEvent::UserDecision {
+                invocation_id: 1,
+                confirmed: false,
+                frontmost_pid: Some(20),
+                is_secure_input: false,
+                rebind_if_needed: Err(TargetChangedReason::NoTarget),
+            },
+            101,
+        );
+        assert_finish_order(&cancelled, 1);
+
+        let expired_now = 101 + OUTCOME_LIFETIME_SECS + 1;
+        let second = coord.handle_event(
+            DeliveryEvent::SubmitRequest {
+                request_id: "req-1".to_string(),
+                text: "Second".to_string(),
+                timeout_ms: None,
+                agent_name: "grok".to_string(),
+                client_pid: 10,
+                ancestors: ancestors.clone(),
+                frontmost_pid: Some(10),
+                is_secure_input: false,
+                initial_bind: Err(TargetChangedReason::NoTarget),
+                waiter_id: 2,
+            },
+            expired_now,
+        );
+        assert!(second.contains(&DeliveryAction::ShowPreview {
+            invocation_id: 2,
+            text: "Second".to_string(),
+            agent_name: "grok".to_string(),
+        }));
+        assert!(!second
+            .iter()
+            .any(|action| matches!(action, DeliveryAction::BindTarget { .. })));
+        assert_eq!(coord.next_invocation_id, 3);
+
+        let busy = coord.handle_event(
+            DeliveryEvent::SubmitRequest {
+                request_id: "req-other".to_string(),
+                text: "Other".to_string(),
+                timeout_ms: None,
+                agent_name: "grok".to_string(),
+                client_pid: 10,
+                ancestors: ancestors.clone(),
+                frontmost_pid: Some(20),
+                is_secure_input: false,
+                initial_bind: Ok(TargetInfo {
+                    target_id: 99,
+                    process_id: 20,
+                    application_name: "Notes".to_string(),
+                    is_terminated: false,
+                }),
+                waiter_id: 3,
+            },
+            expired_now + 1,
+        );
+        assert!(!busy
+            .iter()
+            .any(|action| matches!(action, DeliveryAction::BindTarget { .. })));
+
+        let duplicate = coord.handle_event(
+            DeliveryEvent::SubmitRequest {
+                request_id: "req-1".to_string(),
+                text: "Second".to_string(),
+                timeout_ms: None,
+                agent_name: "grok".to_string(),
+                client_pid: 10,
+                ancestors,
+                frontmost_pid: Some(20),
+                is_secure_input: false,
+                initial_bind: Ok(TargetInfo {
+                    target_id: 98,
+                    process_id: 20,
+                    application_name: "Notes".to_string(),
+                    is_terminated: false,
+                }),
+                waiter_id: 4,
+            },
+            expired_now + 2,
+        );
+        assert!(duplicate.is_empty());
+
+        let activated = coord.handle_event(
+            DeliveryEvent::ApplicationActivated {
+                process_id: 20,
+                own_pid: 999,
+            },
+            expired_now + 3,
+        );
+        assert!(activated.contains(&DeliveryAction::SchedulePoll {
+            invocation_id: 2,
+            interval_seconds: BIND_POLL_INTERVAL_SECS,
+        }));
+
+        assert!(coord
+            .handle_event(
+                DeliveryEvent::TimeoutFired { invocation_id: 1 },
+                expired_now + 4
+            )
+            .is_empty());
+        assert!(coord
+            .handle_event(
+                DeliveryEvent::UserDecision {
+                    invocation_id: 1,
+                    confirmed: true,
+                    frontmost_pid: Some(20),
+                    is_secure_input: false,
+                    rebind_if_needed: Err(TargetChangedReason::NoTarget),
+                },
+                expired_now + 4
+            )
+            .is_empty());
+        assert!(coord
+            .handle_event(
+                DeliveryEvent::PollFired {
+                    invocation_id: 1,
+                    frontmost_pid: Some(20),
+                    bind_result: Ok(TargetInfo {
+                        target_id: 77,
+                        process_id: 20,
+                        application_name: "Notes".to_string(),
+                        is_terminated: false,
+                    }),
+                },
+                expired_now + 4
+            )
+            .is_empty());
+        assert!(coord
+            .handle_event(
+                DeliveryEvent::LeaveSettleFired {
+                    invocation_id: 1,
+                    target_terminated: false,
+                },
+                expired_now + 4
+            )
+            .is_empty());
+        assert!(coord
+            .handle_event(
+                DeliveryEvent::HostWriteCompleted {
+                    invocation_id: 1,
+                    outcome: Some(TemplateHostDeliveryOutcome::Confirmed),
+                    outcome_code: None,
+                    target_terminated: false,
+                },
+                expired_now + 4
+            )
+            .is_empty());
+        assert!(coord
+            .handle_event(
+                DeliveryEvent::HostWriteCompleted {
+                    invocation_id: 2,
+                    outcome: Some(TemplateHostDeliveryOutcome::Confirmed),
+                    outcome_code: None,
+                    target_terminated: false,
+                },
+                expired_now + 4
+            )
+            .is_empty());
+
+        let polled = coord.handle_event(
+            DeliveryEvent::PollFired {
+                invocation_id: 2,
+                frontmost_pid: Some(20),
+                bind_result: Ok(TargetInfo {
+                    target_id: 20,
+                    process_id: 20,
+                    application_name: "Notes".to_string(),
+                    is_terminated: false,
+                }),
+            },
+            expired_now + 5,
+        );
+        assert!(polled.contains(&DeliveryAction::BindTarget {
+            invocation_id: 2,
+            target_id: 20,
+        }));
+        assert!(polled.contains(&DeliveryAction::ShowTarget {
+            invocation_id: 2,
+            name: Some("Notes".to_string()),
+        }));
+
+        let writing = coord.handle_event(
+            DeliveryEvent::UserDecision {
+                invocation_id: 2,
+                confirmed: true,
+                frontmost_pid: Some(20),
+                is_secure_input: false,
+                rebind_if_needed: Err(TargetChangedReason::NoTarget),
+            },
+            expired_now + 6,
+        );
+        assert!(writing.contains(&DeliveryAction::PerformWrite {
+            invocation_id: 2,
+            target_id: 20,
+            text: "Second".to_string(),
+            target_pid: 20,
+        }));
+
+        assert!(coord
+            .handle_event(
+                DeliveryEvent::HostWriteCompleted {
+                    invocation_id: 1,
+                    outcome: Some(TemplateHostDeliveryOutcome::Confirmed),
+                    outcome_code: None,
+                    target_terminated: false,
+                },
+                expired_now + 7
+            )
+            .is_empty());
+        assert_eq!(
+            coord.pending.as_ref().map(|p| p.invocation_id),
+            Some(2)
+        );
+
+        let completed = coord.handle_event(
+            DeliveryEvent::HostWriteCompleted {
+                invocation_id: 2,
+                outcome: Some(TemplateHostDeliveryOutcome::Confirmed),
+                outcome_code: None,
+                target_terminated: false,
+            },
+            expired_now + 8,
+        );
+        assert_finish_order(&completed, 2);
+        assert!(coord.pending.is_none());
     }
 
     #[test]
