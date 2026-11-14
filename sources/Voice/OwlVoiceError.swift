@@ -5,7 +5,7 @@
 
 import Foundation
 
-public enum OwlVoiceError: LocalizedError, Equatable, Sendable {
+enum OwlVoiceError: LocalizedError, Equatable, Sendable {
   case missingAPIKey
   case invalidToken(status: Int, message: String?)
   case emptyAudioData
@@ -15,7 +15,7 @@ public enum OwlVoiceError: LocalizedError, Equatable, Sendable {
   case networkTimeout
   case cancelled
 
-  public var errorDescription: String? {
+  var errorDescription: String? {
     let preset = OwlVoiceASRCatalog.preset(id: OwlVoiceSettings.asrProviderID)
     switch self {
     case .missingAPIKey:

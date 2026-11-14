@@ -5,7 +5,7 @@
 
 import Foundation
 
-public protocol OwlVoiceASRServiceProtocol: Sendable {
+protocol OwlVoiceASRServiceProtocol: Sendable {
   func transcribe(audioWavData: Data, prompt: String?) async throws -> String
 }
 

@@ -213,20 +213,6 @@ enum OwlSkin: String, CaseIterable, Identifiable, Sendable {
     }
   }
 
-  var tag: String {
-    switch self {
-    case .deepred: return "深圳大学"
-    case .stanford: return "斯坦福大学"
-    case .wuda: return "武汉大学"
-    case .xiada: return "厦门大学"
-    case .illinois: return "伊利诺伊大学"
-    case .illinoisflame: return "伊利诺伊大学"
-    case .nyu: return "纽约大学"
-    case .yale: return "耶鲁大学"
-    case .harvard: return "哈佛大学"
-    }
-  }
-
   /// Resolved palette/theme for the candidate panel + settings window.
   var theme: OwlCandidateTheme {
     switch self {

@@ -14,24 +14,6 @@
 //  IMK commit path — no disk IO, no YAML, no network, zero Rime config changes.
 //
 
-import Foundation
-
-/// What the commit path should do with one committed string when 自动配对括号 is on.
-/// Pure `Equatable` value so the decision is unit-testable without a client.
-enum OwlAutoPairAction: Equatable {
-  /// Not a pair-table hit (or the switch is off) — insert the commit text unchanged.
-  case plain
-  /// The commit is EXACTLY one opening char: insert `open + close` in one shot (content
-  /// first — correct in every app), then, only when `caretMove` is true (bundle ID on the
-  /// allowlist), best-effort self-replace the open char via `replacementRange` so the
-  /// caret lands between the pair. Non-allowlisted apps degrade to "caret after the closer".
-  case pair(open: String, close: String, caretMove: Bool)
-  /// The commit is EXACTLY one closing char and the char right of the caret is that same
-  /// closer: overwrite it (`insertText` with `replacementRange` over the neighbor) — the
-  /// caret skips over instead of doubling the closer.
-  case skipOver(close: String)
-}
-
 enum OwlAutoPair {
   /// 开→闭 static pair table (PRD D2: 括号全套 + 引号；成对输入扩展再加 ASCII 括号). Quotes need
   /// zero yaml changes: rime-ice's punctuator alternation (`"` → “ then ”) stays untouched —
@@ -76,55 +58,4 @@ enum OwlAutoPair {
     "」": "「",
     "』": "『"
   ]
-
-  /// All closing chars (the skip-over candidates).
-  static let closers: Set<Character> = Set(pairs.values)
-
-  /// The closing char of `text` iff text is EXACTLY one pair-table closer, else nil.
-  /// The commit path calls this BEFORE reading the caret's right neighbor, so the client
-  /// (IPC) read only happens when it could actually matter.
-  static func singleCloser(in text: String) -> Character? {
-    let closer: String? = OwlAppCore.required(["operation": "pure_rule", "rule": "auto_pair_single_closer", "args": ["text": text]])
-    return closer?.first
-  }
-
-  private struct WireAction: Decodable {
-    let kind: String
-    let open: String?
-    let close: String?
-    let caretMove: Bool?
-
-    enum CodingKeys: String, CodingKey {
-      case kind, open, close
-      case caretMove = "caret_move"
-    }
-  }
-
-  /// Pure decision. Trigger rule v1 (PRD): the commit text must be EXACTLY one pair-table
-  /// char — composed commits like 「你好（」 pass through untouched (`.plain`).
-  static func decision(
-    enabled: Bool,
-    commitText: String,
-    rightNeighbor: Character?,
-    caretMoveAllowed: Bool
-  ) -> OwlAutoPairAction {
-    let wire: WireAction = OwlAppCore.required([
-      "operation": "pure_rule",
-      "rule": "auto_pair_decision",
-      "args": [
-        "enabled": enabled,
-        "commit_text": commitText,
-        "right_neighbor": rightNeighbor.map(String.init) as Any? ?? NSNull(),
-        "caret_move_allowed": caretMoveAllowed
-      ]
-    ])
-    switch wire.kind {
-    case "pair":
-      return .pair(open: wire.open ?? "", close: wire.close ?? "", caretMove: wire.caretMove ?? false)
-    case "skip_over":
-      return .skipOver(close: wire.close ?? "")
-    default:
-      return .plain
-    }
-  }
 }

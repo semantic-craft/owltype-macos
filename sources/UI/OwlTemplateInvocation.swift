@@ -51,7 +51,6 @@ final class OwlTemplateInvocation: ObservableObject {
   private let usesLegacyKeys: Bool
   private let captureContext: (Set<OwlTemplateEngine.Requirement>) -> OwlTemplateEngine.FrozenContext
   private let core: OwlAppSession
-  var decisions: OwlTemplateEngine.Decisions { .init(allowEmptyClipboard: core.call("allow_empty")) }
   let objectWillChange = ObservableObjectPublisher()
   private let statePublisher = PassthroughSubject<State, Never>()
   var stateChanges: AnyPublisher<State, Never> { statePublisher.eraseToAnyPublisher() }
@@ -70,7 +69,6 @@ final class OwlTemplateInvocation: ObservableObject {
   private let mayRestoreFocus: () -> Bool
   private let presentationTransition: ((NSWindow, Bool) -> Void)?
   private let trailingText: String
-  let intent: Intent
   private var presentation: ((OwlTemplateInvocation) -> Void)?
   private var preparePresentation: (() -> OwlTemplatePresentationPreparation)?
   private var preparePresentationAsync: ((@escaping (OwlTemplatePresentationPreparation) -> Void) -> Void)?
@@ -127,7 +125,6 @@ final class OwlTemplateInvocation: ObservableObject {
     self.preparePresentation = preparePresentation
     self.onFinish = onFinish
     self.trailingText = trailingText
-    self.intent = intent
     self.captureContext = captureContext
     switch content {
     case .plainText(let text):
@@ -201,11 +198,6 @@ final class OwlTemplateInvocation: ObservableObject {
 
   func continueWithEmptyClipboard() {
     let _: Bool = core.call("empty")
-  }
-
-  func preview(values: [String: String]) -> Result {
-    let evaluation = evaluate(values: values)
-    return Result(text: evaluation.previewText, cursorOffset: evaluation.cursorOffset)
   }
 
   func start(presentFill: @escaping (OwlTemplateInvocation) -> Void) {

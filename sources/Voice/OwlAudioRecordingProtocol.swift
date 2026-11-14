@@ -5,7 +5,7 @@
 
 import Foundation
 
-public enum OwlVoiceAudioError: LocalizedError, Equatable, Sendable {
+enum OwlVoiceAudioError: LocalizedError, Equatable, Sendable {
   case microphonePermissionDenied
   case engineFailedToStart(String)
   case converterCreationFailed
@@ -14,7 +14,7 @@ public enum OwlVoiceAudioError: LocalizedError, Equatable, Sendable {
   case alreadyRecording
   case notRecording
 
-  public var errorDescription: String? {
+  var errorDescription: String? {
     switch self {
     case .microphonePermissionDenied:
       return "麦克风访问权限未授予，请在系统设置中允许法墨输入法访问麦克风。"
@@ -34,11 +34,9 @@ public enum OwlVoiceAudioError: LocalizedError, Equatable, Sendable {
   }
 }
 
-public protocol OwlAudioRecordingProtocol: AnyObject, Sendable {
+protocol OwlAudioRecordingProtocol: AnyObject, Sendable {
   var audioLevelHandler: (@Sendable (Float) -> Void)? { get set }
   var autoStopHandler: (@Sendable () -> Void)? { get set }
-  var isRecording: Bool { get }
-  var duration: TimeInterval { get }
 
   func startRecording() throws
   func stopRecording() throws -> Data

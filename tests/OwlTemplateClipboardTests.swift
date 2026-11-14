@@ -62,7 +62,7 @@ final class OwlTemplateClipboardTests: XCTestCase {
     var delivered: [String] = []
     let call = invocation(template, read: { reads += 1; return source }, deliver: { delivered.append($0) })
     XCTAssertEqual(reads, 0)
-    let fill = OwlPromptFillModel(template: template, invocation: call)
+    let fill = OwlPromptFillModel(invocation: call)
     XCTAssertFalse(fill.canConfirm)
     source = "B"
     fill.values["n:目标"] = "解释"
@@ -93,7 +93,7 @@ final class OwlTemplateClipboardTests: XCTestCase {
       var reads = 0
       let call = invocation(template, read: { reads += 1; return source }, deliver: { delivered.append($0) })
       var fill: OwlPromptFillModel?
-      call.start { fill = OwlPromptFillModel(template: template, invocation: $0) }
+      call.start { fill = OwlPromptFillModel(invocation: $0) }
       guard let fill else { return XCTFail("must present choice even without parameters") }
       XCTAssertTrue(fill.evaluation.needsEmptyClipboardDecision)
       XCTAssertEqual(fill.filledBody, template.body)
@@ -119,7 +119,7 @@ final class OwlTemplateClipboardTests: XCTestCase {
     for body in ["{clipboard}{argument name=目标}", "{clipboard}{argument name=}"] {
       let template = entry(body)
       let call = invocation(template, read: { nil })
-      let fill = OwlPromptFillModel(template: template, invocation: call)
+      let fill = OwlPromptFillModel(invocation: call)
       fill.continueWithEmptyClipboard()
       XCTAssertFalse(fill.evaluation.needsEmptyClipboardDecision)
       XCTAssertFalse(fill.canConfirm)
@@ -169,7 +169,7 @@ final class OwlTemplateClipboardTests: XCTestCase {
     XCTAssertNil(first.evaluate(values: [:]).readyText)
     XCTAssertEqual(reads, 0)
     let second = invocation(template, read: { reads += 1; return nil })
-    let fill = OwlPromptFillModel(template: template, invocation: second)
+    let fill = OwlPromptFillModel(invocation: second)
     fill.continueWithEmptyClipboard()
     XCTAssertTrue(fill.canConfirm)
     second.cancel()
@@ -212,8 +212,9 @@ final class OwlTemplateClipboardTests: XCTestCase {
     picker.select(0)
     let row = try XCTUnwrap(picker.selectedRow)
     let picked = try XCTUnwrap(library.entries.first { $0.id.uuidString == row.id })
+    let candidateText = try XCTUnwrap(OwlTemplateStore.renderCandidateProjection(library).split(separator: "\t").first.map(String.init))
     let candidate = try XCTUnwrap(OwlTemplateStore.resolveCandidate(
-      code: "vsample", text: OwlTemplateStore.candidateText(template), loadLibrary: { library }))
+      code: "vsample", text: candidateText, loadLibrary: { library }))
     for selected in [picked, candidate] {
       var reads = 0
       var source = "A"
@@ -222,7 +223,7 @@ final class OwlTemplateClipboardTests: XCTestCase {
       XCTAssertEqual(reads, 0)
       call.start { _ in }
       source = "B"
-      XCTAssertEqual(call.preview(values: call.initialValues).text, "A/解释")
+      XCTAssertEqual(call.evaluate(values: call.initialValues).previewText, "A/解释")
       XCTAssertTrue(call.confirm(values: call.initialValues))
       XCTAssertEqual(delivered, "A/解释")
       XCTAssertEqual(reads, 1)

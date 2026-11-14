@@ -8,7 +8,7 @@ struct OwlRaycastImportView: View {
 
   var body: some View {
     let review = preview.assessment
-    let validation = preview.validationMessage(for: review)
+    let validation = preview.validationMessage
     return VStack(alignment: .leading, spacing: 12) {
       Text("导入 Raycast 模板").font(.title2)
       Text("共 \(preview.rows.count) 项 · 重复/已导入 \(review.duplicates.count) · 字段错误 \(invalidCount) · 待处理 \(pendingCount) · 冲突 \(review.conflicts.count)")

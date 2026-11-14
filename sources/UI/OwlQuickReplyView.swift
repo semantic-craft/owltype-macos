@@ -72,11 +72,6 @@ final class OwlQuickReplyViewModel: ObservableObject {
       }
     }
   }
-
-  func cancel() {
-    activeTask?.cancel()
-    activeTask = nil
-  }
 }
 
 // MARK: - Reply Skeleton View
@@ -140,20 +135,17 @@ struct OwlQuickReplyView: View {
   let palette: OwlCandidatePalette
   var inputFocused: Bool = false
   let onChoose: (String) -> Void
-  let onDismiss: () -> Void
 
   init(
     viewModel: OwlQuickReplyViewModel,
     palette: OwlCandidatePalette,
     inputFocused: Bool = false,
-    onChoose: @escaping (String) -> Void,
-    onDismiss: @escaping () -> Void
+    onChoose: @escaping (String) -> Void
   ) {
     self.viewModel = viewModel
     self.palette = palette
     self.inputFocused = inputFocused
     self.onChoose = onChoose
-    self.onDismiss = onDismiss
   }
 
   var body: some View {

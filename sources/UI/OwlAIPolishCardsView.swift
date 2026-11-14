@@ -12,16 +12,16 @@ import SwiftUI
 
 // MARK: - Text Diff Summary
 
-public struct OwlTextDiffSummary: Equatable {
-  public let deltaCount: Int
-  public let percentageChange: Double
+struct OwlTextDiffSummary: Equatable {
+  let deltaCount: Int
+  let percentageChange: Double
 
-  public init(original: String, candidate: String) {
+  init(original: String, candidate: String) {
     self.deltaCount = candidate.count - original.count
     self.percentageChange = original.isEmpty ? 0.0 : Double(deltaCount) / Double(original.count)
   }
 
-  public var badgeText: String {
+  var badgeText: String {
     if deltaCount == 0 {
       return "±0 字"
     } else if deltaCount > 0 {
@@ -32,7 +32,7 @@ public struct OwlTextDiffSummary: Equatable {
     }
   }
 
-  public var badgeColor: Color {
+  var badgeColor: Color {
     if deltaCount < 0 {
       return Color.green
     } else if deltaCount > 0 {
@@ -171,11 +171,6 @@ final class OwlAIPolishViewModel: ObservableObject {
       }
     }
   }
-
-  func cancel() {
-    activeTask?.cancel()
-    activeTask = nil
-  }
 }
 
 // MARK: - Polish Cards View
@@ -185,20 +180,17 @@ struct OwlAIPolishCardsView: View {
   let palette: OwlCandidatePalette
   var inputFocused: Bool = false
   let onChoose: (String) -> Void
-  let onDismiss: () -> Void
 
   init(
     viewModel: OwlAIPolishViewModel,
     palette: OwlCandidatePalette,
     inputFocused: Bool = false,
-    onChoose: @escaping (String) -> Void,
-    onDismiss: @escaping () -> Void
+    onChoose: @escaping (String) -> Void
   ) {
     self.viewModel = viewModel
     self.palette = palette
     self.inputFocused = inputFocused
     self.onChoose = onChoose
-    self.onDismiss = onDismiss
   }
 
   var body: some View {

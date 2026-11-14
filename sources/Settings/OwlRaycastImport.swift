@@ -6,7 +6,6 @@ struct OwlTemplateImportSource: Codable, Equatable, Sendable {
   let originalName: String
   let originalBody: String
   let originalKeyword: String?
-  var fingerprint: String { OwlTemplateStore.core("import_fingerprint", ["source": OwlAppCore.payload(self)]) }
 }
 
 /// Review DTOs and UI bindings. Conversion, identity and conflict decisions live in Rust.
@@ -35,18 +34,14 @@ struct OwlRaycastImport {
       var pendingCount = 0
     }
     var assessment: Assessment { OwlTemplateStore.core("import_assessment", ["preview": OwlAppCore.payload(self)]) }
-    func duplicateKind(at index: Int) -> DuplicateKind? { assessment.duplicates[index] }
-    func conflicts(at index: Int) -> [String] { assessment.conflicts[index] ?? [] }
     var selectedIndices: [Int] { assessment.selectedIndices }
     var selectedCount: Int { assessment.selectedIndices.count }
     var pendingCount: Int { assessment.pendingCount }
-    var validationMessage: String? { validationMessage(for: assessment) }
-    func validationMessage(for review: Assessment) -> String? {
+    var validationMessage: String? {
       struct Message: Decodable { let message: String? }
       let result: Message = OwlTemplateStore.core("import_message", ["preview": OwlAppCore.payload(self)])
       return result.message
     }
-    var library: OwlTemplateLibrary { OwlTemplateStore.core("import_library", ["preview": OwlAppCore.payload(self)]) }
     private mutating func change(at index: Int, action: String, trigger: String = "") {
       let result: Preview = OwlTemplateStore.core("import_change", ["preview": OwlAppCore.payload(self), "index": index, "action": action, "trigger": trigger])
       rows = result.rows

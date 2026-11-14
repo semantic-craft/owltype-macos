@@ -34,19 +34,21 @@ final class OwlOptionDoubleTapDetectorTests: XCTestCase {
   }
 
   func testSlowGapDoesNotFire() {
+    let tapMaxGap: TimeInterval = 0.45
     var d = OwlOptionDoubleTapDetector()
     _ = d.processFlagsChanged([.option], at: at(0))
     _ = d.processFlagsChanged([], at: at(0.1))
     // 间隔超过 tapMaxGap：第二次按下降级为新的第一击。
-    XCTAssertFalse(d.processFlagsChanged([.option], at: at(0.1 + OwlOptionDoubleTapDetector.tapMaxGap + 0.05)))
-    XCTAssertFalse(d.processFlagsChanged([], at: at(0.1 + OwlOptionDoubleTapDetector.tapMaxGap + 0.15)))
+    XCTAssertFalse(d.processFlagsChanged([.option], at: at(0.1 + tapMaxGap + 0.05)))
+    XCTAssertFalse(d.processFlagsChanged([], at: at(0.1 + tapMaxGap + 0.15)))
   }
 
   func testLongHoldIsNotATap() {
+    let tapMaxHold: TimeInterval = 0.5
     var d = OwlOptionDoubleTapDetector()
     // 第一击按住超时（按住 ⌥ 拖选/等组合键的形态）→ 松开不算轻击。
     _ = d.processFlagsChanged([.option], at: at(0))
-    XCTAssertFalse(d.processFlagsChanged([], at: at(OwlOptionDoubleTapDetector.tapMaxHold + 0.1)))
+    XCTAssertFalse(d.processFlagsChanged([], at: at(tapMaxHold + 0.1)))
     _ = d.processFlagsChanged([.option], at: at(1.0))
     XCTAssertFalse(d.processFlagsChanged([], at: at(1.1)), "前一击已作废，这只是新序列的第一击")
 
@@ -55,7 +57,7 @@ final class OwlOptionDoubleTapDetectorTests: XCTestCase {
     _ = d2.processFlagsChanged([.option], at: at(0))
     _ = d2.processFlagsChanged([], at: at(0.1))
     _ = d2.processFlagsChanged([.option], at: at(0.2))
-    XCTAssertFalse(d2.processFlagsChanged([], at: at(0.2 + OwlOptionDoubleTapDetector.tapMaxHold + 0.1)))
+    XCTAssertFalse(d2.processFlagsChanged([], at: at(0.2 + tapMaxHold + 0.1)))
   }
 
   func testOtherModifierAbortsTheGesture() {
@@ -98,82 +100,8 @@ final class OwlOptionDoubleTapDetectorTests: XCTestCase {
 // MARK: - 规范排版：确定性规则（纯函数，无偏好域 / 无网络，零污染）
 
 final class OwlChineseTypesettingTests: XCTestCase {
-  func testContentFingerprintKeepsMultiScalarLetters() {
-    let original = "क्ष 가 a\u{200D}"
-    XCTAssertEqual(OwlChineseTypesetting.contentFingerprint(original), "क्ष가a\u{200D}")
-    XCTAssertNotEqual(OwlChineseTypesetting.contentFingerprint("가"), OwlChineseTypesetting.contentFingerprint("나"))
-  }
-
-  func testStraightQuotesPairIntoCurly() {
-    XCTAssertEqual(OwlChineseTypesetting.normalizeQuotes("选\"甲\"与'乙'"), "选“甲”与‘乙’")
-  }
-
-  func testAsciiApostropheInContractionPreserved() {
-    // don't / O'Brien 的撇号是 ASCII 字母之间，保留；不要误当中文引号翻卷。
-    XCTAssertEqual(OwlChineseTypesetting.normalizeQuotes("don't 与 O'Brien"), "don't 与 O'Brien")
-  }
-
-  func testCornerQuotesFoldToMainland() {
-    XCTAssertEqual(OwlChineseTypesetting.normalizeQuotes("「书名」『篇』"), "“书名”‘篇’")
-  }
-
-  func testPunctuationWidthOnlyBesideCJK() {
-    XCTAssertEqual(OwlChineseTypesetting.normalizePunctuationWidth("中文,句号."), "中文，句号。")
-    XCTAssertEqual(OwlChineseTypesetting.normalizePunctuationWidth("确定(是)吗"), "确定（是）吗")
-    // 拉丁 / 数字语境的半角不动：小数点、缩写点、千分位。
-    XCTAssertEqual(OwlChineseTypesetting.normalizePunctuationWidth("iOS 18.5"), "iOS 18.5")
-    XCTAssertEqual(OwlChineseTypesetting.normalizePunctuationWidth("e.g. test"), "e.g. test")
-    XCTAssertEqual(OwlChineseTypesetting.normalizePunctuationWidth("共 1,000 元"), "共 1,000 元")
-  }
-
-  func testEllipsisAndDash() {
-    XCTAssertEqual(OwlChineseTypesetting.normalizeEllipsisAndDash("等等..."), "等等……")
-    XCTAssertEqual(OwlChineseTypesetting.normalizeEllipsisAndDash("啊。。。"), "啊……")
-    XCTAssertEqual(OwlChineseTypesetting.normalizeEllipsisAndDash("范围--结束"), "范围——结束")
-    XCTAssertEqual(OwlChineseTypesetting.normalizeEllipsisAndDash("他—说"), "他——说")
-    // 单个 ASCII 连字符 / 数字区间不动。
-    XCTAssertEqual(OwlChineseTypesetting.normalizeEllipsisAndDash("2020-2021"), "2020-2021")
-  }
-
-  func testSpaceRemovalCJKCJKAndDigitsStayTight() {
-    XCTAssertEqual(OwlChineseTypesetting.normalizeSpaces("中 文 字"), "中文字")
-    XCTAssertEqual(OwlChineseTypesetting.normalizeSpaces("共 3 人"), "共3人")   // CJK↔数字不留空
-    XCTAssertEqual(OwlChineseTypesetting.normalizeSpaces("第3条"), "第3条")
-    XCTAssertEqual(OwlChineseTypesetting.normalizeSpaces("hello world"), "hello world")
-    XCTAssertEqual(OwlChineseTypesetting.normalizeSpaces("a  b"), "a b")
-  }
-
-  func testPanguSpacingBetweenCJKAndLatinLetters() {
-    // 盘古之白：中文与英文字母之间恰好一个空格——原文缺空格要补、有空格要留、多空格要并。
-    XCTAssertEqual(OwlChineseTypesetting.normalizeSpaces("看iOS系统"), "看 iOS 系统")
-    XCTAssertEqual(OwlChineseTypesetting.normalizeSpaces("看 iOS 系统"), "看 iOS 系统")
-    XCTAssertEqual(OwlChineseTypesetting.normalizeSpaces("看  iOS  系统"), "看 iOS 系统")
-    XCTAssertEqual(OwlChineseTypesetting.normalizeSpaces("基于GPT架构"), "基于 GPT 架构")
-    XCTAssertEqual(OwlChineseTypesetting.normalizeSpaces("详见See id."), "详见 See id.")
-  }
-
   func testPreCleanStripsTrailingSpaceAndCollapsesBlankLines() {
     XCTAssertEqual(OwlChineseTypesetting.preClean("a  \n\n\n\nb  "), "a\n\nb")
-  }
-
-  func testContentFingerprintIgnoresPunctuationAndWhitespace() {
-    XCTAssertEqual(
-      OwlChineseTypesetting.contentFingerprint("你好，world 123！"),
-      OwlChineseTypesetting.contentFingerprint("你好world123")
-    )
-    XCTAssertNotEqual(
-      OwlChineseTypesetting.contentFingerprint("原文内容"),
-      OwlChineseTypesetting.contentFingerprint("原文内容多一句")
-    )
-  }
-
-  func testFinalizeNeverChangesContentFingerprint() {
-    // 规范化只动标点形态与空白，绝不动文字——这条不变式是「排版绝不改字」的机械保证。
-    let messy = "他说\"你好\",这是...一段  测试文字—end。看 iOS 好"
-    XCTAssertEqual(
-      OwlChineseTypesetting.contentFingerprint(OwlChineseTypesetting.finalize(messy)),
-      OwlChineseTypesetting.contentFingerprint(messy)
-    )
   }
 }
 

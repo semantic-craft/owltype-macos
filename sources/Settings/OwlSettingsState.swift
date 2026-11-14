@@ -318,6 +318,7 @@ enum OwlSelectionMenuPreferences {
     set { OwlDefaults.standard.set(newValue, forKey: goalBriefEnabledKey) }
   }
 
+  // periphery:ignore
   static func resetForTesting() {
     OwlDefaults.standard.removeObject(forKey: enabledKey)
     OwlDefaults.standard.removeObject(forKey: askEnabledKey)

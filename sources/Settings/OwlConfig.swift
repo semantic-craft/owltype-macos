@@ -118,17 +118,6 @@ final class OwlConfig {
     }
     return baseConfig?.getString(option)
   }
-
-  func getAppOptions(_ appName: String) -> [String: Bool] {
-    guard let config else { return [:] }
-    let value = appName.withCString {
-      owl_msime_config_app_options_json(config, $0)
-    }
-    guard let value else { return [:] }
-    defer { owl_msime_string_free(value) }
-    let data = Data(bytes: value, count: strlen(value))
-    return (try? JSONDecoder().decode([String: Bool].self, from: data)) ?? [:]
-  }
 }
 
 private extension OwlConfig {

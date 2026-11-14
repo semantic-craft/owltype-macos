@@ -38,13 +38,6 @@ enum OwlInputMethod: String, CaseIterable, Sendable, Encodable {
     case .wubi: return "五笔输入"
     }
   }
-
-  func schemaId(doublePinyin: OwlDoublePinyin, wubiScheme: OwlWubiScheme) -> String {
-    let value: OwlAppCore.EffectiveKeyboard = OwlAppCore.required([
-      "operation": "keyboard_effective", "raw": ["inputMethod": rawValue,
-        "doublePinyin": doublePinyin.rawValue, "wubiScheme": wubiScheme.rawValue]])
-    return value.preferredSchemaID
-  }
 }
 
 /// 五笔方案 sub-selection shown in the 输入方式 dropdown when 五笔输入 is active — mirrors the
@@ -62,10 +55,6 @@ enum OwlWubiScheme: String, CaseIterable, Sendable, Encodable {
     case .jidian98: return "98 版五笔"
     case .pinyinMix98: return "98 版五笔拼音混输"
     }
-  }
-
-  var schemaId: String {
-    OwlAppCore.keyboardCatalog.wubiSchemas[rawValue]!
   }
 }
 
@@ -121,12 +110,6 @@ enum OwlDoublePinyin: String, CaseIterable, Sendable, Encodable {
     case .ziguang: return "紫光双拼"
     case .jiajia: return "拼音加加双拼"
     }
-  }
-
-  /// rime-ice `schema_id` — the real schema id used by the commented schema hint in
-  /// the generated `default.custom.yaml` patch.
-  var schemaId: String {
-    OwlAppCore.keyboardCatalog.doublePinyinSchemas[rawValue]!
   }
 }
 
@@ -187,37 +170,6 @@ enum OwlKeyboardPreferences {
 
   // MARK: - 五笔
 
-  /// 五笔完整四码只有一个候选时自动提交；与水杉默认值一致。
-  static var wubiAutoCommitUnique: Bool {
-    get { catalog.load(.wubiAutoCommitUnique) }
-    set { catalog.set(.wubiAutoCommitUnique, newValue) }
-  }
-
-  /// 完整四码后的字母顶字上屏。关闭只影响五笔拼音混输，纯五笔仍顶字保留第五码。
-  static var wubiFifthCodeTopCommit: Bool {
-    get { catalog.load(.wubiFifthCodeTopCommit) }
-    set { catalog.set(.wubiFifthCodeTopCommit, newValue) }
-  }
-
-  /// 优先显示候选尚未输入的五笔编码；无剩余码时沿用引擎完整编码注释。
-  static var wubiCodeHint: Bool {
-    get { catalog.load(.wubiCodeHint) }
-    set { catalog.set(.wubiCodeHint, newValue) }
-  }
-
-  /// z 匹配未知码位；开启时由引擎暂停临时拼音反查，与水杉默认关闭一致。
-  static var wubiZWildcard: Bool {
-    get { catalog.load(.wubiZWildcard) }
-    set { catalog.set(.wubiZWildcard, newValue) }
-  }
-
-  /// 空码自动清码. Key `"OwlKeyboardWubiAutoClear"`, default `false`.
-  /// Eventual Rime mapping: `speller/auto_clear: max_length`.
-  static var wubiAutoClear: Bool {
-    get { catalog.load(.wubiAutoClear) }
-    set { catalog.set(.wubiAutoClear, newValue) }
-  }
-
   /// 单字候选模式. Key `"OwlKeyboardWubiCandidateMode"`, default `.normal`.
   /// Eventual Rime mapping: one of the bundled `wubi86_jidian_*` Lua filters.
   static var wubiCandidateMode: OwlWubiCandidateMode {
@@ -229,13 +181,6 @@ enum OwlKeyboardPreferences {
     }
   }
 
-  /// z 临时拼音反查. Key `"OwlKeyboardWubiZReverseLookup"`, default `true`.
-  /// Rime mapping: `recognizer/patterns/reverse_lookup`（关闭时清空反查正则，z 不再触发拼音反查）.
-  static var wubiZReverseLookup: Bool {
-    get { catalog.load(.wubiZReverseLookup) }
-    set { catalog.set(.wubiZReverseLookup, newValue) }
-  }
-
   /// ` 临时英文（五笔前缀英文通道）. Key `"OwlKeyboardWubiEnglishChannel"`, default `false`（出厂关）.
   /// Rime mapping: 仿 z 反查的前缀通道——` 进 speller/alphabet + affix_segmentor@melt_eng +
   /// table_translator@melt_eng（词库 melt_eng，拼音线正在用的同一份）+ recognizer 正则。
@@ -243,13 +188,6 @@ enum OwlKeyboardPreferences {
   static var wubiEnglishChannel: Bool {
     get { catalog.load(.wubiEnglishChannel) }
     set { catalog.set(.wubiEnglishChannel, newValue) }
-  }
-
-  /// 记住我常用的词（个性化）. Key `"OwlKeyboardWubiUserDictLearning"`, default `true` (native MSIME).
-  /// Rust learning and its shared journal own selection frequency, composed words and restart replay.
-  static var wubiUserDictLearning: Bool {
-    get { catalog.load(.wubiUserDictLearning) }
-    set { catalog.set(.wubiUserDictLearning, newValue) }
   }
 
   // MARK: - 中英文状态切换
@@ -486,65 +424,5 @@ enum OwlCommitTransform {
         "previous": previousCharacter.map(String.init) as Any? ?? NSNull()
       ]
     ])
-  }
-
-  private enum BoundaryKind {
-    case cjk
-    case latin
-    case digit
-
-    init?(_ character: Character) {
-      let scalars = character.unicodeScalars
-      if scalars.allSatisfy({ CharacterSet.whitespacesAndNewlines.contains($0) }) {
-        return nil
-      }
-      if scalars.contains(where: Self.isCJK) {
-        self = .cjk
-      } else if scalars.allSatisfy(Self.isASCIILetter) {
-        self = .latin
-      } else if scalars.allSatisfy(Self.isASCIIDigit) {
-        self = .digit
-      } else {
-        return nil
-      }
-    }
-
-    private static func isCJK(_ scalar: Unicode.Scalar) -> Bool {
-      switch scalar.value {
-      case 0x3400...0x9FFF, 0xF900...0xFAFF, 0x20000...0x2FA1F:
-        return true
-      default:
-        return false
-      }
-    }
-
-    private static func isASCIILetter(_ scalar: Unicode.Scalar) -> Bool {
-      switch scalar.value {
-      case 65...90, 97...122:
-        return true
-      default:
-        return false
-      }
-    }
-
-    private static func isASCIIDigit(_ scalar: Unicode.Scalar) -> Bool {
-      (48...57).contains(scalar.value)
-    }
-  }
-
-  private static func needsSpace(
-    _ left: BoundaryKind,
-    _ right: BoundaryKind,
-    cjkEnglishSpacing: Bool,
-    cjkNumberSpacing: Bool
-  ) -> Bool {
-    switch (left, right) {
-    case (.cjk, .latin), (.latin, .cjk):
-      return cjkEnglishSpacing
-    case (.cjk, .digit), (.digit, .cjk):
-      return cjkNumberSpacing
-    default:
-      return false
-    }
   }
 }

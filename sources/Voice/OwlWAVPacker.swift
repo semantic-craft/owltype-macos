@@ -5,9 +5,9 @@
 
 import Foundation
 
-public enum OwlWAVPacker {
+enum OwlWAVPacker {
   /// Packages raw 16kHz, 16-bit mono PCM bytes into a 44-byte standard RIFF WAVE file in memory.
-  public static func pack16kMono(pcmData: Data) -> Data {
+  static func pack16kMono(pcmData: Data) -> Data {
     let alignedCount = pcmData.count - (pcmData.count % 2)
     let sanitizedData = pcmData.prefix(alignedCount)
 

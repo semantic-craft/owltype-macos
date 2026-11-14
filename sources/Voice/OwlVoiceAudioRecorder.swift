@@ -32,17 +32,6 @@ public final class OwlVoiceAudioRecorder: OwlAudioRecordingProtocol, @unchecked 
 
   private let lock = OSAllocatedUnfairLock(initialState: RecorderState())
 
-  public var isRecording: Bool {
-    lock.withLock { $0.isRecording }
-  }
-
-  public var duration: TimeInterval {
-    lock.withLock { state in
-      guard let start = state.startTime else { return 0 }
-      return Date().timeIntervalSince(start)
-    }
-  }
-
   public init() {}
 
   public func startRecording() throws {
@@ -203,25 +192,6 @@ public final class OwlVoiceAudioRecorder: OwlAudioRecordingProtocol, @unchecked 
       }
     }
     return shouldTriggerAutoStop
-  }
-
-  internal var pcmDataCountForTesting: Int {
-    lock.withLock { $0.pcmData.count }
-  }
-
-  internal func prepareForTesting(isRecording: Bool) {
-    lock.withLock {
-      $0.isRecording = isRecording
-      if isRecording {
-        $0.startTime = Date()
-        $0.pcmData = Data()
-        $0.peakRMS = 0.0
-        $0.autoStopTriggered = false
-      } else {
-        $0.startTime = nil
-        $0.pcmData.removeAll(keepingCapacity: false)
-      }
-    }
   }
 
   public static func normalizedLevel(for rms: Float) -> Float {

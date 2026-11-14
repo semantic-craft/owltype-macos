@@ -16,16 +16,14 @@ struct OwlKeyboardSettingsApplication {
   }
 
   let engine: OwlRustEngine
-  let directory: URL
   let refresh: () -> Void
 
   init(
     engine: OwlRustEngine,
-    directory: URL,
+    directory _: URL,
     refresh: @escaping () -> Void
   ) {
     self.engine = engine
-    self.directory = directory
     self.refresh = refresh
   }
 

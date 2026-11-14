@@ -167,15 +167,6 @@ final class OwlVerificationReceiptModel: ObservableObject {
     for anchor in anchors { cancel(anchor) }
   }
 
-  /// 结果 → 行状态的纯映射（可单测）：有来源→绿；无来源（含 emptyResponse）→ notFound；
-  /// 其余错误→error。永不产出「判驳」。
-  nonisolated static func resolvedState(
-    from result: Result<OwlSourceVerificationOutcome, Error>, at date: Date
-  ) -> OwlAnchorVerifyState {
-    let value: Row = OwlAIBusinessCore.call("receiptState", resultFacts(result, at: date))
-    return value.native
-  }
-
   func confirm(_ anchor: OwlVerificationAnchor) {
     transition("confirm", ["id": anchor.id])
   }

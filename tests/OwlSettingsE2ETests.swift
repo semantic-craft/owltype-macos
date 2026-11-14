@@ -46,8 +46,8 @@ final class OwlSettingsE2EContractTests: XCTestCase {
     OwlKeyboardPreferences.slashSymbolMenu = true
     OwlKeyboardPreferences.cjkAlnumSpacing = true
     OwlKeyboardPreferences.appEnglishBundleIDs = ["com.apple.Terminal", "bad:key", "com.apple.Terminal"]
-    OwlKeyboardPreferences.wubiCodeHint = true
-    OwlKeyboardPreferences.wubiAutoClear = true
+    OwlKeyboardSettingsCatalog.live.set(.wubiCodeHint, true)
+    OwlKeyboardSettingsCatalog.live.set(.wubiAutoClear, true)
     OwlKeyboardPreferences.wubiCandidateMode = .singleOnly
     OwlFuzzyPreferences.zhz = true
     OwlFuzzyPreferences.chc = true
@@ -138,8 +138,8 @@ final class OwlSettingsE2EContractTests: XCTestCase {
     OwlKeyboardPreferences.slashSymbolMenu = false
     OwlKeyboardPreferences.cjkAlnumSpacing = false
     OwlKeyboardPreferences.appEnglishBundleIDs = []
-    OwlKeyboardPreferences.wubiCodeHint = false
-    OwlKeyboardPreferences.wubiAutoClear = false
+    OwlKeyboardSettingsCatalog.live.set(.wubiCodeHint, false)
+    OwlKeyboardSettingsCatalog.live.set(.wubiAutoClear, false)
     OwlKeyboardPreferences.wubiCandidateMode = .normal
     resetFuzzyPreferences()
     let panelSettings = OwlCandidatePanelSettings.live

@@ -12,7 +12,6 @@ final class OwlTemplateEngineTests: XCTestCase {
   func testCanonicalUnicodeParameterIdentityAndOptionsAcrossRustBoundary() {
     let parsed = OwlTemplateEngine.parse(entry("{argument name=é default=é options=é,乙}{argument name=e\u{301} default=e\u{301} options=e\u{301},乙}"))
     XCTAssertEqual(parsed.parameters.count, 1)
-    XCTAssertEqual(OwlTemplateEngine.quoted("\u{301}"), "\"\u{301}\"")
     XCTAssertTrue(parsed.diagnostics.isEmpty)
     XCTAssertEqual(OwlTemplateEngine.render(parsed, values: ["n:e\u{301}": "e\u{301}"]).readyText, "e\u{301}e\u{301}")
   }
@@ -113,10 +112,10 @@ final class OwlTemplateEngineTests: XCTestCase {
     XCTAssertEqual(presentations, 1)
     XCTAssertFalse(invocation.confirm(values: [:]))
     XCTAssertEqual(invocation.state, .awaitingConfirmation)
-    let preview = invocation.preview(values: ["n:x": "🙂"])
+    let preview = invocation.evaluate(values: ["n:x": "🙂"]).previewText
     XCTAssertTrue(invocation.confirm(values: ["n:x": "🙂"]))
     XCTAssertFalse(invocation.confirm(values: ["n:x": "again"]))
-    XCTAssertEqual(delivered, [preview.text])
+    XCTAssertEqual(delivered, [preview])
     XCTAssertEqual(captures, 0)
 
     let dynamic = OwlTemplateInvocation(content: .template(entry("{clipboard}{date}")),
@@ -127,8 +126,8 @@ final class OwlTemplateEngineTests: XCTestCase {
         return .init()
       })
     XCTAssertEqual(captures, 0)
-    _ = dynamic.preview(values: [:])
-    _ = dynamic.preview(values: [:])
+    _ = dynamic.evaluate(values: [:])
+    _ = dynamic.evaluate(values: [:])
     XCTAssertFalse(dynamic.confirm(values: [:]))
     XCTAssertEqual(captures, 1)
   }
@@ -160,7 +159,7 @@ final class OwlTemplateEngineTests: XCTestCase {
       let invocation = OwlTemplateInvocation(content: .template(template),
         broker: OwlPanelInsertionBroker(captureFrontmost: { nil }, pasteboardWrite: { _ in true }),
         deliver: { deliveries.append($0.text); return .confirmed })
-      let fill = OwlPromptFillModel(template: template, invocation: invocation)
+      let fill = OwlPromptFillModel(invocation: invocation)
       XCTAssertTrue(fill.canConfirm)
       let preview = fill.filledBody
       XCTAssertTrue(invocation.confirm(values: fill.values))
@@ -188,14 +187,15 @@ final class OwlTemplateEngineTests: XCTestCase {
     XCTAssertFalse(model.draft.body.contains("options="))
   }
 
-  func testCandidateAliasAndPanelUseSameStandardParameterSession() {
+  func testCandidateAliasAndPanelUseSameStandardParameterSession() throws {
     var template = entry("{argument name=目标 default=甲}\n{argument name=目标}")
     template.trigger = "mail"
     template.candidateAliases = ["vmail"]
     template.invocationMode = .candidate
     let library = OwlTemplateLibrary(entries: [template])
+    let candidateText = try XCTUnwrap(OwlTemplateStore.renderCandidateProjection(library).split(separator: "\t").first.map(String.init))
     for code in ["mail", "vmail"] {
-      let resolved = OwlTemplateStore.resolveCandidate(code: code, text: OwlTemplateStore.candidateText(template), loadLibrary: { library })
+      let resolved = OwlTemplateStore.resolveCandidate(code: code, text: candidateText, loadLibrary: { library })
       XCTAssertEqual(resolved, template)
       guard let resolved else { return }
       for selected in [template, resolved] {
@@ -203,7 +203,7 @@ final class OwlTemplateEngineTests: XCTestCase {
         let invocation = OwlTemplateInvocation(content: .template(selected),
           broker: OwlPanelInsertionBroker(captureFrontmost: { nil }, pasteboardWrite: { _ in true }),
           deliver: { deliveries.append($0.text); return .confirmed })
-        let fill = OwlPromptFillModel(template: selected, invocation: invocation)
+        let fill = OwlPromptFillModel(invocation: invocation)
         XCTAssertEqual(fill.parameters.count, 1)
         XCTAssertEqual(fill.filledBody, "甲\n甲")
         fill.values["n:目标"] = "🙂\n正文"

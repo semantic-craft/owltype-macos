@@ -17,24 +17,14 @@ public protocol OwlVoiceHotwordsExtracting: Sendable {
 }
 
 public extension OwlVoiceHotwordsExtracting {
-  func extractHotwords() -> [String] {
-    extractHotwords(limit: 100)
-  }
-
   func buildPrompt(preContext: String?, hotwords: [String]? = nil, maxBytes: Int = 800) -> String {
     buildPrompt(preContext: preContext, hotwords: hotwords, maxBytes: maxBytes)
-  }
-
-  func buildPrompt(preContext: String?) -> String {
-    buildPrompt(preContext: preContext, hotwords: nil, maxBytes: 800)
   }
 
   func buildPrompt(preContext: String?, hotwords: [String], maxBytes: Int) -> String {
     buildPrompt(preContext: preContext, hotwords: Optional(hotwords), maxBytes: maxBytes)
   }
 }
-
-public typealias OwlVoiceHotwordsExtractorProtocol = OwlVoiceHotwordsExtracting
 
 // MARK: - Concrete Implementation
 

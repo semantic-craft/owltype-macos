@@ -19,7 +19,6 @@ enum OwlRerankModelKind: String, CaseIterable, Codable, Hashable, Sendable {
 
 struct OwlRerankModelDescriptor: Codable, Equatable, Sendable {
   let kind: OwlRerankModelKind
-  let title: String
   let fileName: String
   let expectedSize: UInt64
   let expectedSHA256: String
@@ -27,8 +26,6 @@ struct OwlRerankModelDescriptor: Codable, Equatable, Sendable {
   let version: String
   let license: String
 
-  static var keyboard: Self { descriptor(for: .keyboard) }
-  static var settled: Self { descriptor(for: .settled) }
   static func descriptor(for kind: OwlRerankModelKind) -> Self {
     OwlRustCompatibleResources.models.first { $0.kind == kind }!
   }
@@ -45,9 +42,8 @@ struct OwlRerankModelDescriptor: Codable, Equatable, Sendable {
   }
 }
 
-struct OwlRerankRuntimeModelStatus: Codable, Equatable, Sendable {
+struct OwlRerankRuntimeModelStatus: Equatable, Sendable {
   let state: String
-  let error: String?
 }
 
 /// Thread-safe latest model state published by the input session that owns the FFI handle.
@@ -60,9 +56,9 @@ final class OwlRerankRuntimeStatusRegistry: @unchecked Sendable {
 
   private init() {}
 
-  func update(kind: OwlRerankModelKind, state: String, error: String?) {
+  func update(kind: OwlRerankModelKind, state: String, error _: String?) {
     lock.lock()
-    statuses[kind] = OwlRerankRuntimeModelStatus(state: state, error: error)
+    statuses[kind] = OwlRerankRuntimeModelStatus(state: state)
     lock.unlock()
   }
 
@@ -138,6 +134,7 @@ enum OwlExperimentalPreferences {
   }
 
   /// Remove every experimental key — used by tests to restore the default-OFF baseline.
+  // periphery:ignore
   static func resetForTesting() {
     OwlDefaults.standard.removeObject(forKey: selectionPolishPromptVariantKey)
     OwlDefaults.standard.removeObject(forKey: keyboardRerankKey)

@@ -34,8 +34,6 @@ final class OwlPromptFillModel: ObservableObject {
     observation = invocation.objectWillChange.sink { [weak self] in self?.objectWillChange.send() }
   }
 
-  convenience init(template: OwlTemplateEntry, invocation: OwlTemplateInvocation) { self.init(invocation: invocation) }
-
   var isEditing: Bool { invocation.state == .awaitingConfirmation }
   func copyResult() {
     copyStatus = invocation.copyResult() ? "已复制结果。" : "复制失败，结果仍保留。请重试复制。"

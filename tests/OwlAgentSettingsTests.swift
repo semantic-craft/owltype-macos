@@ -61,17 +61,19 @@ final class OwlAgentSettingsTests: XCTestCase {
 
   func testGrokSnippetsPointAtTheBundledHelper() {
     let path = "/Library/Input Methods/Owltype.app/Contents/Helpers/owltype-mcp"
-    XCTAssertEqual(OwlAgentSettings.agyCommand(helperPath: path),
+    let config = OwlAgentSettings.cliConfig(helperPath: path)
+    XCTAssertEqual(config.agyCommand,
                    "agy mcp add owltype '/Library/Input Methods/Owltype.app/Contents/Helpers/owltype-mcp'")
-    XCTAssertEqual(OwlAgentSettings.grokCommand(helperPath: path),
+    XCTAssertEqual(config.grokCommand,
                    "grok mcp add owltype '/Library/Input Methods/Owltype.app/Contents/Helpers/owltype-mcp'")
-    XCTAssertEqual(OwlAgentSettings.grokConfig(helperPath: path), """
+    XCTAssertEqual(config.grokConfig, """
       [mcp_servers.owltype]
       command = "/Library/Input Methods/Owltype.app/Contents/Helpers/owltype-mcp"
       tool_timeout_sec = 610
       """)
-    XCTAssertEqual(OwlAgentSettings.shellQuoted("it's"), #"'it'\''s'"#)
-    XCTAssertGreaterThan(OwlAgentSettings.toolTimeoutSeconds * 1000, Wire.deliverTimeoutRangeMs.upperBound,
+    let quoted = OwlAgentSettings.cliConfig(helperPath: "/tmp/it's/owltype-mcp")
+    XCTAssertEqual(quoted.agyCommand, #"agy mcp add owltype '/tmp/it'\''s/owltype-mcp'"#)
+    XCTAssertGreaterThan(610 * 1000, Wire.deliverTimeoutRangeMs.upperBound,
                          "Grok must outwait the longest confirmation window")
     let bundle = Bundle(url: URL(fileURLWithPath: "/Library/Input Methods/Owltype.app")) ?? .main
     XCTAssertTrue(OwlAgentSettings.helperPath(bundle: bundle).hasSuffix("Owltype.app/Contents/Helpers/owltype-mcp"))
