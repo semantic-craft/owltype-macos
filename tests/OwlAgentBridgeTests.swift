@@ -284,13 +284,13 @@ final class OwlAgentAccessTests: XCTestCase {
     let access = access()
     let socket = directory.appendingPathComponent("AgentBridge/bridge.sock")
     access.start { OwlAgentBridge(socketURL: socket, verifier: SameUserVerifier(), service: $0) }
-    defer { access.stopFollowing() }
     XCTAssertNil(access.bridge)
     XCTAssertFalse(FileManager.default.fileExists(atPath: socket.path))
 
     OwlAgentAccessPreferences.setEnabled(true, defaults)
     waitForMain()
-    XCTAssertEqual(access.bridge?.isListening, true)
+    XCTAssertNotNil(access.bridge)
+    XCTAssertNotNil(TestClient(socket.path))
     XCTAssertTrue(FileManager.default.fileExists(atPath: socket.path))
 
     OwlAgentAccessPreferences.setEnabled(false, defaults)

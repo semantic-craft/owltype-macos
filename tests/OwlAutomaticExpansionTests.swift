@@ -155,7 +155,7 @@ final class OwlAutomaticExpansionTests: XCTestCase {
     EngineComposition(preedit: preedit, selStart: 0, selEnd: preedit.utf8.count,
       cursorPos: preedit.utf8.count, commitTextPreview: preedit.isEmpty ? nil : "候选",
       candidates: [], labels: [], pageNo: 0, pageSize: 5, isLastPage: true,
-      highlightedIndex: 0, numCandidates: 0)
+      highlightedIndex: 0)
   }
 
   func testControllerEntryStartsForRealIdleContextsInThreeModes() throws {
@@ -261,7 +261,7 @@ final class OwlAutomaticExpansionTests: XCTestCase {
       let handled = engineSession.process(keycode: code, modifiers: modifiers)
       engineSession.scriptedComposition = EngineComposition(preedit: ";", selStart: 0, selEnd: 1, cursorPos: 1,
         commitTextPreview: "；", candidates: [EngineCandidate(text: "；", comment: nil)], labels: ["1"],
-        pageNo: 0, pageSize: 5, isLastPage: true, highlightedIndex: 0, numCandidates: 1)
+        pageNo: 0, pageSize: 5, isLastPage: true, highlightedIndex: 0)
       return handled
     }, update: { shownCandidates = engineSession.composition()?.candidates.map(\.text) ?? [] },
       isCurrent: { true }, insertLiteral: { inserts.append(";") })
@@ -314,8 +314,20 @@ final class OwlAutomaticExpansionTests: XCTestCase {
   }
 
   private func key(_ code: Int, text: String?, flags: NSEvent.ModifierFlags = []) -> OwlKeyEvent {
-    OwlKeyEvent(type: .keyDown, keyCode: UInt16(code), characters: text,
-                charactersIgnoringModifiers: text, modifierFlags: flags, lastModifiers: [])
+    let chars = text ?? ""
+    let event = NSEvent.keyEvent(
+      with: .keyDown,
+      location: .zero,
+      modifierFlags: flags,
+      timestamp: 0,
+      windowNumber: 0,
+      context: nil,
+      characters: chars,
+      charactersIgnoringModifiers: chars,
+      isARepeat: false,
+      keyCode: UInt16(code)
+    )!
+    return OwlKeyEvent(event: event, lastModifiers: [])
   }
 
   func testDelimiterModesWaitForEveryExactDelimiterAndPreserveEntry() throws {

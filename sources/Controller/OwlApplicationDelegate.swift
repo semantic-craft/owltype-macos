@@ -598,9 +598,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
           fileURLWithPath: Bundle.main.sharedSupportPath!,
           isDirectory: true
         ),
-        userDataDir: OwlApp.userDir,
-        logDir: OwlApp.logDir,
-        appName: OwlEngineIdentity.appName
+        userDataDir: OwlApp.userDir
       )
     )
   }

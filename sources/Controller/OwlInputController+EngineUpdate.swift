@@ -32,7 +32,6 @@ extension OwlInputController {
       let capturedClient = client
       clearHostComposition()
       hidePalettes()
-      MainActor.assumeIsolated { NSApp.owlAppDelegate.snapshotEmitter.noteCommit() }
       // A stale/deleted/renamed record must never leak its marker or insert a different body.
       guard let entry else { return }
       let broker = OwlPanelInsertionBroker()
@@ -96,7 +95,6 @@ extension OwlInputController {
         schemaId = status.schemaId
         pinnedWordsRevision = nil
         syncPinnedWords()
-        MainActor.assumeIsolated { NSApp.owlAppDelegate.snapshotEmitter.noteSchemaChange() }
         engineRuntime.loadSettings(for: schemaId)
       }
       // inline 旗标每轮重算（2026-07-12 B3 破闩锁）：原先只在上面 schema 变化分支里算一次——
@@ -151,15 +149,9 @@ extension OwlInputController {
                 selEnd: marked.preeditSelEndUTF16,
                 candidates: candidates, comments: comments, labels: labels, highlighted: composition.highlightedIndex,
                 page: page, lastPage: lastPage, pageSize: composition.pageSize)
-      let snapCount = min(candidates.count, OwlCompositionSnapshot.defaultTopN)
-      let snaps = (0..<snapCount).map { i in
-        EngineCandidateSnapshot(index: i, text: candidates[i], comment: comments[i].isEmpty ? nil : comments[i], quality: nil)
-      }
       let rawInput = engineSession.input() ?? ""
       MainActor.assumeIsolated {
-        NSApp.owlAppDelegate.snapshotEmitter.emitComposing(
-          sessionID: engineSession.sessionID, schemaID: schemaId, rawInput: rawInput,
-          preedit: composition.preedit, cursor: marked.preeditCaretUTF16, pageNo: page, candidates: snaps)
+        NSApp.owlAppDelegate.snapshotEmitter.emitComposing(rawInput: rawInput)
       }
     } else {
       hidePalettes()
@@ -206,7 +198,6 @@ extension OwlInputController {
     noteSmartPunctuationCommit(transformed)
     preedit = ""
     hidePalettes()
-    MainActor.assumeIsolated { NSApp.owlAppDelegate.snapshotEmitter.noteCommit() }
   }
 
   func show(preedit: String, selRange: NSRange, caretPos: Int) {

@@ -167,9 +167,7 @@ final class OwlRustEngineTests: XCTestCase {
     engine.setup(
       OwlEngineTraits(
         sharedDataDir: seedDir,
-        userDataDir: userDir,
-        logDir: userDir,
-        appName: OwlEngineIdentity.appName
+        userDataDir: userDir
       )
     )
     return engine
@@ -211,15 +209,10 @@ final class OwlRustEngineTests: XCTestCase {
     line: UInt = #line
   ) throws -> (keycode: UInt32, modifiers: UInt32) {
     let lastModifiers: NSEvent.ModifierFlags = physicalLockBefore ? [.capsLock] : []
-    let modifierFlags: NSEvent.ModifierFlags = physicalLockBefore ? [] : [.capsLock]
-    let event = OwlKeyEvent(
-      type: .flagsChanged,
-      keyCode: UInt16(kVK_CapsLock),
-      characters: nil,
-      charactersIgnoringModifiers: nil,
-      modifierFlags: modifierFlags,
-      lastModifiers: lastModifiers
-    )
+    let cgEvent = CGEvent(keyboardEventSource: nil, virtualKey: CGKeyCode(kVK_CapsLock), keyDown: true)!
+    cgEvent.type = .flagsChanged
+    cgEvent.flags = physicalLockBefore ? CGEventFlags(rawValue: 0) : .maskAlphaShift
+    let event = OwlKeyEvent(event: NSEvent(cgEvent: cgEvent)!, lastModifiers: lastModifiers)
     guard case let .flagsChanged(revert, events, _, handled) =
       OwlUserActionClassifier.classify(event) else {
       XCTFail("Expected classified Caps Lock flagsChanged", file: file, line: line)
@@ -1195,14 +1188,19 @@ final class OwlRustEngineTests: XCTestCase {
       OwlKeyboardPreferences.goodOldCapsLock = originalGoodOldCapsLock
     }
     OwlKeyboardPreferences.shiftSwitchCJK = true
-    let event = OwlKeyEvent(
-      type: .keyDown,
-      keyCode: 0,
+    let nsEvent = NSEvent.keyEvent(
+      with: .keyDown,
+      location: .zero,
+      modifierFlags: [.capsLock],
+      timestamp: 0,
+      windowNumber: 0,
+      context: nil,
       characters: "A",
       charactersIgnoringModifiers: "a",
-      modifierFlags: [.capsLock],
-      lastModifiers: [.capsLock]
-    )
+      isARepeat: false,
+      keyCode: 0
+    )!
+    let event = OwlKeyEvent(event: nsEvent, lastModifiers: [.capsLock])
     guard case let .keyDown(keycode, modifiers) = OwlUserActionClassifier.classify(event) else {
       return XCTFail("Expected classified Caps Locked A keyDown")
     }
@@ -1253,7 +1251,7 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertEqual(cleared.preedit, "")
     XCTAssertTrue(cleared.candidates.isEmpty)
     XCTAssertNil(session.takeCommit())
-    XCTAssertTrue(session.process(keycode: UInt32(XK_n), modifiers: 0))
+    XCTAssertTrue(session.process(keycode: "n".unicodeScalars.first!.value, modifiers: 0))
     XCTAssertTrue(session.process(keycode: UInt32(XK_BackSpace), modifiers: 0))
     XCTAssertEqual(session.composition()?.preedit, "")
     XCTAssertTrue(session.composition()?.candidates.isEmpty == true)
@@ -1562,7 +1560,7 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertEqual(session.caretPos(), 0)
     XCTAssertEqual(session.composition()?.cursorPos, 0)
 
-    session.setCaretPos(5)
+    XCTAssertTrue(session.process(keycode: UInt32(XK_End), modifiers: 0))
     XCTAssertEqual(session.caretPos(), 5)
     XCTAssertEqual(session.composition()?.cursorPos, 6)
 

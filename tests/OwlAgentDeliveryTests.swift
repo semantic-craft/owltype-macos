@@ -70,6 +70,18 @@ private final class FakePreview: OwlAgentDeliveryPreview {
 }
 
 final class OwlAgentDeliveryTests: XCTestCase {
+  private enum Timing {
+    static let outcomeLifetime: TimeInterval = 600
+    static let bindPolls = 10
+    static let bindPollInterval: TimeInterval = 0.2
+    static let slowBindPollInterval: TimeInterval = 0.5
+    static let leaveSettle: TimeInterval = 0.5
+  }
+
+  private enum TestDeliveryError: Error {
+    case unexpectedReply
+  }
+
   private typealias Wire = OwlAgentBridgeProtocol
   private var host: FakeHost!
   private var preview: FakePreview!
@@ -96,8 +108,30 @@ final class OwlAgentDeliveryTests: XCTestCase {
   }
 
   private func result(_ reply: OwlAgentBridgeReply?) throws -> Wire.DeliverResult {
-    guard case .success(let value) = try XCTUnwrap(reply) else { throw Wire.ContractError.notJSON }
+    guard case .success(let value) = try XCTUnwrap(reply) else { throw TestDeliveryError.unexpectedReply }
     return try Wire.decodeStrict(Wire.DeliverResult.self, from: value)
+  }
+
+  private func assertResult(
+    _ reply: OwlAgentBridgeReply?,
+    requestId: String,
+    status: Wire.DeliverStatus,
+    replayed: Bool,
+    file: StaticString = #filePath,
+    line: UInt = #line
+  ) throws {
+    let actual = try result(reply)
+    XCTAssertEqual(actual.requestId, requestId, file: file, line: line)
+    XCTAssertEqual(actual.status, status, file: file, line: line)
+    XCTAssertEqual(actual.replayed, replayed, file: file, line: line)
+  }
+
+  private func assertBusy(file: StaticString = #filePath, line: UInt = #line) throws {
+    let probe = start(params("busy-probe-\(UUID().uuidString)", text: "probe"))
+    guard case .failure(let error) = try XCTUnwrap(probe(), file: file, line: line) else {
+      return XCTFail("expected delivery_busy", file: file, line: line)
+    }
+    XCTAssertEqual(error.code, .deliveryBusy, file: file, line: line)
   }
 
   func testConfirmWritesOnceAndAReplayDoesNotWriteAgain() throws {
@@ -106,11 +140,11 @@ final class OwlAgentDeliveryTests: XCTestCase {
     XCTAssertEqual(preview.targets, ["TextEdit"])
     XCTAssertNil(reply(), "nothing is answered before the user decides")
     preview.decide?(true)
-    XCTAssertEqual(try result(reply()), .init(requestId: "r1", status: .delivered(verified: true), replayed: false))
+    try assertResult(reply(), requestId: "r1", status: .delivered(verified: true), replayed: false)
     XCTAssertEqual(host.target.writes, ["你好"])
 
     let again = start(params())
-    XCTAssertEqual(try result(again()), .init(requestId: "r1", status: .delivered(verified: true), replayed: true))
+    try assertResult(again(), requestId: "r1", status: .delivered(verified: true), replayed: true)
     XCTAssertEqual(host.target.writes.count, 1)
     XCTAssertEqual(preview.shown.count, 1)
   }
@@ -129,7 +163,7 @@ final class OwlAgentDeliveryTests: XCTestCase {
 
     preview.decide?(true)
 
-    XCTAssertEqual(try result(reply()), .init(requestId: "r1", status: .delivered(verified: true), replayed: false))
+    try assertResult(reply(), requestId: "r1", status: .delivered(verified: true), replayed: false)
     XCTAssertEqual(host.target.writes, ["你好"])
     XCTAssertTrue(otherField.writes.isEmpty)
   }
@@ -145,7 +179,7 @@ final class OwlAgentDeliveryTests: XCTestCase {
 
     preview.decide?(true)
 
-    XCTAssertEqual(try result(active()), .init(requestId: "active", status: .delivered(verified: true), replayed: false))
+    try assertResult(active(), requestId: "active", status: .delivered(verified: true), replayed: false)
     XCTAssertEqual(host.target.writes, ["你好"])
     XCTAssertTrue(otherField.writes.isEmpty)
   }
@@ -158,12 +192,12 @@ final class OwlAgentDeliveryTests: XCTestCase {
     let otherField = FakeTarget(host.target.processIdentifier)
     host.bindResult = .success(otherField)
     let replay = start(params("completed"))
-    XCTAssertEqual(try result(replay()), .init(requestId: "completed", status: .cancelled, replayed: true))
+    try assertResult(replay(), requestId: "completed", status: .cancelled, replayed: true)
     host.bindResult = .failure(.noTarget)
 
     preview.decide?(true)
 
-    XCTAssertEqual(try result(active()), .init(requestId: "active", status: .delivered(verified: true), replayed: false))
+    try assertResult(active(), requestId: "active", status: .delivered(verified: true), replayed: false)
     XCTAssertEqual(host.target.writes, ["你好"])
     XCTAssertTrue(otherField.writes.isEmpty)
   }
@@ -177,10 +211,10 @@ final class OwlAgentDeliveryTests: XCTestCase {
     host.fire(5)
 
     XCTAssertNil(next())
-    XCTAssertTrue(coordinator.isWaiting)
+    try assertBusy()
     XCTAssertTrue(host.target.writes.isEmpty)
     preview.decide?(true)
-    XCTAssertEqual(try result(next()), .init(requestId: "next", status: .delivered(verified: true), replayed: false))
+    try assertResult(next(), requestId: "next", status: .delivered(verified: true), replayed: false)
     XCTAssertEqual(host.target.writes, ["next"])
   }
 
@@ -194,10 +228,10 @@ final class OwlAgentDeliveryTests: XCTestCase {
     oldDecision(true)
 
     XCTAssertNil(next())
-    XCTAssertTrue(coordinator.isWaiting)
+    try assertBusy()
     XCTAssertTrue(host.target.writes.isEmpty)
     preview.decide?(true)
-    XCTAssertEqual(try result(next()), .init(requestId: "next", status: .delivered(verified: true), replayed: false))
+    try assertResult(next(), requestId: "next", status: .delivered(verified: true), replayed: false)
     XCTAssertEqual(host.target.writes, ["next"])
   }
 
@@ -221,13 +255,13 @@ final class OwlAgentDeliveryTests: XCTestCase {
     oldCompletion(.confirmed)
 
     XCTAssertNil(next())
-    XCTAssertTrue(coordinator.isWaiting)
+    try assertBusy()
     XCTAssertEqual(host.target.writes, ["first"])
     XCTAssertEqual(nextTarget.writes, ["next"])
     nextCompletion(.attemptedUnverified)
-    XCTAssertEqual(try result(next()), .init(requestId: "next", status: .delivered(verified: false), replayed: false))
-    XCTAssertFalse(coordinator.isWaiting)
+    try assertResult(next(), requestId: "next", status: .delivered(verified: false), replayed: false)
     XCTAssertEqual(nextTarget.writes, ["next"])
+    XCTAssertNil(start(params("after-idle", text: "ok"))(), "coordinator should accept a new request once idle")
   }
 
   func testChainedDeliveryInsideWaiterReplyKeepsHostBinding() throws {
@@ -239,17 +273,17 @@ final class OwlAgentDeliveryTests: XCTestCase {
     }
     preview.decide?(true)
 
-    XCTAssertEqual(try result(firstReply), .init(requestId: "first", status: .delivered(verified: true), replayed: false))
+    try assertResult(firstReply, requestId: "first", status: .delivered(verified: true), replayed: false)
     let secondBox = try XCTUnwrap(secondReply)
     XCTAssertNil(secondBox())
-    XCTAssertTrue(coordinator.isWaiting)
+    try assertBusy()
     XCTAssertEqual(preview.shown, ["grok-build: first", "grok-build: second"])
     XCTAssertEqual(host.target.writes, ["first"])
 
     preview.decide?(true)
-    XCTAssertEqual(try result(secondBox()), .init(requestId: "second", status: .delivered(verified: true), replayed: false))
-    XCTAssertFalse(coordinator.isWaiting)
+    try assertResult(secondBox(), requestId: "second", status: .delivered(verified: true), replayed: false)
     XCTAssertEqual(host.target.writes, ["first", "second"])
+    XCTAssertNil(start(params("after-idle", text: "ok"))(), "coordinator should accept a new request once idle")
   }
 
   func testCancelledWaiterReleasesReplyClosureAndPreCancelledDeliverIsIgnored() throws {
@@ -277,9 +311,9 @@ final class OwlAgentDeliveryTests: XCTestCase {
 
     XCTAssertNil(weakCancellation)
     XCTAssertNil(weakToken)
-    XCTAssertTrue(coordinator.isWaiting)
+    try assertBusy()
     preview.decide?(true)
-    XCTAssertEqual(try result(secondReply), .init(requestId: "r1", status: .delivered(verified: true), replayed: true))
+    try assertResult(secondReply, requestId: "r1", status: .delivered(verified: true), replayed: true)
     XCTAssertEqual(host.target.writes, ["你好"])
 
     let preCancelled = OwlAgentBridgeCancellation()
@@ -293,14 +327,13 @@ final class OwlAgentDeliveryTests: XCTestCase {
     wait(for: [drainedPre], timeout: 2)
 
     XCTAssertFalse(preCancelledCalled)
-    XCTAssertFalse(coordinator.isWaiting)
     XCTAssertEqual(preview.shown.count, 1)
 
     let fresh = start(params("precancel", text: "fresh"))
     XCTAssertNil(fresh())
-    XCTAssertTrue(coordinator.isWaiting)
+    try assertBusy()
     preview.decide?(true)
-    XCTAssertEqual(try result(fresh()), .init(requestId: "precancel", status: .delivered(verified: true), replayed: false))
+    try assertResult(fresh(), requestId: "precancel", status: .delivered(verified: true), replayed: false)
     XCTAssertEqual(host.target.writes, ["你好", "fresh"])
   }
 
@@ -377,7 +410,7 @@ final class OwlAgentDeliveryTests: XCTestCase {
     XCTAssertGreaterThan(preview.dismissed, 0, "the preview closes at once")
     decide?(true)
     XCTAssertNil(reply(), "decided only once it is clear the app did not quit")
-    host.fire(OwlAgentDeliveryCoordinator.leaveSettle)
+    host.fire(Timing.leaveSettle)
     XCTAssertEqual(try result(reply()).status, .targetChanged(.focusChanged))
     XCTAssertTrue(host.target.writes.isEmpty)
   }
@@ -389,7 +422,7 @@ final class OwlAgentDeliveryTests: XCTestCase {
     coordinator.applicationDidActivate(300)
     host.target.isTerminated = true
     coordinator.applicationDidTerminate(200)
-    host.fire(OwlAgentDeliveryCoordinator.leaveSettle)
+    host.fire(Timing.leaveSettle)
     XCTAssertEqual(try result(reply()).status, .targetChanged(.targetQuit))
   }
 
@@ -409,7 +442,7 @@ final class OwlAgentDeliveryTests: XCTestCase {
 
     host.frontmostProcess = 200
     coordinator.applicationDidActivate(200)
-    host.fire(OwlAgentDeliveryCoordinator.bindPollInterval)
+    host.fire(Timing.bindPollInterval)
     XCTAssertEqual(preview.targets, [nil, nil, "TextEdit"], "the early click repeats the hint")
     preview.decide?(true)
     XCTAssertEqual(try result(reply()).status, .delivered(verified: true))
@@ -421,7 +454,7 @@ final class OwlAgentDeliveryTests: XCTestCase {
     host.frontmostProcess = 200
     host.bindResult = .failure(.noTarget)
     coordinator.applicationDidActivate(200)
-    for _ in 0...OwlAgentDeliveryCoordinator.bindPolls { host.fire(OwlAgentDeliveryCoordinator.bindPollInterval) }
+    for _ in 0...Timing.bindPolls { host.fire(Timing.bindPollInterval) }
     XCTAssertNil(reply(), "no input session yet: still waiting")
     host.bindResult = .success(host.target)
     preview.decide?(true)
@@ -435,16 +468,16 @@ final class OwlAgentDeliveryTests: XCTestCase {
     host.frontmostProcess = 200
     host.bindResult = .failure(.noTarget)
     coordinator.applicationDidActivate(200)
-    for _ in 0...OwlAgentDeliveryCoordinator.bindPolls { host.fire(OwlAgentDeliveryCoordinator.bindPollInterval) }
-    for _ in 0..<20 { host.fire(OwlAgentDeliveryCoordinator.slowBindPollInterval) }
+    for _ in 0...Timing.bindPolls { host.fire(Timing.bindPollInterval) }
+    for _ in 0..<20 { host.fire(Timing.slowBindPollInterval) }
     XCTAssertEqual(preview.targets.last, .some(nil), "no field yet: 写入 stays disabled")
     host.bindResult = .success(host.target)
-    host.fire(OwlAgentDeliveryCoordinator.slowBindPollInterval)
+    host.fire(Timing.slowBindPollInterval)
     XCTAssertEqual(preview.targets.last, "TextEdit", "the panel learns its target without another app switch")
     preview.decide?(true)
     XCTAssertEqual(try result(reply()).status, .delivered(verified: true))
-    host.fire(OwlAgentDeliveryCoordinator.slowBindPollInterval)
-    XCTAssertTrue(host.scheduled.filter { $0.0 == OwlAgentDeliveryCoordinator.slowBindPollInterval }.isEmpty, "polling stops once bound")
+    host.fire(Timing.slowBindPollInterval)
+    XCTAssertTrue(host.scheduled.filter { $0.0 == Timing.slowBindPollInterval }.isEmpty, "polling stops once bound")
   }
 
   func testDisconnectCancelsAndTheOutcomeIsKeptForARetry() throws {
@@ -454,29 +487,37 @@ final class OwlAgentDeliveryTests: XCTestCase {
     let drained = expectation(description: "main")
     DispatchQueue.main.async { drained.fulfill() }
     wait(for: [drained], timeout: 2)
-    XCTAssertFalse(coordinator.isWaiting)
     XCTAssertGreaterThan(preview.dismissed, 0)
-    XCTAssertEqual(try result(start(params())()), .init(requestId: "r1", status: .cancelled, replayed: true))
+    try assertResult(start(params())(), requestId: "r1", status: .cancelled, replayed: true)
+    XCTAssertNil(start(params("after-disconnect", text: "ok"))(), "cancelled request must leave coordinator idle")
   }
 
   func testStoredOutcomesExpire() throws {
     let reply = start(params())
     preview.decide?(true)
     _ = try result(reply())
-    clock = clock.addingTimeInterval(OwlAgentDeliveryCoordinator.outcomeLifetime + 1)
+    clock = clock.addingTimeInterval(Timing.outcomeLifetime + 1)
     _ = start(params())
     XCTAssertEqual(preview.shown.count, 2, "an id past its lifetime is a new request")
   }
 
-  func testEveryHostOutcomeMapsToAContractStatus() {
-    typealias Coordinator = OwlAgentDeliveryCoordinator
-    XCTAssertEqual(Coordinator.status(for: .confirmedWithCursor(.leftAtEnd), targetQuit: false), .delivered(verified: true))
-    XCTAssertEqual(Coordinator.status(for: .originalPreservationUnverified, targetQuit: false), .delivered(verified: false))
-    XCTAssertEqual(Coordinator.status(for: .notAttempted(.secureInput), targetQuit: false), .targetChanged(.secureInput))
-    XCTAssertEqual(Coordinator.status(for: .notAttempted(.unverifiableTarget), targetQuit: false), .targetChanged(.unverifiableTarget))
-    XCTAssertEqual(Coordinator.status(for: .notAttempted(.missingHost), targetQuit: true), .targetChanged(.targetQuit))
-    XCTAssertEqual(Coordinator.status(for: .notAttempted(.missingHost), targetQuit: false), .targetChanged(.noTarget))
-    XCTAssertEqual(Coordinator.status(for: .notAttempted(.focusNotRestored), targetQuit: false), .targetChanged(.focusChanged))
-    XCTAssertEqual(Coordinator.status(for: .notAttempted(.targetChanged), targetQuit: false), .targetChanged(.focusChanged))
+  func testEveryHostOutcomeMapsToAContractStatus() throws {
+    let cases: [(OwlTemplateDeliveryOutcome, Bool, Wire.DeliverStatus)] = [
+      (.confirmedWithCursor(.leftAtEnd), false, .delivered(verified: true)),
+      (.originalPreservationUnverified, false, .delivered(verified: false)),
+      (.notAttempted(.secureInput), false, .targetChanged(.secureInput)),
+      (.notAttempted(.unverifiableTarget), false, .targetChanged(.unverifiableTarget)),
+      (.notAttempted(.missingHost), true, .targetChanged(.targetQuit)),
+      (.notAttempted(.missingHost), false, .targetChanged(.noTarget)),
+      (.notAttempted(.focusNotRestored), false, .targetChanged(.focusChanged)),
+      (.notAttempted(.targetChanged), false, .targetChanged(.focusChanged)),
+    ]
+    for (index, item) in cases.enumerated() {
+      host.target.outcome = item.0
+      host.target.isTerminated = item.1
+      let reply = start(params("outcome-\(index)"))
+      preview.decide?(true)
+      XCTAssertEqual(try result(reply()).status, item.2)
+    }
   }
 }

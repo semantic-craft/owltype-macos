@@ -14,14 +14,9 @@ import Foundation
 
 enum OwlAgentBridgeProtocol {
   static let protocolVersion = 1
-  static let contractVersion = 1
   static let maxLineBytes = 1 << 20
-  static let maxDeliverCharacters = 20_000
-  static let defaultDeliverTimeoutMs = 120_000
-  static let deliverTimeoutRangeMs = 5_000...600_000
 
   enum ContractError: Error, Equatable {
-    case notJSON
     case unknownFields
     case unsupportedJSONRPC
     case unknownMethod(String)
@@ -60,18 +55,6 @@ enum OwlAgentBridgeProtocol {
     var id: RequestID
     var method: String
     var params: OwlJSONValue?
-
-    init(id: RequestID, call: Call) {
-      self.id = id
-      method = call.method.rawValue
-      switch call {
-      case .hello(let params): self.params = OwlJSONValue(encoding: params)
-      case .owltypeStatus, .templatesList: self.params = nil
-      case .templateGet(let params): self.params = OwlJSONValue(encoding: params)
-      case .templateRender(let params): self.params = OwlJSONValue(encoding: params)
-      case .deliverText(let params): self.params = OwlJSONValue(encoding: params)
-      }
-    }
 
     func call() throws -> Call {
       guard jsonrpc == "2.0" else { throw ContractError.unsupportedJSONRPC }
@@ -233,8 +216,6 @@ enum OwlAgentBridgeProtocol {
       ])
       return result.invalidField
     }
-
-    var effectiveTimeoutMs: Int { timeoutMs ?? OwlAgentBridgeProtocol.defaultDeliverTimeoutMs }
   }
 
   enum TargetChangedReason: String, Codable, CaseIterable, Sendable, Error {
@@ -252,8 +233,6 @@ enum OwlAgentBridgeProtocol {
     case targetChanged(TargetChangedReason)
     case expired
 
-    static let names = ["delivered", "cancelled", "target_changed", "expired"]
-
     var name: String {
       switch self {
       case .delivered: return "delivered"
@@ -270,12 +249,6 @@ enum OwlAgentBridgeProtocol {
     var requestId: String
     var status: DeliverStatus
     var replayed: Bool
-
-    init(requestId: String, status: DeliverStatus, replayed: Bool) {
-      self.requestId = requestId
-      self.status = status
-      self.replayed = replayed
-    }
 
     init(from decoder: Decoder) throws {
       let container = try decoder.container(keyedBy: CodingKeys.self)
@@ -381,18 +354,6 @@ enum OwlAgentBridgeProtocol {
     case success(Success)
     case failure(Failure)
 
-    static func decode(_ value: OwlJSONValue) throws -> Response {
-      guard case .object(let object) = value else { throw ContractError.notJSON }
-      let response: Response = object["error"] != nil
-        ? .failure(try decodeStrict(Failure.self, from: value))
-        : .success(try decodeStrict(Success.self, from: value))
-      switch response {
-      case .success(let success) where success.jsonrpc != "2.0": throw ContractError.unsupportedJSONRPC
-      case .failure(let failure) where failure.jsonrpc != "2.0": throw ContractError.unsupportedJSONRPC
-      default: return response
-      }
-    }
-
     var value: OwlJSONValue {
       switch self {
       case .success(let success): return OwlJSONValue(encoding: success)
@@ -401,27 +362,10 @@ enum OwlAgentBridgeProtocol {
     }
   }
 
-  /// The typed result of `method`.
-  static func decodeResult(_ method: Method, _ value: OwlJSONValue) throws -> any Codable {
-    switch method {
-    case .hello: return try decodeStrict(HelloResult.self, from: value)
-    case .owltypeStatus: return try decodeStrict(Status.self, from: value)
-    case .templatesList: return try decodeStrict(TemplateList.self, from: value)
-    case .templateGet: return try decodeStrict(TemplateDetail.self, from: value)
-    case .templateRender: return try decodeStrict(Render.self, from: value)
-    case .deliverText: return try decodeStrict(DeliverResult.self, from: value)
-    }
-  }
-
   static func decodeStrict<T: Codable>(_ type: T.Type, from value: OwlJSONValue) throws -> T {
     let decoded = try JSONDecoder().decode(T.self, from: value.data)
     guard OwlJSONValue(encoding: decoded) == value else { throw ContractError.unknownFields }
     return decoded
-  }
-
-  static func decodeStrict<T: Codable>(_ type: T.Type, from line: Data) throws -> T {
-    guard let value = try? JSONDecoder().decode(OwlJSONValue.self, from: line) else { throw ContractError.notJSON }
-    return try decodeStrict(type, from: value)
   }
 }
 

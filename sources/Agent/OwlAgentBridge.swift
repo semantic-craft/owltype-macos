@@ -97,8 +97,6 @@ final class OwlAgentBridge {
 
   deinit { stopOnQueue() }
 
-  var isListening: Bool { queue.sync { listener >= 0 } }
-
   func start() throws { try queue.sync { try startOnQueue() } }
 
   func stop() { queue.sync { stopOnQueue() } }

@@ -131,11 +131,7 @@ final class OwlForcedFinalizeRegistryReadbackTests: XCTestCase {
   // force-ends the session with nothing pending (input nil). The registry must come back empty.
   func testForcedFinalizeWithNoPendingInputClearsStrandedSnapshot() {
     let emitter = OwlSnapshotEmitter.shared
-    emitter.emitComposing(
-      sessionID: 7, schemaID: "pinyin_simp", rawInput: "a",
-      preedit: "啊", cursor: 1, pageNo: 0,
-      candidates: [EngineCandidateSnapshot(index: 0, text: "啊", comment: nil, quality: nil)]
-    )
+    emitter.emitComposing(rawInput: "a")
     XCTAssertNotNil(OwlSnapshotRegistry.shared.current, "precondition: snapshot registered")
 
     OwlForcedFinalize.finalize(
@@ -154,11 +150,7 @@ final class OwlForcedFinalizeRegistryReadbackTests: XCTestCase {
   // and the registry read-back is empty as well.
   func testForcedFinalizeWithPendingInputClearsRegistry() {
     let emitter = OwlSnapshotEmitter.shared
-    emitter.emitComposing(
-      sessionID: 8, schemaID: "pinyin_simp", rawInput: "nihao",
-      preedit: "你好", cursor: 2, pageNo: 0,
-      candidates: [EngineCandidateSnapshot(index: 0, text: "你好", comment: nil, quality: nil)]
-    )
+    emitter.emitComposing(rawInput: "nihao")
     var committed: [String] = []
     OwlForcedFinalize.finalize(
       input: "nihao",

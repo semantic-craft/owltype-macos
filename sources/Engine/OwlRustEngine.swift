@@ -19,7 +19,6 @@ enum OwlRustSchemaMap {
                               defaultASCIIMode: defaultASCIIMode)
   }
   static func inputMode(forSchema id: String) -> String { configuration(id).inputMode }
-  static func doublePinyinScheme(forSchema id: String) -> String { configuration(id).doublePinyinScheme }
   static func pinyinScheme(forSchema id: String) -> String { configuration(id).pinyinScheme }
   static func isTraditionalSchema(_ id: String) -> Bool { configuration(id).traditional }
   static func fuzzyBitmask(from snapshot: OwlFuzzySnapshot) -> UInt32 {
@@ -94,8 +93,6 @@ struct OwlSettledRerankPollResult: Equatable, Sendable {
 struct OwlEngineTraits {
   let sharedDataDir: URL
   let userDataDir: URL
-  let logDir: URL
-  let appName: String
 }
 
 typealias EngineNotificationHandler = (UInt64, String, String?) -> Void
@@ -109,9 +106,7 @@ extension OwlSnapshotRegistry: SnapshotReading {}
 
 @MainActor
 protocol SnapshotEmitting: AnyObject {
-  func noteCommit()
-  func noteSchemaChange()
-  func emitComposing(sessionID: UInt64, schemaID: String, rawInput: String, preedit: String, cursor: Int, pageNo: Int, candidates: [EngineCandidateSnapshot])
+  func emitComposing(rawInput: String)
   func emitCleared()
 }
 
@@ -137,7 +132,6 @@ class OwlRustSession {
   private var latestGeneration: UInt64 = 0
   private var caretByteOffset: Int = 0
   private var preeditCaretByteOffset: Int = 0
-  private var customCaretPos: Int?
   private var lastAppliedPageSize: Int = 0
   private var lastAppliedASCIIPunct: Bool?
   private var lastAppliedFuzzyMask: UInt32 = 0
@@ -552,7 +546,7 @@ class OwlRustSession {
     let labels = (1...pageSize).map { "\($0)" }
     let highlighted = min(max(0, snap.highlightedIndex), max(0, candidates.count - 1))
     let preview = candidates.indices.contains(highlighted) ? candidates[highlighted].text : preedit
-    let effectiveCaret = min(max(0, customCaretPos ?? preeditCaretByteOffset), utf8Count)
+    let effectiveCaret = min(max(0, preeditCaretByteOffset), utf8Count)
 
     return EngineComposition(
       preedit: preedit,
@@ -565,8 +559,7 @@ class OwlRustSession {
       pageNo: snap.page,
       pageSize: pageSize,
       isLastPage: !snap.hasMorePages,
-      highlightedIndex: highlighted,
-      numCandidates: candidates.count
+      highlightedIndex: highlighted
     )
   }
 
@@ -579,25 +572,11 @@ class OwlRustSession {
   }
 
   func caretPos() -> Int {
-    customCaretPos ?? caretByteOffset
-  }
-
-  func setCaretPos(_ pos: Int) {
-    let clamped = max(0, pos)
-    caretByteOffset = clamped
-    customCaretPos = clamped
-    if handle != nil, let dto = sendAction(["op": "set_caret", "pos": clamped]), dto.isOK {
-      latestSnapshot = dto
-      latestGeneration = dto.generation ?? latestGeneration
-      caretByteOffset = dto.caretPosition ?? clamped
-      preeditCaretByteOffset = dto.preeditCaretByte ?? dto.preedit.utf8.count
-      customCaretPos = nil
-    }
+    caretByteOffset
   }
 
   func clearComposition() {
     guard handle != nil else { return }
-    customCaretPos = nil
     _ = applyActionResponse(sendAction(["op": "clear"]))
   }
 
@@ -1000,7 +979,6 @@ class OwlRustSession {
     latestGeneration = dto.generation ?? latestGeneration
     caretByteOffset = dto.caretPosition ?? dto.rawInput.utf8.count
     preeditCaretByteOffset = dto.preeditCaretByte ?? dto.preedit.utf8.count
-    customCaretPos = nil
     if let committed = dto.committedText, !committed.isEmpty {
       if let priorRawInput, !priorRawInput.isEmpty {
         lastCommittedRawInput = priorRawInput

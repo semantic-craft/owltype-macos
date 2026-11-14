@@ -331,7 +331,6 @@ extension OwlInputController {
         schemaId = preferredSchema
         pinnedWordsRevision = nil
         syncPinnedWords()
-        MainActor.assumeIsolated { NSApp.owlAppDelegate.snapshotEmitter.noteSchemaChange() }
         engineRuntime.loadSettings(for: preferredSchema)
       }
     }

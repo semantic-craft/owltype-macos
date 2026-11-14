@@ -56,25 +56,12 @@ final class FakeSnapshotStore: SnapshotReading {
 /// flowed through the port — without a live composition or the real timeline singleton.
 @MainActor
 final class FakeSnapshotEmitter: SnapshotEmitting {
-  struct Composing: Equatable {
-    let sessionID: UInt64
-    let schemaID: String
-    let rawInput: String
-    let preedit: String
-    let cursor: Int
-    let pageNo: Int
-    let candidateCount: Int
-  }
-  private(set) var noteCommitCount = 0
-  private(set) var noteSchemaChangeCount = 0
   private(set) var emitClearedCount = 0
-  private(set) var composings: [Composing] = []
+  private(set) var rawInputs: [String] = []
 
-  func noteCommit() { noteCommitCount += 1 }
-  func noteSchemaChange() { noteSchemaChangeCount += 1 }
   func emitCleared() { emitClearedCount += 1 }
-  func emitComposing(sessionID: UInt64, schemaID: String, rawInput: String, preedit: String, cursor: Int, pageNo: Int, candidates: [EngineCandidateSnapshot]) {
-    composings.append(Composing(sessionID: sessionID, schemaID: schemaID, rawInput: rawInput, preedit: preedit, cursor: cursor, pageNo: pageNo, candidateCount: candidates.count))
+  func emitComposing(rawInput: String) {
+    rawInputs.append(rawInput)
   }
 }
 
@@ -116,20 +103,8 @@ final class SeamPortsTests: XCTestCase {
   }
 
   // A realistic composition snapshot, the kind the emitter copies off the hot path.
-  private func snapshot(id: UInt64 = 7, raw: String = "nihao", schema: String = "rime_ice")
-    -> OwlCompositionSnapshot {
-    OwlCompositionSnapshot(
-      id: id,
-      sessionID: 1,
-      schemaID: schema,
-      rawInput: raw,
-      preedit: raw,
-      cursor: raw.count,
-      pageNo: 0,
-      candidates: [EngineCandidateSnapshot(index: 0, text: "你好", comment: "nǐ hǎo")],
-      commitSerial: 0,
-      createdAtNanos: 0
-    )
+  private func snapshot(id: UInt64 = 7, raw: String = "nihao") -> OwlCompositionSnapshot {
+    OwlCompositionSnapshot(id: id, rawInput: raw)
   }
 
   // MARK: 1. Narrow ports carry exactly what the controller needs
@@ -188,32 +163,21 @@ final class SeamPortsTests: XCTestCase {
     XCTAssertTrue(delegate.selectionPolish === polish)
   }
 
-  /// Reproduces the controller's `engineUpdate()` / `commit()` emitter SEQUENCE
-  /// (noteSchemaChange → emitComposing → emitCleared → noteCommit) against the injected port,
+  /// Reproduces the controller's `engineUpdate()` emitter sequence
+  /// (`emitComposing` → `emitCleared`) against the injected port,
   /// asserting each call — and `emitComposing`'s scripted args — flowed through the fake.
   func testSnapshotEmitterTriggerFlowsThroughInjectedPort() {
     let delegate = OwlApplicationDelegate()
     let emitter = FakeSnapshotEmitter()
     delegate.snapshotEmitter = emitter
 
-    let snap = snapshot(id: 9, raw: "falv", schema: "rime_ice")
+    let snap = snapshot(id: 9, raw: "falv")
     // The exact pokes the controller performs (all inside MainActor.assumeIsolated in the controller).
-    delegate.snapshotEmitter.noteSchemaChange()
-    delegate.snapshotEmitter.emitComposing(
-      sessionID: snap.sessionID, schemaID: snap.schemaID, rawInput: snap.rawInput,
-      preedit: snap.preedit, cursor: snap.cursor, pageNo: snap.pageNo, candidates: snap.candidates
-    )
+    delegate.snapshotEmitter.emitComposing(rawInput: snap.rawInput)
     delegate.snapshotEmitter.emitCleared()
-    delegate.snapshotEmitter.noteCommit()
 
-    XCTAssertEqual(emitter.noteSchemaChangeCount, 1)
     XCTAssertEqual(emitter.emitClearedCount, 1)
-    XCTAssertEqual(emitter.noteCommitCount, 1)
-    XCTAssertEqual(emitter.composings.count, 1)
-    XCTAssertEqual(emitter.composings[0], FakeSnapshotEmitter.Composing(
-      sessionID: 1, schemaID: "rime_ice", rawInput: "falv", preedit: "falv",
-      cursor: snap.cursor, pageNo: 0, candidateCount: 1
-    ))
+    XCTAssertEqual(emitter.rawInputs, ["falv"])
   }
 
 

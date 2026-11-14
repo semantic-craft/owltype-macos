@@ -87,7 +87,6 @@ extension OwlAppCore {
     let reappliesConfiguration: Bool
   }
   struct FuzzySwitch: Decodable {
-    let id: String
     let key: String
     let defaultValue: Bool
   }
@@ -97,7 +96,6 @@ extension OwlAppCore {
     let validConfigID: Bool
     let inputMode: String
     let wubiProfile: String
-    let doublePinyinScheme: String
     let pinyinScheme: String
     let traditional: Bool
     let customProfile: [String: [[String]]]?

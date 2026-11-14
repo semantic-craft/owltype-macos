@@ -377,7 +377,10 @@ final class OwlDynamicAutomaticTests: XCTestCase {
   func testInvocationValidityCannotReviveAfterObservedSourceChange() {
     var current = true
     var checks = 0
-    let validity = OwlAutomaticExpansionInvocationValidity { checks += 1; return current }
+    let validity = OwlAutomaticExpansionInvocationValidity(binding: ["current": "true"]) {
+      checks += 1
+      return ["current": String(current)]
+    }
     XCTAssertTrue(validity.isValid())
     current = false
     XCTAssertFalse(validity.isValid())

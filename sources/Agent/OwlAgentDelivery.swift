@@ -53,36 +53,6 @@ final class OwlAgentDeliveryCoordinator {
   typealias Wire = OwlAgentBridgeProtocol
   typealias Reply = (OwlAgentBridgeReply) -> Void
 
-  struct Constants: Decodable {
-    let outcomeLifetime: TimeInterval
-    let storedOutcomeLimit: Int
-    let bindPolls: Int
-    let bindPollInterval: TimeInterval
-    let slowBindPollInterval: TimeInterval
-    let leaveSettle: TimeInterval
-
-    enum CodingKeys: String, CodingKey {
-      case outcomeLifetime = "outcome_lifetime"
-      case storedOutcomeLimit = "stored_outcome_limit"
-      case bindPolls = "bind_polls"
-      case bindPollInterval = "bind_poll_interval"
-      case slowBindPollInterval = "slow_bind_poll_interval"
-      case leaveSettle = "leave_settle"
-    }
-  }
-
-  static let constants: Constants = OwlAppCore.required([
-    "operation": "agent_rule",
-    "rule": "delivery_constants",
-    "args": [:]
-  ])
-  static var outcomeLifetime: TimeInterval { constants.outcomeLifetime }
-  static var storedOutcomeLimit: Int { constants.storedOutcomeLimit }
-  static var bindPolls: Int { constants.bindPolls }
-  static var bindPollInterval: TimeInterval { constants.bindPollInterval }
-  static var slowBindPollInterval: TimeInterval { constants.slowBindPollInterval }
-  static var leaveSettle: TimeInterval { constants.leaveSettle }
-
   private struct ActionWire: Decodable {
     let action: String
     let invocationId: UInt64?
@@ -93,7 +63,6 @@ final class OwlAgentDeliveryCoordinator {
     let timeoutSeconds: Double?
     let intervalSeconds: Double?
     let seconds: Double?
-    let targetPid: Int32?
     let waiterId: UInt64?
     let result: Wire.DeliverResult?
     let error: Wire.ErrorObject?
@@ -108,7 +77,6 @@ final class OwlAgentDeliveryCoordinator {
       case timeoutSeconds = "timeout_seconds"
       case intervalSeconds = "interval_seconds"
       case seconds
-      case targetPid = "target_pid"
       case waiterId = "waiter_id"
       case result
       case error
@@ -143,10 +111,6 @@ final class OwlAgentDeliveryCoordinator {
     } catch {
       preconditionFailure("Failed to initialize agent delivery session: \(error)")
     }
-  }
-
-  var isWaiting: Bool {
-    core.call("is_waiting")
   }
 
   private func probeCandidateTarget() -> (payload: [String: Any], candidateID: UInt64?) {
@@ -465,32 +429,6 @@ final class OwlAgentDeliveryCoordinator {
     case .notAttempted(.focusNotRestored), .notAttempted(.targetChanged),
          .notAttempted(.originalNotPreserved), .notAttempted(.selectionNotPrepared):
       return "focus_changed"
-    }
-  }
-
-  /// The contract's four statuses from the template delivery's outcome.
-  static func status(for outcome: OwlTemplateDeliveryOutcome, targetQuit: Bool) -> Wire.DeliverStatus {
-    let outcomeCode = self.outcomeCode(for: outcome)
-    struct OutcomeResult: Decodable {
-      let name: String
-      let verified: Bool?
-      let reason: String?
-    }
-    let result: OutcomeResult = OwlAppCore.required([
-      "operation": "agent_rule",
-      "rule": "delivery_status_from_outcome",
-      "args": ["outcome": outcomeCode, "target_quit": targetQuit]
-    ])
-    switch result.name {
-    case "delivered":
-      return .delivered(verified: result.verified ?? false)
-    case "target_changed":
-      let reasonRaw = result.reason ?? "focus_changed"
-      return .targetChanged(Wire.TargetChangedReason(rawValue: reasonRaw) ?? .focusChanged)
-    case "expired":
-      return .expired
-    default:
-      return .cancelled
     }
   }
 }

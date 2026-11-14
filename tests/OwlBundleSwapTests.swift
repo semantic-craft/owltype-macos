@@ -28,12 +28,12 @@ final class OwlBundleSwapTests: XCTestCase {
     let newInode = try inode(staged)
     let oldHandle = try FileHandle(forReadingFrom: live.appendingPathComponent("marker"))
     defer { try? oldHandle.close() }
-    let exchange = try OwlBundleSwap.exchangeContents(in: app)
+    try OwlBundleSwap.exchangeContents(in: app)
     XCTAssertEqual(try inode(app), wrapperInode)
     XCTAssertEqual(try inode(live), newInode)
     XCTAssertEqual(try inode(staged), oldInode)
-    XCTAssertEqual(try marker(exchange.installedContents), "new")
-    XCTAssertEqual(try marker(exchange.retiredContents), "old")
+    XCTAssertEqual(try marker(live), "new")
+    XCTAssertEqual(try marker(staged), "old")
     XCTAssertEqual(try oldHandle.readToEnd(), Data("old".utf8))
   }
 

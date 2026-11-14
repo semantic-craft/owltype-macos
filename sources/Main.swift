@@ -24,10 +24,6 @@ enum OwlPrivateStorage {
   }
 }
 
-enum OwlEngineIdentity {
-  static let appName = "rime.owltype"
-}
-
 @main
 struct OwlApp {
   private static var inputMethodServer: IMKServer?
