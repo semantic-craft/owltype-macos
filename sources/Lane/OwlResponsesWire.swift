@@ -92,8 +92,6 @@ enum OwlResponsesWire {
     return components.url
   }
 
-  /// Build either a plain or web-search Responses request body.
-  ///
   /// Qwen's current Responses documentation recommends `reasoning.effort` over the legacy
   /// `enable_thinking`, so interactive Owltype requests use `none`. 方舟's own switch is
   /// `thinking.type: disabled` — its Responses default burns hidden reasoning tokens before the
@@ -102,8 +100,6 @@ enum OwlResponsesWire {
   /// by id, so `store: false` opts out of both providers' documented default server-side
   /// persistence (方舟 `store` 默认 true). When the UI promises a searched answer, `tool_choice:
   /// required` prevents the model from silently answering from training data.
-  ///
-  /// `jsonObject` 只在 `.deepseek` 分支落地，见那里的注释——不是漏写，是别的方言当初迁移时就没带。
   static func body(
     model: String,
     messages: [OwlDeepSeekMessage],

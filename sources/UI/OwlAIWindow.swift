@@ -139,9 +139,6 @@ final class OwlAIWindow: NSWindowController {
     return model
   }
 
-  // 出窗技能（核验回执卡 / 替换原文的技能）执行前用继承的 NSWindowController.close() 关窗，
-  // 经 windowWillClose 把焦点还给宿主。
-
   /// Copy-only: the answer goes to the pasteboard. It is NEVER auto-inserted into the target app.
   private func copy(_ text: String) {
     let pasteboard = NSPasteboard.general
