@@ -309,7 +309,7 @@
         "updated_at": "2026-11-13T08:53:17Z"
       }
     ],
-    "main": "dfb4b692ec39d02ebb3773e5d5949de2465a79b1",
+    "main": "958bad23d29d899ed1fc13801bd53d0c1e588d8b",
     "open_pulls": [],
     "pulls": [
       {
@@ -367,7 +367,7 @@
     "docs/input-alignment.md",
     "progress/sync.py"
   ],
-  "observed_at": "2026-11-13T23:54:35.390069Z",
+  "observed_at": "2026-11-14T01:13:39.137751Z",
   "outputs": [
     "progress/index.html"
   ],
@@ -378,34 +378,64 @@
   "schema_version": 1,
   "sections": [
     {
-      "id": "deepseek-services",
-      "title": "DeepSeek 服务接入",
+      "id": "ink-icons",
       "items": [
         {
-          "id": "deepseek-asr",
-          "title": "DeepSeek 语音识别供应商",
-          "status": "in_progress",
-          "summary": "ASR 新增 DeepSeek 预设，复用供应商密钥，按官方接口仅上传 WAV；设置隐藏模型选择并说明录完转写。现有问答、改写、起草、语音润色、联网搜索和来源核验已有 DeepSeek 接入。项目尚无独立 TTS、OCR 或网页正文读取功能。 已合并 PR #427，完整门禁通过；正在准备 2.5.3 签名发布与本机升级。",
+          "evidence": [
+            {
+              "kind": "commit",
+              "note": "原版图标的历史来源（2026-07-23）。",
+              "ref": "e966feb1a57fc6874260a7ef1cb25192531bc268"
+            },
+            {
+              "kind": "file",
+              "note": "应用图标沿用当前资源名，图像字节与最早提交一致。",
+              "ref": "Assets.xcassets/Owltype.appiconset"
+            },
+            {
+              "kind": "file",
+              "note": "PDF 非空、墨滴主体及透明边缘的 AppKit 测试通过；20261114T011339Z-swift-lf05gr68，source_unchanged=true。",
+              "ref": "tests/ActivationPolicyTests.swift"
+            }
+          ],
+          "id": "restore-ink-icons",
+          "next": "本次为资源恢复；正式签名发布及已安装输入法外观尚未验收。",
+          "status": "done",
+          "summary": "应用全部 10 档 PNG 和菜单栏 PDF 从最早公开提交 e966feb 原样恢复；菜单 SVG 与历史 PDF 的墨滴路径一致。AppKit 原生绘制通过，16×16 pt 菜单图标有 329 个不透明像素。",
+          "title": "恢复最早版墨滴图标"
+        }
+      ],
+      "title": "原版墨滴图标"
+    },
+    {
+      "id": "deepseek-services",
+      "items": [
+        {
           "evidence": [
             {
               "kind": "file",
-              "ref": "sources/Voice/OwlVoiceSettings.swift",
-              "note": "DeepSeek ASR 预设及现有共享密钥路径。"
+              "note": "DeepSeek ASR 预设及现有共享密钥路径。",
+              "ref": "sources/Voice/OwlVoiceSettings.swift"
             },
             {
               "kind": "file",
-              "ref": "tests/OwlVoiceGrokASRClientTests.swift",
-              "note": "73 项语音相关测试通过，验证请求格式、密钥复用及回归；20261113T235029Z-swift-jd8g1s91，source_unchanged=true。"
+              "note": "73 项语音相关测试通过，验证请求格式、密钥复用及回归；20261113T235029Z-swift-jd8g1s91，source_unchanged=true。",
+              "ref": "tests/OwlVoiceGrokASRClientTests.swift"
             },
             {
               "kind": "file",
-              "ref": "tests/OwlSkillsLiveTests.swift",
-              "note": "2026-11-14 经 live-test.sh 执行 testDeepSeekASRTranscribesSpokenAudio，通过真实 DeepSeek ASR，4.368 秒。"
+              "note": "2026-11-14 经 live-test.sh 执行 testDeepSeekASRTranscribesSpokenAudio，通过真实 DeepSeek ASR，4.368 秒。",
+              "ref": "tests/OwlSkillsLiveTests.swift"
             }
           ],
-          "next": "完成 2.5.3 发布、当前输入法升级和测试残留清理；真实麦克风体验待用户验收。"
+          "id": "deepseek-asr",
+          "next": "完成 2.5.3 发布、当前输入法升级和测试残留清理；真实麦克风体验待用户验收。",
+          "status": "in_progress",
+          "summary": "ASR 新增 DeepSeek 预设，复用供应商密钥，按官方接口仅上传 WAV；设置隐藏模型选择并说明录完转写。现有问答、改写、起草、语音润色、联网搜索和来源核验已有 DeepSeek 接入。项目尚无独立 TTS、OCR 或网页正文读取功能。 已合并 PR #427，完整门禁通过；正在准备 2.5.3 签名发布与本机升级。",
+          "title": "DeepSeek 语音识别供应商"
         }
-      ]
+      ],
+      "title": "DeepSeek 服务接入"
     },
     {
       "id": "chinese-name",

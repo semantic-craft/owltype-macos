@@ -364,7 +364,7 @@ final class ActivationPolicyTests: XCTestCase {
 
   // MARK: - Bundled menu bar icon PDF renders in CoreGraphics/AppKit
 
-  func testBundledMenuIconPDFRendersNonEmptyTemplateWithCutoutsInAppKit() throws {
+  func testBundledMenuIconPDFRendersNonEmptyTemplateInAppKit() throws {
     let bundle = Bundle(for: OwlApplicationDelegate.self)
     let iconURL = try XCTUnwrap(bundle.url(forResource: "OwlMenuIcon", withExtension: "pdf"))
     let pdfData = try Data(contentsOf: iconURL)
@@ -374,9 +374,9 @@ final class ActivationPolicyTests: XCTestCase {
     )
 
     let image = try XCTUnwrap(NSImage(contentsOf: iconURL))
-    XCTAssertEqual(image.size, NSSize(width: 22, height: 16))
+    XCTAssertEqual(image.size, NSSize(width: 16, height: 16))
 
-    let width = 44
+    let width = 32
     let height = 32
     let rep = try XCTUnwrap(
       NSBitmapImageRep(
@@ -404,9 +404,9 @@ final class ActivationPolicyTests: XCTestCase {
       }
     }
     XCTAssertGreaterThan(opaquePixels, 300, "OwlMenuIcon.pdf rendered blank in AppKit")
-    XCTAssertGreaterThan(rep.colorAt(x: 18, y: 10)?.alphaComponent ?? 0, 0.9)
-    XCTAssertGreaterThan(rep.colorAt(x: 20, y: 20)?.alphaComponent ?? 0, 0.9)
-    XCTAssertLessThan(rep.colorAt(x: 23, y: 10)?.alphaComponent ?? 1, 0.05)
-    XCTAssertLessThan(rep.colorAt(x: 25, y: 23)?.alphaComponent ?? 1, 0.05)
+    XCTAssertGreaterThan(rep.colorAt(x: 19, y: 10)?.alphaComponent ?? 0, 0.9)
+    XCTAssertGreaterThan(rep.colorAt(x: 16, y: 20)?.alphaComponent ?? 0, 0.9)
+    XCTAssertLessThan(rep.colorAt(x: 4, y: 4)?.alphaComponent ?? 1, 0.05)
+    XCTAssertLessThan(rep.colorAt(x: 28, y: 24)?.alphaComponent ?? 1, 0.05)
   }
 }
