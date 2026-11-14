@@ -309,7 +309,7 @@
         "updated_at": "2026-11-13T08:53:17Z"
       }
     ],
-    "main": "e132cdafcd7087f91d02c9381b599804bbf261dd",
+    "main": "39e214a171bee8e8f2c3e8b7ded2b918e7e79041",
     "open_pulls": [],
     "pulls": [
       {
@@ -369,6 +369,14 @@
         "state": "closed"
       },
       {
+        "base": "e132cdafcd7087f91d02c9381b599804bbf261dd",
+        "head": "3bd9dde5f94c770f181c8ecb3d4516e986fda0f6",
+        "merge_commit": "0fad308869ed0106abb1d63c4a752346e41c5dc9",
+        "merged": true,
+        "number": 430,
+        "state": "closed"
+      },
+      {
         "base": "76b8c58e5df59f6f651defec9e68446cd367b01c",
         "head": "63ceb0157fd55dd15c4025b6c36a3a739aff9120",
         "merge_commit": "30efca501d1c6bdeac50d2fb8537f60571bee27b",
@@ -383,6 +391,14 @@
         "merged": true,
         "number": 432,
         "state": "closed"
+      },
+      {
+        "base": "0fad308869ed0106abb1d63c4a752346e41c5dc9",
+        "head": "8f1992b558055eb73891952f50cccdb07fbaa6be",
+        "merge_commit": "39e214a171bee8e8f2c3e8b7ded2b918e7e79041",
+        "merged": true,
+        "number": 433,
+        "state": "closed"
       }
     ],
     "releases": []
@@ -391,7 +407,7 @@
     "docs/input-alignment.md",
     "progress/sync.py"
   ],
-  "observed_at": "2026-11-14T04:43:09Z",
+  "observed_at": "2026-11-14T09:44:43.720297Z",
   "outputs": [
     "progress/index.html"
   ],
@@ -402,23 +418,107 @@
   "schema_version": 1,
   "sections": [
     {
+      "id": "release-2-5-5",
+      "items": [
+        {
+          "evidence": [
+            {
+              "kind": "pull",
+              "note": "PR #433 已合入 main（39e214a），精确提交 8f1992b 通过完整门禁（20261114T090746Z-full-p6qq0o65）。",
+              "ref": 433
+            },
+            {
+              "kind": "commit",
+              "note": "PR #433 合并至 main 的精确提交。",
+              "ref": "39e214a171bee8e8f2c3e8b7ded2b918e7e79041"
+            },
+            {
+              "kind": "file",
+              "note": "2.5.5 中英文更新说明覆盖 #433。",
+              "ref": "CHANGELOG.md"
+            },
+            {
+              "kind": "file",
+              "note": "应用与测试目标 MARKETING_VERSION 与 CURRENT_PROJECT_VERSION 均已更新为 2.5.5（共 12 处）。",
+              "ref": "Owltype.xcodeproj/project.pbxproj"
+            }
+          ],
+          "id": "release-2-5-5-prep",
+          "next": "在 2.5.5 发布提交上运行最终完整门禁并合并至 main，随后执行 2.5.5 正式签名与公证、downloads.responsay.com 公开发布、资产回读与本机安装升级，最终交由用户完成真机物理打字与麦克风体验验收。",
+          "status": "in_progress",
+          "summary": "2.5.5 发布分支基于 main 39e214a，整合已合并的 PR #433（全库 Swift 与 Rust 死代码清理、运行期生命周期加固与行为测试补齐）。12 处 Xcode 版本字段已更新为 2.5.5，CHANGELOG.md 与进度页已同步。已合并 PR #433 的精确提交 8f1992b 已通过完整门禁（20261114T090746Z-full-p6qq0o65，15 项门禁全过，Swift 执行 1,478 项含 1 项跳过 0 失败），但 2.5.5 发布提交本身的最终完整门禁、正式签名与公证、公开发布分发、本机安装升级以及用户真机打字与麦克风验收均尚未执行。",
+          "title": "2.5.5 发布准备与待办边界"
+        },
+        {
+          "evidence": [
+            {
+              "kind": "pull",
+              "note": "PR #433 已合并；精确提交 8f1992b 完整门禁通过（20261114T090746Z-full-p6qq0o65，15 项门禁全过，Swift 执行 1,478 项含 1 项跳过 0 失败）。",
+              "ref": 433
+            },
+            {
+              "kind": "file",
+              "note": "Periphery 双模式扫描配置且警告清零，sources/ 无忽略豁免。",
+              "ref": ".periphery.yml"
+            },
+            {
+              "kind": "file",
+              "note": "OwlAgentAccess.start 增加 KVO 防重入保护。",
+              "ref": "sources/Agent/OwlAgentAccess.swift"
+            },
+            {
+              "kind": "file",
+              "note": "应用委托与状态面板补齐通知观察者注销清理。",
+              "ref": "sources/Controller/OwlApplicationDelegate.swift"
+            },
+            {
+              "kind": "file",
+              "note": "补齐 host_delivery、ai_selection 与 provider_wire 行为测试并清理死代码。",
+              "ref": "rust/crates/owl-app-core/src/host_delivery.rs"
+            },
+            {
+              "kind": "file",
+              "note": "补齐 OwlVoiceAudioRecorder PCM 截断限制行为测试。",
+              "ref": "tests/OwlVoiceAudioRecorderTests.swift"
+            }
+          ],
+          "id": "dead-code-lifecycle-sweep",
+          "next": "随 2.5.5 完成发布提交门禁、正式签名公证、公开发布与本机升级；实际宿主打字、语音录音与界面生命周期体验待安装后用户验收。",
+          "status": "in_progress",
+          "summary": "PR #433 已合入 main（39e214a），全库清理 Swift 与 Rust 死代码、无调用方封装及未使用 Cargo 依赖（unicode-segmentation、base64、rusqlite），双模式 Periphery 扫描警告清零且 sources/ 无任何 Periphery 注释豁免，并将 resetForTesting 测试钩子迁出生产源码至 tests/；加固运行期生命周期安全（OwlAgentAccess.start KVO 防重入保护、OwlApplicationDelegate 与 OwlInputStatusPanel 通知观察者注销清理、OwlQuickReplyViewModel 与 OwlAIPolishViewModel deinit 取消任务），并补齐 ai_selection、host_delivery、OwlVoiceAudioRecorder PCM 截断、provider_wire 缓存用量解析与 DeliverParams 边界测试。精确提交 8f1992b 通过 15 项完整门禁（20261114T090746Z-full-p6qq0o65），尚待随 2.5.5 完成正式发版、本机升级与真机验收。",
+          "title": "全库死代码清理、生命周期加固与行为测试补齐"
+        }
+      ],
+      "title": "2.5.5 发布与代码清理加固"
+    },
+    {
       "id": "release-2-5-4",
       "items": [
         {
           "evidence": [
             {
               "kind": "pull",
-              "note": "恢复最早版墨滴应用与菜单栏图标，已合并至 main（76b8c58）。",
+              "note": "2.5.4 发布 PR 已合入 main（0fad308），精确提交 3bd9dde 通过完整门禁（20261114T051345Z-full-3osj956h）。",
+              "ref": 430
+            },
+            {
+              "kind": "commit",
+              "note": "PR #430 合并提交，包含 2.5.4 版本号与发布说明。",
+              "ref": "0fad308869ed0106abb1d63c4a752346e41c5dc9"
+            },
+            {
+              "kind": "pull",
+              "note": "恢复最早版墨滴应用与菜单栏图标，已合入 main（76b8c58）并随 2.5.4 发布。",
               "ref": 429
             },
             {
               "kind": "pull",
-              "note": "Agent 投递调用归属、MCP 1 MiB 换行帧上限与模板单次提交广播，已合并至 main（30efca5）。",
+              "note": "Agent 投递调用归属、MCP 1 MiB 换行帧上限与模板单次提交广播，已合入 main（30efca5）并随 2.5.4 发布。",
               "ref": 431
             },
             {
               "kind": "pull",
-              "note": "清理无调用方 Swift/Rust 封装并集中模板复制与重试预算规则，已合并至 main（e132cda）。",
+              "note": "清理无调用方 Swift/Rust 封装并集中模板复制与重试预算规则，已合入 main（e132cda）并随 2.5.4 发布。",
               "ref": 432
             },
             {
@@ -427,22 +527,22 @@
               "ref": "CHANGELOG.md"
             },
             {
-              "kind": "file",
-              "note": "应用与测试目标 MARKETING_VERSION 与 CURRENT_PROJECT_VERSION 均为 2.5.4。",
-              "ref": "Owltype.xcodeproj/project.pbxproj"
+              "kind": "note",
+              "note": "downloads.responsay.com 公开 latest.json 返回 2.5.4（status 为 complete，app、dmg 与 pkg 均已 stapled，修订 0fad308），本机安装版本核验为 2.5.4（PASS_VERSION_ONLY）。",
+              "ref": "https://downloads.responsay.com/owltype/latest.json"
             }
           ],
           "id": "release-2-5-4-prep",
-          "next": "区分已合并 PR 与自动门禁和待完成发版：待在最终发布提交执行完整门禁与合并，随后完成 2.5.4 正式签名、公证、发布、公开资产回读及本机安装，并由用户进行真实打字与麦克风体验验收。",
-          "status": "in_progress",
-          "summary": "2.5.4 发布分支已变基至 main e132cda，整合 PR #429（墨滴图标）、#431（Agent/MCP/模板存储加固）与 #432（Swift/Rust 冗余封装清理与策略收口）；12 处 Xcode 版本字段已设为 2.5.4，更新说明与进度页已同步。三项 PR 的合并前自动门禁均已通过，发布提交本身的最终完整门禁、签名公证发布与本机安装尚未执行。",
-          "title": "2.5.4 发布整合与发版状态"
+          "next": "物理打字与麦克风体验验收由用户负责完成；后续代码清理与生命周期加固已由 PR #433 合入并进入 2.5.5 准备。",
+          "status": "unverified",
+          "summary": "PR #430（整合 #429 墨滴图标、#431 Agent/MCP/模板加固与 #432 代码清理及策略收口）精确提交 3bd9dde 通过完整门禁（20261114T051345Z-full-3osj956h，15 项全过）并已合入 main（0fad308）。2.5.4 产物已完成签名公证与公开发布（downloads.responsay.com），本机 /Library/Input Methods/Owltype.app 已升级至 2.5.4 并通过版本核验（PASS_VERSION_ONLY）。真机物理打字与麦克风体验仍由用户负责验收。",
+          "title": "2.5.4 已合并发布并完成本机升级"
         },
         {
           "evidence": [
             {
               "kind": "pull",
-              "note": "PR #431 已合并；精确提交 63ceb01 完整门禁通过（20261114T033929Z-full-bmimmdd9，SecureInput: false）。",
+              "note": "PR #431 已合并；精确提交 63ceb01 完整门禁通过（20261114T033929Z-full-bmimmdd9，SecureInput 为 false）。",
               "ref": 431
             },
             {
@@ -467,9 +567,9 @@
             }
           ],
           "id": "agent-mcp-template-ownership",
-          "next": "合并并随 2.5.4 完成签名、公证、发布与本机安装；真实宿主应用中的打字及 Agent 投递体验待安装后用户验收。",
-          "status": "in_progress",
-          "summary": "MCP Unix 套接字 read_line 在尾字节与换行同读入时也强制校验 1 MiB 上限；模板存储仅由 OwlStorageHost 已提交回执发出单次 libraryDidCommit 通知；DeliveryCoordinatorCore 与 OwlAgentDeliveryCoordinator 以单调 invocation_id 和 target_id 隔离目标绑定、预览、超时与写回回调。PR #431 已合入 main 且合并门禁通过，正随 2.5.4 发布。",
+          "next": "真实宿主应用中的打字及 Agent 投递体验由用户在已升级版本中验收。",
+          "status": "unverified",
+          "summary": "MCP Unix 套接字 read_line 在尾字节与换行同读入时也强制校验 1 MiB 上限；模板存储仅由 OwlStorageHost 已提交回执发出单次 libraryDidCommit 通知；DeliveryCoordinatorCore 与 OwlAgentDeliveryCoordinator 以单调 invocation_id 和 target_id 隔离目标绑定、预览、超时与写回回调。PR #431 已随 2.5.4（#430，0fad308）公开发布并完成本机升级（PASS_VERSION_ONLY），真实宿主应用中的打字与 Agent 投递体验仍待用户验收。",
           "title": "Agent 投递调用归属、MCP 帧上限与模板单次提交"
         },
         {
@@ -496,9 +596,9 @@
             }
           ],
           "id": "swift-rust-cleanup-centralization",
-          "next": "随 2.5.4 最终完整门禁、签名公证发布与本机安装完成交付；实际输入法与语音场景体验待安装后用户验收。",
-          "status": "in_progress",
-          "summary": "移除无调用方的 Swift/Rust 封装及无效投递状态（AttachWaiter、CompleteWaiters、Decided 等），将 OwlStubVoiceTransport 迁入测试桩文件；在 owl-app-core 集中实现 Entry::duplicated 统一模板复制逻辑，并集中 valid_id 与 provider_wire::max_attempts 规则。PR #432 已合入 main 且 15 项完整门禁（Swift 1,578 通过、1 跳过，Rust 通过）及三模型审查通过，正随 2.5.4 发布。",
+          "next": "实际输入法与语音场景体验由用户在已升级版本中验收。",
+          "status": "unverified",
+          "summary": "移除无调用方的 Swift/Rust 封装及无效投递状态（AttachWaiter、CompleteWaiters、Decided 等），将 OwlStubVoiceTransport 迁入测试桩文件；在 owl-app-core 集中实现 Entry::duplicated 统一模板复制逻辑，并集中 valid_id 与 provider_wire::max_attempts 规则。PR #432 已随 2.5.4（#430，0fad308）公开发布并完成本机升级（PASS_VERSION_ONLY），实际输入法与语音场景体验仍待用户验收。",
           "title": "Swift/Rust 冗余封装清理与复制及重试策略收口"
         }
       ],
@@ -1608,8 +1708,10 @@
       424,
       426,
       429,
+      430,
       431,
-      432
+      432,
+      433
     ]
   }
 }
