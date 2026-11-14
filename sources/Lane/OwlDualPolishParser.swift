@@ -13,11 +13,11 @@
 
 import Foundation
 
-public enum OwlDualPolishParser {
+enum OwlDualPolishParser {
 
   // MARK: - Dual Polish Parsing (Exactly 2 Candidates)
 
-  public static func parse(raw: String, originalText: String) -> [String] {
+  static func parse(raw: String, originalText: String) -> [String] {
     let sanitized = stripMarkdownFences(raw)
     var candidates: [String] = []
 
@@ -105,7 +105,7 @@ public enum OwlDualPolishParser {
 
   // MARK: - Reply Parsing (Exactly 3 Candidates)
 
-  public static func parseReplies(raw: String) -> [String] {
+  static func parseReplies(raw: String) -> [String] {
     let sanitized = stripMarkdownFences(raw)
     var candidates: [String] = []
 
@@ -178,7 +178,7 @@ public enum OwlDualPolishParser {
 
   // MARK: - Internal Helpers
 
-  public static func extractTagContent(from text: String, tag: String) -> String? {
+  static func extractTagContent(from text: String, tag: String) -> String? {
     // Matches <tag>...</tag> case-insensitive, including whitespace and newlines
     let escapedTag = NSRegularExpression.escapedPattern(for: tag)
     let pattern = "(?is)<\(escapedTag)>(.*?)</\(escapedTag)>"
@@ -198,7 +198,7 @@ public enum OwlDualPolishParser {
     return nil
   }
 
-  public static func extractNumberedList(from text: String) -> [String] {
+  static func extractNumberedList(from text: String) -> [String] {
     var items: [String] = []
     // Matches: 1. / 1、 / (1) / 1) at line beginnings
     let pattern = "(?m)^(?:(?:[1-9][0-9]*[\\.\\、\\)])|(?:\\([1-9][0-9]*\\)))\\s*(.+)$"
@@ -219,7 +219,7 @@ public enum OwlDualPolishParser {
     return items
   }
 
-  public static func stripMarkdownFences(_ text: String) -> String {
+  static func stripMarkdownFences(_ text: String) -> String {
     guard text.contains("```") else { return text }
 
     // Outer envelope fence pattern:

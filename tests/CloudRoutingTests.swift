@@ -33,13 +33,11 @@ final class CloudRoutingTests: XCTestCase {
   override func setUp() async throws {
     try await super.setUp()
     OwlCloudPreferences.resetForTesting()
-    OwlCloudUsageTelemetry.resetForTesting()
     OwlSnapshotRegistry.shared.update(nil)
   }
 
   override func tearDown() async throws {
     OwlCloudPreferences.resetForTesting()
-    OwlCloudUsageTelemetry.resetForTesting()
     OwlSnapshotRegistry.shared.update(nil)
     try await super.tearDown()
   }

@@ -38,11 +38,6 @@ enum OwlSearchControl {
     }
   }
 
-  /// Whether this provider can do 任意提问 联网搜索 at all.
-  static func supportsSearch(providerID: String, host: String) -> Bool {
-    transport(providerID: providerID, host: host) != .none
-  }
-
   /// The one provider id 任意提问 联网搜索 routes to.
   static let searchProviderID = "deepseek"
 

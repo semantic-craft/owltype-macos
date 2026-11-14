@@ -50,6 +50,7 @@ enum OwlProviderKeyVerification {
     table = next
   }
 
+  // periphery:ignore
   static func resetForTesting() {
     OwlDefaults.standard.removeObject(forKey: key)
   }
@@ -102,20 +103,6 @@ final class OwlProviderRegistry {
     OwlProviderCore.call("isHTTPS", ["scheme": url.scheme ?? ""])
   }
 
-  static func needsReplacementKey(current: OwlProviderProfile, endpoint: URL, key: String) -> Bool {
-    OwlProviderHost().required("replacement", ["profile": OwlAppCore.payload(current),
-      "endpoint": endpoint.absoluteString, "keyEmpty": normalizedKey(key).isEmpty])
-  }
-
-  /// One profile per vendor: a known preset by its provider id, a custom entry by endpoint host.
-  static func vendorKey(providerID: String, host: String?) -> String {
-    OwlProviderCore.call("vendorKey", ["providerID": providerID, "host": host ?? ""])
-  }
-
-  private static func vendorKey(of profile: OwlProviderProfile) -> String {
-    vendorKey(providerID: OwlLLMProviderCatalog.inferredProviderID(for: profile), host: profile.endpoint.host)
-  }
-
   // MARK: Key state
 
   enum KeyState: String, Equatable {
@@ -130,10 +117,6 @@ final class OwlProviderRegistry {
   func keyState(for profile: OwlProviderProfile) -> KeyState {
     let raw: String = host().required("keyState", ["profile": OwlAppCore.payload(profile)])
     return KeyState(rawValue: raw) ?? .unreadable
-  }
-
-  func markVerified(_ profile: OwlProviderProfile) {
-    OwlProviderKeyVerification.markVerified(secretName: profile.secretName)
   }
 
   // MARK: Probe
@@ -336,7 +319,6 @@ final class OwlProviderHost {
     guard response.ok, let value = response.value else {
       let code = response.error ?? "invalid_response"
       if let error = errors[code] { throw error }
-      if code.hasPrefix("provider_notFound:") { throw OwlProviderError.notFound(String(code.dropFirst(18))) }
       throw OwlAppCore.Failure(code: code)
     }
     return value.result

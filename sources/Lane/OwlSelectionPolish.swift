@@ -49,12 +49,6 @@ enum OwlSelectionPolish {
   /// than uploaded — a privacy + cost guard, not a model limit.
   static let maxSelectionLength: Int = OwlAIBusinessCore.call("limit", ["id": "selection"])
 
-  /// System message (legacy alias): the v1 prompt now lives in `OwlPolishPromptCatalog` as the
-  /// `v1-legacy` variant (issue #136 A/B registry); this constant stays so existing call sites and
-  /// tests keep reading the same string. The active variant is resolved per request in
-  /// `chatRequest` via `OwlPolishPromptCatalog.resolveActive()`.
-  static let systemPrompt: String = OwlPolishPromptCatalog.legacySystemPrompt
-
   /// Pure length / emptiness policy. Returns the error to surface, or `nil` if the selection is
   /// acceptable to send. Trimming mirrors the controller's emptiness check so a whitespace-only
   /// selection is treated as empty.
@@ -201,19 +195,6 @@ final class OwlSourceVerificationService {
 
   /// 每一路检索取回的网页数。两路合并去重后最多 `2 × resultCount` 条。
   static let resultCount: Int = OwlAIBusinessCore.call("limit", ["id": "verificationResults"])
-
-  /// Product prompt surfaced for the live evaluation. Keeping it here (rather than copying it into
-  /// the test) makes the evaluated bytes the same bytes production sends.
-  ///
-  /// 来源按权威优先：用户要跳查的恰恰是「发布机关自己怎么说」，聚合站/百科转载只能兜底。
-  nonisolated static let systemPrompt: String = OwlAIBusinessCore.call("verificationPrompt")
-
-  nonisolated static func userPrompt(
-    for selectedText: String,
-    results: [OwlWebSearchResult]
-  ) -> String {
-    OwlAIBusinessCore.call("verificationUser", ["text": selectedText, "results": OwlAIBusinessCore.json(results)])
-  }
 
   private let searchClient: OwlDoubaoSearching
   private let searchKeyProvider: () -> String?
@@ -388,22 +369,6 @@ final class OwlSourceVerificationService {
       } catch { step = core.call("failure") }
     }
     return outcome
-  }
-
-  /// 按网址去重拼接，先到先得。
-  nonisolated static func merged(
-    _ first: [OwlWebSearchResult], _ second: [OwlWebSearchResult]
-  ) -> [OwlWebSearchResult] {
-    OwlAIBusinessCore.call("mergedSources", ["first": OwlAIBusinessCore.json(first), "second": OwlAIBusinessCore.json(second)])
-  }
-
-  /// 把判断里 `[序号]` 引到的来源按引用顺序提到前面。回执卡拿第一条当「核到的来源」，
-  /// 它应当是模型据以判断的那条，而不是搜索排序碰巧第一的那条。
-  nonisolated static func citedFirst(
-    _ sources: [OwlVerifiedSource],
-    in content: String
-  ) -> [OwlVerifiedSource] {
-    OwlAIBusinessCore.call("citedSources", ["sources": OwlAIBusinessCore.json(sources), "text": content])
   }
 
   nonisolated static func message(for error: Error) -> String {

@@ -49,8 +49,12 @@ final class OwlPromptOptimizeLiveTests: XCTestCase {
   /// 用真实代码构造的请求体直接 POST，把原始响应落盘供人工核对形状。
   @discardableResult
   private func dumpRawResponse(draft: String, apiKey: String, label: String) async throws -> String {
-    let payload = OwlPromptOptimizer.chatRequest(
-      forDraft: draft, model: model, providerID: "qwen")
+    let payload = OwlStructuredDrafting.chatRequest(
+      systemPrompt: OwlPromptOptimizer.systemPrompt,
+      draft: draft,
+      model: model,
+      providerID: "qwen",
+      temperature: OwlPromptOptimizer.structuredDraftingConfiguration.temperature)
     let request = try OwlResponsesWire.request(
       endpoint: endpoint, model: model, messages: payload.messages,
       apiKey: apiKey, authHeaderStyle: .bearer, dialect: .qwen,
@@ -65,7 +69,11 @@ final class OwlPromptOptimizeLiveTests: XCTestCase {
 
     // 取出模型真正吐的那段 content（解析层要处理的就是它）。这里刻意不复用产品的解码器：
     // 目的是看清「原样」，产品解码器挑不挑得动是另一条断言的事。
-    let content = (try? OwlResponsesWire.parse(data).text) ?? ""
+    struct Parsed: Decodable { let text: String? }
+    let parsed: Parsed = OwlProviderCore.call("completionParse", [
+      "bytes": Array(data), "responses": true, "status": status, "model": model
+    ])
+    let content = parsed.text ?? ""
     try? content.write(
       toFile: "/tmp/owl-live-\(label)-content.txt", atomically: true, encoding: .utf8)
     return content
@@ -120,7 +128,7 @@ final class OwlPromptOptimizeLiveTests: XCTestCase {
     case let .needsClarification(questions):
       XCTAssertFalse(questions.isEmpty)
       XCTAssertLessThanOrEqual(
-        questions.count, OwlPromptOptimizer.maxClarificationQuestions,
+        questions.count, 3,
         "问题数必须被截到上限内，否则预填会撑爆单行输入框")
     case let .ready(prompt):
       // 模型选择自行补全而非反问也算合理产出，但仍不能漏出 JSON 原文。

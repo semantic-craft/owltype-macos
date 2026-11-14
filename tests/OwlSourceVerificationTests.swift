@@ -14,7 +14,7 @@ final class OwlDoubaoSearchWireTests: XCTestCase {
   func testBodyTrimsAndCapsQueryAndClampsDocCount() {
     let long = String(repeating: "民", count: 150)
     let body = OwlDoubaoSearchWire.body(query: "  \(long)\n", limit: 99)
-    XCTAssertEqual((body["Query"] as? String)?.count, OwlDoubaoSearchWire.maxQueryLength)
+    XCTAssertEqual((body["Query"] as? String)?.count, 100)
     XCTAssertEqual(body["DocCount"] as? Int, 20)
     XCTAssertEqual(body["MaxImageCountPerDoc"] as? Int, 1, "0 会落回默认 3 张")
     XCTAssertEqual(OwlDoubaoSearchWire.body(query: "q", limit: 0)["DocCount"] as? Int, 1)
@@ -137,7 +137,8 @@ final class OwlSourceVerificationServiceTests: XCTestCase {
 
     XCTAssertEqual(transport.calls.count, 1)
     let messages = try XCTUnwrap(transport.calls.first)
-    XCTAssertEqual(messages.first?.content, OwlSourceVerificationService.systemPrompt)
+    XCTAssertEqual(messages.first?.role, "system")
+    XCTAssertTrue(messages.first?.content.contains("核验") == true)
     let user = try XCTUnwrap(messages.last?.content)
     XCTAssertTrue(user.contains(Self.claim))
     XCTAssertTrue(user.contains("[2] 中华人民共和国民法典"))
@@ -202,12 +203,17 @@ final class OwlSourceVerificationServiceTests: XCTestCase {
       .badHTTPStatus(401))
   }
 
-  func testCitedFirstIgnoresOutOfRangeAndRepeatedCitations() {
-    let sources = (1...3).map { OwlVerifiedSource(title: "\($0)", url: "https://\($0)") }
-    XCTAssertEqual(
-      OwlSourceVerificationService.citedFirst(sources, in: "见 [3]、[9]、[3] 与 [1]").map(\.title),
-      ["3", "1", "2"])
-    XCTAssertEqual(OwlSourceVerificationService.citedFirst([], in: "[1]"), [])
+  func testCitedFirstIgnoresOutOfRangeAndRepeatedCitations() async throws {
+    let sources = (1...3).map {
+      OwlWebSearchResult(
+        title: "\($0)", url: "https://\($0)", snippet: "摘要\($0)",
+        publishedAt: nil, hostname: nil)
+    }
+    let outcome = try await makeService(
+      search: StubSearch(results: sources),
+      transport: StubTransport(deltas: ["见 [3]、[9]、[3] 与 [1]"])
+    ).verifyStructured(Self.claim)
+    XCTAssertEqual(outcome.sources.map(\.title), ["3", "1", "2"])
   }
 
   // MARK: - DeepSeek 搜索
@@ -245,15 +251,15 @@ final class OwlSourceVerificationServiceTests: XCTestCase {
       deepSeek: StubDeepSeekSearch([.success(Self.deepSeekResults)]), routes: 1
     ).verifyStructured(Self.claim)
 
-    let merged = OwlSourceVerificationService.merged(Self.deepSeekResults, Self.results)
+    let user = try XCTUnwrap(transport.calls.first?.last?.content)
+    XCTAssertTrue(user.contains("[1] 国家法律法规数据库"))
+    XCTAssertTrue(user.contains("[2] 人大网重复"))
+    XCTAssertTrue(user.contains("[3] 百科转载"))
+    XCTAssertEqual(user.components(separatedBy: "https://www.npc.gov.cn/a").count, 2, "DeepSeek 在前，重复网址只留先到的一条")
     XCTAssertEqual(
-      merged.map(\.url),
-      ["https://flk.npc.gov.cn/x", "https://www.npc.gov.cn/a", "https://baike.example.com/a"],
-      "DeepSeek 在前，重复网址只留先到的一条")
-    XCTAssertEqual(
-      transport.calls.first?.last?.content,
-      OwlSourceVerificationService.userPrompt(for: Self.claim, results: merged))
-    XCTAssertEqual(outcome.sources.first?.url, "https://baike.example.com/a", "被引用的 [3] 排第一")
+      outcome.sources.map(\.url),
+      ["https://baike.example.com/a", "https://flk.npc.gov.cn/x", "https://www.npc.gov.cn/a"],
+      "被引用的 [3] 排第一，其余保留合并去重顺序")
   }
 
   func testDoubaoFailureFallsThroughToDeepSeek() async throws {

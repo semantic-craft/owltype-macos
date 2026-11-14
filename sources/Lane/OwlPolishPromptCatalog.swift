@@ -31,15 +31,6 @@ struct OwlPolishPromptVariant: Codable, Equatable, Sendable {
 /// The variant registry. Resolution is total: any id (nil, unknown, future) maps to a variant,
 /// falling back to `legacy` — a mis-set preference can never crash or blank the prompt.
 enum OwlPolishPromptCatalog {
-  static let legacyVariantID = "v1-legacy"
-  static let responsayAlignedVariantID = "v2-responsay-aligned"
-
-  /// v1 保底：出厂 prompt 原样（从 OwlSelectionPolish.systemPrompt 原位迁入，逐字未动）。
-  static let legacy = variant(id: legacyVariantID)
-
-  /// v2：对齐 Responsay rewrite 线（temp 0.2 = LLMGenerationProfile.resolve(rewrite)）。
-  static let responsayAligned = variant(id: responsayAlignedVariantID)
-
   /// Total lookup: known id → its variant; nil / unknown → v1-legacy (never throws, never blank).
   static func variant(id: String?) -> OwlPolishPromptVariant {
     OwlAIBusinessCore.call("polishVariant", ["id": id as Any? ?? NSNull()])
@@ -50,19 +41,4 @@ enum OwlPolishPromptCatalog {
   static func resolveActive() -> OwlPolishPromptVariant {
     variant(id: OwlExperimentalPreferences.selectionPolishPromptVariant)
   }
-
-  // MARK: - v1 prompt (legacy + fidelity hard line)
-
-  /// 2026-07-31 保真加固：在出厂 prompt 上追加一句硬约束。旧基线 qwen3.7-flash 实盘曾把
-  /// 「可能撤销合同」润成「或许解除该合同」——撤销与解除是两种法律效果，润色绝不能替用户
-  /// 换法律动作。约束写成通用规则（动作/效果词 + 确定度 + 事实逐项保留），三个生产模型
-  /// （qwen3.7-plus / qwen3.7-max / doubao-seed-2-1-pro）共用，不做供应商分支。
-  static let legacySystemPrompt: String = OwlAIBusinessCore.call("prompt", ["id": "polishLegacy"])
-
-  // MARK: - v2 prompt (Responsay rewrite-line aligned, sectioned)
-
-  /// 段落装配仿 TextTransformPromptAssembler.build：role / task / 同语种硬规则 / 忠实度红线 /
-  /// byte-for-byte preserve / explicit-input boundary / output，"\n\n" 连接，便于后续只 A/B 某一段。
-  static let responsayAlignedSystemPrompt: String = OwlAIBusinessCore.call("prompt", ["id": "polishAligned"])
-
 }

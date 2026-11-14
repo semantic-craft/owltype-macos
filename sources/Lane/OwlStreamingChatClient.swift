@@ -108,8 +108,6 @@ struct OwlAskStreamOpen {
 struct OwlSSEChatParser {
   private let core = OwlProviderStream(responses: false)
   var isFinished: Bool { core.isFinished }
-  var failure: String? { core.failure }
-  mutating func consume(_ chunk: String) -> [String] { core.consume(Data(chunk.utf8)) }
   mutating func consume(_ chunk: Data) -> [String] { core.consume(chunk) }
   mutating func finish() -> [String] { core.finish() }
   mutating func cancel() { core.cancel() }
@@ -122,26 +120,13 @@ struct OwlSSEChatParser {
 /// parser can be driven end-to-end with no socket (same idiom as `OwlCloudCandidateFetching`).
 ///
 /// The provider returns raw Data chunks; UTF-8 decoding and frame buffering belong to Rust.
-/// The text initializer is retained for the existing synthetic transport fixtures.
 struct OwlStreamingBytesSource {
   let response: HTTPURLResponse?
   let dataChunks: AsyncThrowingStream<Data, Error>
   init(response: HTTPURLResponse?, dataChunks: AsyncThrowingStream<Data, Error>) {
     self.response = response; self.dataChunks = dataChunks
   }
-  init(response: HTTPURLResponse?, chunks: AsyncThrowingStream<String, Error>) {
-    self.response = response
-    self.dataChunks = AsyncThrowingStream { continuation in
-      let task = Task {
-        do {
-          for try await text in chunks { continuation.yield(Data(text.utf8)) }
-          continuation.finish()
-        } catch { continuation.finish(throwing: error) }
-      }
-      continuation.onTermination = { _ in task.cancel() }
-    }
-  }
-  }
+}
 
 /// The narrow streaming transport port. B10 depends on THIS, not the concrete client, so the window
 /// can be tested against a fake stream.
@@ -252,8 +237,6 @@ struct OwlStreamingChatClient: OwlChatStreaming {
 /// Narrow port for non-conversation skills that must never search.
 @MainActor
 protocol OwlPlainStreaming {
-  func readiness() -> OwlStreamingReadiness
-
   func stream(
     messages: [OwlDeepSeekMessage]
   ) -> Result<AsyncThrowingStream<String, Error>, OwlStreamingReadiness>

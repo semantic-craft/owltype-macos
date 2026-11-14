@@ -95,21 +95,4 @@ enum OwlGoalBrief {
       }
     }
   )
-
-  /// 装配一次整理请求。纯函数（model 由调用方解析后传入），好让请求体可以在单测里断言。
-  static func chatRequest(
-    forDraft draft: String,
-    clarifications: [OwlPromptClarification] = [],
-    model: String,
-    providerID: String = ""
-  ) -> OwlDeepSeekChatRequest {
-    OwlStructuredDrafting.chatRequest(
-      systemPrompt: systemPrompt,
-      draft: draft,
-      clarifications: clarifications,
-      model: model,
-      providerID: providerID,
-      temperature: structuredDraftingConfiguration.temperature
-    )
-  }
 }

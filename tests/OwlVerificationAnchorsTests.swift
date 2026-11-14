@@ -10,26 +10,25 @@ import Foundation
 import XCTest
 @testable import Owltype
 
+@MainActor
 final class OwlVerificationAnchorsTests: XCTestCase {
 
-  // MARK: - 坐标抽取
+  // MARK: - 坐标抽取 & 案号准入闸
 
   func testExtractsLawAndCaseAnchorsFromComplaint() {
     let text = "根据《中华人民共和国民法典》第五百七十七条，被告应当承担违约责任；同类裁判可参见（2025）粤03民终8964号民事判决书。"
-    let anchors = OwlFactCoordinateExtractor.extract(from: text)
+    let anchors = OwlVerificationReceiptModel.admittedAnchors(from: text, currentYear: 2026)
     XCTAssertEqual(anchors.count, 2)
     XCTAssertEqual(anchors[0].label, "《中华人民共和国民法典》第五百七十七条")
     XCTAssertEqual(anchors[0].kind, .law)
-    XCTAssertEqual(anchors[0].status, .pending)
     XCTAssertEqual(anchors[0].query, anchors[0].label, "锚点 query = 坐标原文，逐字进跳库")
-    XCTAssertEqual(anchors[0].preferredSources, [.govLaw, .pkulaw])
     XCTAssertEqual(anchors[1].label, "（2025）粤03民终8964号")
     XCTAssertEqual(anchors[1].kind, .caseLaw)
   }
 
   func testExtractNormalizesWhitespaceAndDedupes() {
     let text = "《个保法》第 24 条与《个保法》第24条重复；依据国发〔2007〕19号文件执行。"
-    let anchors = OwlFactCoordinateExtractor.extract(from: text)
+    let anchors = OwlVerificationReceiptModel.admittedAnchors(from: text, currentYear: 2026)
     let labels = anchors.map(\.label)
     XCTAssertEqual(labels.filter { $0 == "《个保法》第24条" }.count, 1, "空格差异合并后按 label 去重")
     XCTAssertTrue(labels.contains("国发〔2007〕19号"), "引导词「依据」必须剥离，实际 \(labels)")
@@ -39,51 +38,35 @@ final class OwlVerificationAnchorsTests: XCTestCase {
 
   func testExtractsStandardDateMoneyAndGuidingCase() {
     let text = "按 GB/T 39335-2020 于2021年1月1日验收，费用 5000元；参照指导案例24号。"
-    let anchors = OwlFactCoordinateExtractor.extract(from: text)
+    let anchors = OwlVerificationReceiptModel.admittedAnchors(from: text, currentYear: 2026)
     let byKind = Dictionary(grouping: anchors, by: \.kind)
     XCTAssertEqual(byKind[.standard]?.first?.label, "GB/T39335-2020")
     XCTAssertEqual(byKind[.date]?.first?.label, "2021年1月1日")
     XCTAssertEqual(byKind[.money]?.first?.label, "5000元")
     XCTAssertEqual(byKind[.law]?.first?.label, "指导案例24号", "指导案例归 law 规则")
-    XCTAssertTrue(anchors.allSatisfy { $0.status == .pending }, "抽取器永不宣称已核")
   }
 
-  // MARK: - 案号准入闸（表驱动）
-
-  func testCaseNumberVerifierTable() {
-    let verifier = OwlCaseNumberVerifier(currentYear: 2026)
-    // ✅ 完整：用户举例
-    let complete = verifier.verify("（2025）粤03民终8964号")
-    XCTAssertEqual(complete.status, .complete)
-    XCTAssertEqual(complete.disposition, .admit)
-    XCTAssertEqual(complete.caseNumber?.year, 2025)
-    XCTAssertEqual(complete.caseNumber?.courtCode, "粤03")
-    XCTAssertEqual(complete.caseNumber?.caseType, .civilSecondInstance)
-    XCTAssertEqual(complete.caseNumber?.sequence, 8964)
-    // ✅ 半角括号兼容
-    XCTAssertEqual(verifier.verify("(2021)京01民初1234号").status, .complete)
-    // ✅ 入库编号（人民法院案例库）
-    let library = verifier.verify("入库编号2024-07-2-084-011")
-    XCTAssertEqual(library.status, .complete)
-    XCTAssertEqual(library.caseNumber?.caseType, .caseLibrary)
-    // ❓ 形状对但年份非法 → 疑似虚构
-    XCTAssertEqual(verifier.verify("（2077）粤03民终8964号").status, .suspectedFabricated)
-    XCTAssertEqual(verifier.verify("（2077）粤03民终8964号").disposition, .discard)
-    // ❓ 形似案号的壳（类型字编造）
-    XCTAssertEqual(verifier.verify("（2024）某某某判字99号").status, .suspectedFabricated)
-    // ⚠️ 真词干但缺完整编号
-    XCTAssertEqual(verifier.verify("参见粤03民终案件的裁判思路").status, .partial)
-    XCTAssertEqual(verifier.verify("粤03民终").disposition, .attemptCompleteElseDiscard)
-    // ❌ 无案号信号；「执行/执法」普通词不误报
-    XCTAssertEqual(verifier.verify("本案应继续执行和解协议。").status, .missing)
-    XCTAssertEqual(verifier.verify("被告应当承担违约责任。").status, .missing)
+  func testAdmittedAnchorsGatesFabricatedAndPartialCaseNumbers() {
+    let validAndInvalid = """
+      参考 (2021)京01民初1234号 与 入库编号2024-07-2-084-011，
+      另有虚构案号（2077）粤03民终8964号、（2024）某某某判字99号，
+      以及残缺表达：参见粤03民终案件、本案应继续执行和解协议。
+      """
+    let anchors = OwlVerificationReceiptModel.admittedAnchors(from: validAndInvalid, currentYear: 2026)
+    let labels = anchors.map(\.label)
+    XCTAssertTrue(labels.contains("(2021)京01民初1234号"))
+    XCTAssertTrue(labels.contains("入库编号2024-07-2-084-011"))
+    XCTAssertFalse(labels.contains("（2077）粤03民终8964号"))
+    XCTAssertFalse(labels.contains("（2024）某某某判字99号"))
+    XCTAssertFalse(labels.contains { $0.contains("粤03民终案件") })
+    XCTAssertFalse(labels.contains { $0.contains("执行和解") })
   }
 
   // MARK: - 分组源菜单模型
 
   func testMenuGroupsOrderAndCNKIDualEntries() {
     let text = "根据《中华人民共和国民法典》第五百七十七条，参见（2025）粤03民终8964号。"
-    let anchors = OwlFactCoordinateExtractor.extract(from: text)
+    let anchors = OwlVerificationReceiptModel.admittedAnchors(from: text, currentYear: 2026)
     let menu = OwlSelectionVerifyMenu.build(selectedText: text, anchors: anchors)
 
     XCTAssertEqual(menu.map(\.title), ["法规", "案例", "文献", "兜底"], "组序即菜单序")
@@ -106,7 +89,7 @@ final class OwlVerificationAnchorsTests: XCTestCase {
     XCTAssertEqual(kw.url?.host, "kns.cnki.net")
     XCTAssertTrue(kw.url!.absoluteString.contains("?kw="), "知网关键词直达必须带词")
     let expert = menu[2].items[1].route
-    XCTAssertEqual(expert.url, OwlCNKIExpertQueryBuilder.professionalSearchURL)
+    XCTAssertEqual(expert.url?.absoluteString, "https://kns.cnki.net/kns8s/AdvSearch")
     XCTAssertNil(expert.url?.query)
     XCTAssertTrue(expert.query.hasPrefix("SU %= '"), "专业检索式经剪贴板交付")
     XCTAssertEqual(OwlSelectionVerifyClipboard.pasteQuery(openedRoutes: [kw, expert]), expert.query)
@@ -125,15 +108,9 @@ final class OwlVerificationAnchorsTests: XCTestCase {
     XCTAssertTrue(OwlSelectionVerifyMenu.build(selectedText: "  \n ", anchors: []).isEmpty)
   }
 
-  // MARK: - 徽标与状态归并
+  // MARK: - 徽标
 
-  func testOutcomeTagsAndKindBadges() {
-    XCTAssertEqual(OwlVerificationOutcome.pending.tag, "[待核]")
-    XCTAssertEqual(OwlVerificationOutcome.verified.tag, "[已核]")
-    XCTAssertEqual(OwlVerificationOutcome.rejected.tag, "[已驳]")
-    XCTAssertEqual(OwlVerificationOutcome(.verifiedLaw), .verified)
-    XCTAssertEqual(OwlVerificationOutcome(.userConfirmed), .verified)
-    XCTAssertEqual(OwlVerificationOutcome(.pending), .pending)
+  func testKindBadges() {
     XCTAssertEqual(OwlVerificationKind.law.badgeLabel, "法条")
     XCTAssertEqual(OwlVerificationKind.caseLaw.badgeLabel, "案例")
     XCTAssertEqual(OwlVerificationKind.scholarlyArticle.badgeLabel, "文献")

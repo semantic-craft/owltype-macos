@@ -28,28 +28,26 @@ final class OwlPolishPromptCatalogTests: XCTestCase {
   func testDefaultResolvesLegacyVariant() throws {
     // 未设置偏好 → v1-legacy 出厂行为：legacy prompt + temp 0.3，逐字节不变。
     XCTAssertNil(OwlExperimentalPreferences.selectionPolishPromptVariant)
-    XCTAssertEqual(OwlPolishPromptCatalog.resolveActive().id, OwlPolishPromptCatalog.legacyVariantID)
+    XCTAssertEqual(OwlPolishPromptCatalog.resolveActive().id, "v1-legacy")
 
     let request = try OwlSelectionPolish.chatRequest(for: "他撤销了合同")
-    XCTAssertEqual(request.messages.first?.content, OwlPolishPromptCatalog.legacySystemPrompt)
+    XCTAssertEqual(request.messages.first?.content, OwlPolishPromptCatalog.variant(id: "v1-legacy").systemPrompt)
     XCTAssertEqual(request.temperature, 0.3)
   }
 
   func testUnknownVariantFallsBackToLegacyWithoutCrashing() throws {
     OwlExperimentalPreferences.selectionPolishPromptVariant = "v9-does-not-exist"
-    XCTAssertEqual(OwlPolishPromptCatalog.resolveActive().id, OwlPolishPromptCatalog.legacyVariantID)
+    XCTAssertEqual(OwlPolishPromptCatalog.resolveActive().id, "v1-legacy")
 
     // 请求构造层同样回退 v1，不崩、不空 prompt。
     let request = try OwlSelectionPolish.chatRequest(for: "他撤销了合同")
-    XCTAssertEqual(request.messages.first?.content, OwlPolishPromptCatalog.legacySystemPrompt)
+    XCTAssertEqual(request.messages.first?.content, OwlPolishPromptCatalog.variant(id: "v1-legacy").systemPrompt)
     XCTAssertEqual(request.temperature, 0.3)
   }
 
-  func testLegacyAliasStaysByteIdentical() {
-    // OwlSelectionPolish.systemPrompt 是 v1 的别名——两处必须永远同一份字节
-    // （v1 的内容本身可演进，如 2026-07-31 的保真硬线，但别名不许漂移）。
-    XCTAssertEqual(OwlSelectionPolish.systemPrompt, OwlPolishPromptCatalog.legacySystemPrompt)
-    XCTAssertTrue(OwlPolishPromptCatalog.legacySystemPrompt.contains("{\"candidates\":"))
+  func testV1KeepsCandidatesJSONContract() throws {
+    let request = try OwlSelectionPolish.chatRequest(for: "他撤销了合同")
+    XCTAssertTrue(try XCTUnwrap(request.messages.first?.content).contains("{\"candidates\":"))
   }
 
   /// 2026-07-31 保真硬线（真读回：经 chatRequest 落进请求体）。旧基线 qwen3.7-flash 实盘把
@@ -61,8 +59,7 @@ final class OwlPolishPromptCatalogTests: XCTestCase {
     XCTAssertTrue(v1System.contains("撤销"), "v1 必须点名法律动作词示例")
     XCTAssertTrue(v1System.contains("degree of certainty"), "v1 必须保确定度")
 
-    OwlExperimentalPreferences.selectionPolishPromptVariant =
-      OwlPolishPromptCatalog.responsayAlignedVariantID
+    OwlExperimentalPreferences.selectionPolishPromptVariant = "v2-responsay-aligned"
     let v2 = try OwlSelectionPolish.chatRequest(for: "他可能撤销合同")
     let v2System = v2.messages.first?.content ?? ""
     XCTAssertTrue(v2System.contains("Do not swap action/effect words"), "v2 红线段必须含动作词条")
@@ -73,11 +70,11 @@ final class OwlPolishPromptCatalogTests: XCTestCase {
 
   func testVariantSwitchReachesRequestBody() throws {
     // 真读回：设置偏好（不直接传 variant 参数）→ chatRequest 默认参数解析 → 请求体切到 v2。
-    OwlExperimentalPreferences.selectionPolishPromptVariant = OwlPolishPromptCatalog.responsayAlignedVariantID
+    OwlExperimentalPreferences.selectionPolishPromptVariant = "v2-responsay-aligned"
 
     let request = try OwlSelectionPolish.chatRequest(for: "他撤销了合同")
     let system = request.messages.first?.content ?? ""
-    XCTAssertEqual(system, OwlPolishPromptCatalog.responsayAlignedSystemPrompt)
+    XCTAssertEqual(system, OwlPolishPromptCatalog.variant(id: "v2-responsay-aligned").systemPrompt)
     XCTAssertEqual(request.temperature, 0.2, "v2 对齐 Responsay rewrite 线 temp 0.2")
 
     // 三块硬护栏都在 system prompt 里（spec §2.2）。
@@ -92,15 +89,15 @@ final class OwlPolishPromptCatalogTests: XCTestCase {
     XCTAssertTrue(body.contains("0.2"))
 
     // 切回 v1 → 请求体还原。
-    OwlExperimentalPreferences.selectionPolishPromptVariant = OwlPolishPromptCatalog.legacyVariantID
+    OwlExperimentalPreferences.selectionPolishPromptVariant = "v1-legacy"
     let reverted = try OwlSelectionPolish.chatRequest(for: "他撤销了合同")
-    XCTAssertEqual(reverted.messages.first?.content, OwlPolishPromptCatalog.legacySystemPrompt)
+    XCTAssertEqual(reverted.messages.first?.content, OwlPolishPromptCatalog.variant(id: "v1-legacy").systemPrompt)
     XCTAssertEqual(reverted.temperature, 0.3)
   }
 
   func testV2KeepsCandidatesJSONContract() {
     // v2 沿用 {"candidates":[...]} json_object 契约，OwlNumberedRewriteParser 不需要任何改动。
-    let prompt = OwlPolishPromptCatalog.responsayAlignedSystemPrompt
+    let prompt = OwlPolishPromptCatalog.variant(id: "v2-responsay-aligned").systemPrompt
     XCTAssertTrue(prompt.contains("{\"candidates\":"))
     XCTAssertTrue(prompt.lowercased().contains("json"))
   }

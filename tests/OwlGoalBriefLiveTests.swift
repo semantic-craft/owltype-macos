@@ -33,7 +33,12 @@ final class OwlGoalBriefLiveTests: XCTestCase {
   /// 用真实代码构造的请求体直接 POST（产品同款 Responses wire），把原始响应落盘供人工核对形状。
   @discardableResult
   private func dumpRawResponse(draft: String, apiKey: String, label: String) async throws -> String {
-    let payload = OwlGoalBrief.chatRequest(forDraft: draft, model: model, providerID: "doubao")
+    let payload = OwlStructuredDrafting.chatRequest(
+      systemPrompt: OwlGoalBrief.systemPrompt,
+      draft: draft,
+      model: model,
+      providerID: "doubao",
+      temperature: OwlGoalBrief.structuredDraftingConfiguration.temperature)
     let request = try OwlResponsesWire.request(
       endpoint: endpoint,
       model: model,
@@ -53,7 +58,9 @@ final class OwlGoalBriefLiveTests: XCTestCase {
       toFile: "/tmp/owl-live-goalbrief-\(label).json", atomically: true, encoding: .utf8)
     XCTAssertEqual(status, 200, "方舟返回非 200：\(body.prefix(400))")
 
-    let content = (try? OwlResponsesWire.parse(data))?.text ?? ""
+    let content = (try? OwlProviderCore.call("completionParse", [
+      "bytes": Array(data), "responses": true, "status": status, "model": model
+    ]) as [String: String?]?)?["text"] ?? nil ?? ""
     try? content.write(
       toFile: "/tmp/owl-live-goalbrief-\(label)-content.txt", atomically: true, encoding: .utf8)
     return content
@@ -117,7 +124,7 @@ final class OwlGoalBriefLiveTests: XCTestCase {
     case let .needsClarification(questions):
       XCTAssertFalse(questions.isEmpty)
       XCTAssertLessThanOrEqual(
-        questions.count, OwlPromptOptimizer.maxClarificationQuestions,
+        questions.count, 3,
         "问题数必须被截到上限内，否则预填会撑爆单行输入框")
     case let .ready(brief):
       // 模型选择出书而非反问也算合理，但必须把说不清的事落进〈未知〉而不是编造细节。

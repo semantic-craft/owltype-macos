@@ -130,15 +130,13 @@ final class OwlLLMGatewayTests: XCTestCase {
   override func setUp() async throws {
     try await super.setUp()
     OwlCloudPreferences.resetForTesting()
-    OwlCloudUsageTelemetry.resetForTesting()
     savedVariant = OwlExperimentalPreferences.selectionPolishPromptVariant
-    OwlExperimentalPreferences.selectionPolishPromptVariant = OwlPolishPromptCatalog.legacyVariantID
+    OwlExperimentalPreferences.selectionPolishPromptVariant = "v1-legacy"
   }
 
   override func tearDown() async throws {
     OwlExperimentalPreferences.selectionPolishPromptVariant = savedVariant
     OwlCloudPreferences.resetForTesting()
-    OwlCloudUsageTelemetry.resetForTesting()
     try await super.tearDown()
   }
 
@@ -185,13 +183,10 @@ final class OwlLLMGatewayTests: XCTestCase {
     }
   }
 
-  func testPurposeFixesTimeoutAndRetry() {
+  func testPurposeFixesTimeout() {
     XCTAssertEqual(OwlLLMCallPurpose.interactiveRewrite.timeout, 8)
-    XCTAssertEqual(OwlLLMCallPurpose.interactiveRewrite.maxAttempts, 2)
     XCTAssertEqual(OwlLLMCallPurpose.drafting.timeout, 60)
-    XCTAssertEqual(OwlLLMCallPurpose.drafting.maxAttempts, 1)
     XCTAssertEqual(OwlLLMCallPurpose.connectivityProbe.timeout, 20)
-    XCTAssertEqual(OwlLLMCallPurpose.connectivityProbe.maxAttempts, 1)
   }
 
   private func payload(_ routing: OwlCloudRouting, _ text: String = "他撤销了合同") throws -> OwlDeepSeekChatRequest {
@@ -279,30 +274,6 @@ final class OwlLLMGatewayTests: XCTestCase {
       XCTFail("401 must surface")
     } catch let error as OwlStreamingError {
       XCTAssertEqual(error, .badHTTPStatus(401))
-    }
-  }
-
-  func testTelemetryRecordsTokenCountsButNeverText() async throws {
-    let sentinel = "SENTINEL_甲乙丙"
-    let replies: [(OwlCloudRouting, String)] = [
-      (Self.routing("openai", "https://api.openai.com/v1/chat/completions", "gpt-4o"),
-       #"{"choices":[{"message":{"content":"SENTINEL_甲乙丙"}}],"model":"gpt-4o","usage":{"completion_tokens":3,"prompt_tokens":5,"total_tokens":8}}"#),
-      (Self.routing("qwen", "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", "qwen3.7-plus"),
-       #"{"output_text":"SENTINEL_甲乙丙","model":"qwen3.7-plus","usage":{"input_tokens":5,"output_tokens":3,"total_tokens":8}}"#),
-    ]
-    for (routing, reply) in replies {
-      OwlCloudUsageTelemetry.resetForTesting()
-      let transport = OwlRecordingTransport.replying(Data(reply.utf8))
-
-      let text = try await OwlLLMGateway(transport: transport)
-        .complete(try payload(routing, sentinel), routing: routing, apiKey: "sk-test", purpose: .drafting)
-
-      XCTAssertEqual(text, sentinel)
-      let usage = try XCTUnwrap(OwlCloudUsageTelemetry.lastUsage, routing.providerID)
-      XCTAssertEqual(usage.model, routing.model)
-      XCTAssertEqual(usage.totalTokens, 8)
-      let stored = String(decoding: try JSONEncoder().encode(usage), as: UTF8.self)
-      XCTAssertFalse(stored.contains("SENTINEL"), "telemetry must never carry request or reply text")
     }
   }
 }

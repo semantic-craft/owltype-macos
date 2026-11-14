@@ -39,7 +39,6 @@ struct OwlResponsesStreamParser {
   private let core = OwlProviderStream(responses: true)
   var isFinished: Bool { core.isFinished }
   var failure: String? { core.failure }
-  mutating func consume(_ chunk: String) -> [String] { core.consume(Data(chunk.utf8)) }
   mutating func consume(_ chunk: Data) -> [String] { core.consume(chunk) }
   mutating func finish() -> [String] { core.finish() }
   mutating func cancel() { core.cancel() }

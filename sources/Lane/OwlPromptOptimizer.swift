@@ -71,12 +71,6 @@ final class OwlPromptOptimizeService {
 }
 
 enum OwlPromptOptimizer {
-  /// Live evaluation 保留的领域入口；单一实现已经在 structured seam。
-  static let fallbackClarification = OwlStructuredDrafting.fallbackClarification
-
-  /// 澄清问题上限：要预填进任意提问窗口的单行输入框，多了就没法用了。
-  static let maxClarificationQuestions = OwlStructuredDrafting.maxClarificationQuestions
-
   /// 改写目标依据 Anthropic《Prompting Claude Fable 5》：补齐四要素、去步骤脚手架、
   /// 禁止要求复述内部推理（会触发 reasoning_extraction 拒绝）；并依《Prompting best
   /// practices》「Structure prompts with XML tags」给产出按语义套成对标签（原「结构化·
@@ -104,42 +98,4 @@ enum OwlPromptOptimizer {
       }
     }
   )
-
-  /// 装配一次优化请求。纯函数（model 由调用方解析后传入），好让请求体可以在单测里断言。
-  ///
-  /// `clarifications` 为空时与首轮请求逐字节一致；补答存在时追加一条用户消息带上问答，
-  /// 这样澄清循环不必依赖对话历史就能重跑（#137 落地后可换成真多轮承载）。
-  static func chatRequest(
-    forDraft draft: String,
-    clarifications: [OwlPromptClarification] = [],
-    model: String,
-    providerID: String = ""
-  ) -> OwlDeepSeekChatRequest {
-    OwlStructuredDrafting.chatRequest(
-      systemPrompt: systemPrompt,
-      draft: draft,
-      clarifications: clarifications,
-      model: model,
-      providerID: providerID,
-      temperature: structuredDraftingConfiguration.temperature
-    )
-  }
-
-  /// 模型回复 → 结果。总是返回一个结果：解析失败不抛错、不静默丢弃。
-  ///
-  /// 安全不变式：`.ready` 只在拿到非空终稿时产生。任何退化（空 prompt、认不出的 status、
-  /// 空问题列表）一律转澄清态——否则替换流会清空用户草稿，或把 JSON 原文粘进编辑器。
-  static func parse(_ raw: String) -> OwlPromptOptimizeOutcome {
-    OwlStructuredDrafting.parse(raw)
-  }
-
-  /// 受保护标签三明治（照搬 #136 护栏③）。本技能的输入按定义就是一段指令，最容易被优化器
-  /// 「执行」而不是「改写」，所以这道护栏比润色线更要紧。
-  ///
-  /// 与 #136 的差别：只转义标签本身，不转义所有尖括号。草稿是待改写的正文，可能含
-  /// `Array<String>` 这类代码；全量转义会毁掉保真度，而硬规则要求原样保留代码。
-  ///
-  static func sandwiched(_ draft: String) -> String {
-    OwlStructuredDrafting.protectedDraft(draft)
-  }
 }

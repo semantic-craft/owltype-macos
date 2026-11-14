@@ -57,9 +57,6 @@ protocol OwlStructuredDraftingRemote {
 /// Admission -> auth -> protected request -> remote adapter -> safe outcome.
 @MainActor
 final class OwlStructuredDrafting {
-  nonisolated static let fallbackClarification: String = OwlAIBusinessCore.call("clarification")
-  nonisolated static let maxClarificationQuestions: Int = OwlAIBusinessCore.call("limit", ["id": "clarifications"])
-
   private let configuration: OwlStructuredDraftingConfiguration
   private let cloudEnabled: () -> Bool
   private let authorization: () -> OwlProviderAuthOutcome
@@ -141,14 +138,6 @@ final class OwlStructuredDrafting {
     if let prompt = outcome.prompt { return .ready(prompt) }
     return .needsClarification(outcome.questions!)
   }
-
-  /// Protects a draft without escaping ordinary angle brackets, so code and HTML remain byte-for-
-  /// byte intact. Only the sentinel tags are escaped to prevent a draft from closing the boundary.
-  nonisolated static func protectedDraft(_ draft: String) -> String {
-    OwlAIBusinessCore.call("protectedDraft", ["text": draft])
-  }
-
-
 }
 
 /// Live adapter: the module's authorized request through the LLM gateway, which owns provider

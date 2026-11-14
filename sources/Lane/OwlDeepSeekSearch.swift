@@ -27,11 +27,6 @@ protocol OwlDeepSeekSearching: Sendable {
 enum OwlDeepSeekSearchWire {
   static let path: String = OwlProviderCore.call("searchPath")
 
-  /// 文档：query 与 ori_question 都是 1~128 个 Unicode 字符。按 Character 截，别截出半个码点。
-  static let maxQueryLength = 128
-  /// 文档：count 1~50。
-  static let maxCount = 50
-
   /// 搜索接口挂在作答端点的同一主机下：`https://api.deepseek.com/chat/completions` →
   /// `https://api.deepseek.com/v1/tools/search`。代理没有这个接口时会回 404，交给顺位规则换下一家。
   static func endpoint(for chatEndpoint: URL) -> URL? {
@@ -41,11 +36,6 @@ enum OwlDeepSeekSearchWire {
     components.query = nil
     components.fragment = nil
     return components.url
-  }
-
-  /// 空白折成单个空格后截断。整句提问直接当检索词：接口按 `ori_question` 理解意图，不必另造关键词。
-  static func query(from text: String) -> String {
-    OwlProviderCore.call("searchQuery", ["text": text])
   }
 
   static func body(query: String, limit: Int) -> [String: Any] {
@@ -109,11 +99,6 @@ enum OwlWebSearchGrounding {
   /// 任意提问每次取回的网页数。
   static let askResultCount = 8
 
-  /// `[1] 标题 / 来源 / 发布时间 / 网址 / 摘要`，结果之间空一行。
-  static func numbered(_ results: [OwlWebSearchResult]) -> String {
-    OwlProviderCore.call("numbered", ["results": OwlAppCore.payload(results)])
-  }
-
   static func askSystemPrompt(_ results: [OwlWebSearchResult], today: Date = Date()) -> String {
     OwlProviderCore.call("groundingPrompt", ["results": OwlAppCore.payload(results),
       "day": today.formatted(.iso8601.year().month().day())])
@@ -124,11 +109,6 @@ enum OwlWebSearchGrounding {
     _ messages: [OwlDeepSeekMessage], results: [OwlWebSearchResult], today: Date = Date()
   ) -> [OwlDeepSeekMessage] {
     [OwlDeepSeekMessage(role: "system", content: askSystemPrompt(results, today: today))] + messages
-  }
-
-  /// 答案里 `[n]` 引到的结果，按引用顺序、去重。
-  static func cited(_ results: [OwlWebSearchResult], in content: String) -> [OwlWebSearchResult] {
-    OwlProviderCore.call("cited", ["results": OwlAppCore.payload(results), "answer": content])
   }
 
   /// 答案末尾的来源列表，由检索结果生成，不让模型自己写网址。保留原编号，与正文 `[n]` 对得上；
