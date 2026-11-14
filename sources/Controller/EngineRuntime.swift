@@ -143,12 +143,7 @@ final class EngineRuntime {
   /// 必须探真内容（owltype.yaml 恒有 style 段）。
   private static func isUsable(_ config: OwlConfig?) -> Bool {
     guard let config else { return false }
-    let hasSection = config.has(section: "style")
-    return OwlAppCore.required([
-      "operation": "pure_rule",
-      "rule": "engine_runtime_is_usable",
-      "args": ["has_style_section": hasSection]
-    ])
+    return config.has(section: "style")
   }
 
   private func makeConfig() -> OwlConfig {
