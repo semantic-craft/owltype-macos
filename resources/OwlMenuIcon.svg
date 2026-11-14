@@ -1,5 +1,3 @@
-<!-- Original ink-drop menu artwork from e966feb.
-     Regenerate: rsvg-convert -f pdf -o resources/OwlMenuIcon.pdf resources/OwlMenuIcon.svg -->
 <svg xmlns="http://www.w3.org/2000/svg" width="16pt" height="16pt" viewBox="0 0 16 16">
   <path fill="black" d="M9.801 1.457C10.953 5.168 12.852 7.883 11.98 10.91C11.266 13.406 8.66 14.852 6.164 14.137C3.668 13.418 2.223 10.816 2.941 8.316C3.809 5.289 6.852 3.992 9.801 1.457Z"/>
 </svg>
