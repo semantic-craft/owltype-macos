@@ -86,25 +86,6 @@ enum OwlSettingsPage: String, CaseIterable, Identifiable, Sendable {
     }
   }
 
-  /// Alternative single-character badge (the earlier Claude Design look). No longer
-  /// rendered — kept for a one-line revert of `sidebarRow`. ponytail: delete if the
-  /// SF Symbol look sticks.
-  var mono: String {
-    switch self {
-    case .keyboard: return "键"
-    case .shortcuts: return "捷"
-    case .appearance: return "候"
-    case .schemes: return "案"
-    case .quickSend: return "短"
-    case .clipboard: return "贴"
-    case .project: return "技"
-    case .ai: return "智"
-    case .agent: return "代"
-    case .skin: return "皮"
-    case .diagnostics: return "诊"
-    case .about: return "关"
-    }
-  }
 }
 
 /// Observable backing state for `OwlSettingsView`.

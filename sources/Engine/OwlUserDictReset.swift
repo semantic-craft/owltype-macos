@@ -69,14 +69,14 @@ enum OwlUserDictReset {
   static func run(root: URL, timestamp: String,
                   removeCheckpoint: (String) throws -> Void = { _ in }) throws -> OwlUserDictResetOutcome {
     try withoutActuallyEscaping(removeCheckpoint) { checkpoint in
-      try execute("user_reset", root: root, timestamp: timestamp, checkpoint: checkpoint)
+      try execute(root: root, timestamp: timestamp, checkpoint: checkpoint)
     }
   }
 
-  private static func execute(_ operation: String, root: URL, timestamp: String,
+  private static func execute(root: URL, timestamp: String,
                               checkpoint: @escaping (String) throws -> Void = { _ in }) throws -> OwlUserDictResetOutcome {
     let host = OwlStorageHost(dataDir: root, checkpoint: checkpoint)
-    let reply: Reply = try host.call(operation, ["timestamp": timestamp])
+    let reply: Reply = try host.call("user_reset", ["timestamp": timestamp])
     if let error = reply.error {
       func reason(_ token: String) -> String {
         token == "not_directory" ? "不是普通目录" : (host.errors[token]?.localizedDescription ?? token)
