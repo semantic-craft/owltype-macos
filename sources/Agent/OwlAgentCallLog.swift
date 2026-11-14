@@ -88,35 +88,6 @@ final class OwlAgentCallLog: @unchecked Sendable {
   /// Waits until every change so far is on disk (tests).
   func flush() { writer.sync {} }
 
-  static func outcome(_ reply: OwlAgentBridgeReply) -> String {
-    let replyStatus: String?
-    let replyErrorCode: String?
-    switch reply {
-    case .success(let value):
-      if case .string(let status)? = value["status"] { replyStatus = status } else { replyStatus = "ok" }
-      replyErrorCode = nil
-    case .failure(let error):
-      replyStatus = nil
-      replyErrorCode = error.code.name
-    }
-    struct OutcomeResult: Decodable {
-      let outcome: String
-    }
-    let res: OutcomeResult = OwlAppCore.required([
-      "operation": "agent_rule",
-      "rule": "call_log_record",
-      "args": [
-        "client_name": "",
-        "client_version": "",
-        "method": "",
-        "reply_status": replyStatus as Any? ?? NSNull(),
-        "reply_error_code": replyErrorCode as Any? ?? NSNull(),
-        "at_iso8601": ""
-      ]
-    ])
-    return res.outcome
-  }
-
   private func loadedLocked() -> [OwlAgentCallRecord] {
     if let cached { return cached }
     let decoder = JSONDecoder()

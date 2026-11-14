@@ -41,19 +41,18 @@ final class OwlAgentSettingsTests: XCTestCase {
         return
       }
     }
-    let access = OwlAgentAccess()
+    let log = OwlAgentCallLog(fileURL: nil)
+    let access = OwlAgentAccess(callLog: log)
     access.loadLibrary = { OwlTemplateLibrary() }
     let client = OwlAgentBridgeClient(helper: .init(name: "owltype-mcp", version: "0.1.0"),
                                       agentClient: nil, processID: 1)
     for enabled in [false, true, false] {
+      log.clear()
       OwlAgentAccessPreferences.setEnabled(enabled)
       XCTAssertEqual(isolated.bool(forKey: key), enabled)
       XCTAssertEqual(OwlAgentAccessPreferences.isEnabled(), enabled)
-      var outcome: String?
-      access.handle(.templatesList, from: client, cancellation: OwlAgentBridgeCancellation()) {
-        outcome = OwlAgentCallLog.outcome($0)
-      }
-      XCTAssertEqual(outcome, enabled ? "ok" : "agent_access_disabled")
+      access.handle(.templatesList, from: client, cancellation: OwlAgentBridgeCancellation()) { _ in }
+      XCTAssertEqual(log.records.last?.outcome, enabled ? "ok" : "agent_access_disabled")
       let dailyAfter = UserDefaults.standard.persistentDomain(forName: domain) ?? [:]
       XCTAssertTrue(NSDictionary(dictionary: dailyBefore).isEqual(to: dailyAfter), "Daily preferences changed")
     }
