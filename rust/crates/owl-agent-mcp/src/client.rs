@@ -150,16 +150,15 @@ async fn read_line(reader: &mut (impl AsyncBufRead + Unpin)) -> Result<Vec<u8>, 
         if buffer.is_empty() {
             return Err(BridgeError::Io("Owltype closed the connection".into()));
         }
-        if let Some(end) = buffer.iter().position(|&byte| byte == b'\n') {
-            line.extend_from_slice(&buffer[..end]);
-            reader.consume(end + 1);
-            return Ok(line);
-        }
-        let taken = buffer.len();
-        line.extend_from_slice(buffer);
-        reader.consume(taken);
+        let end = buffer.iter().position(|&byte| byte == b'\n');
+        let taken = end.unwrap_or(buffer.len());
+        line.extend_from_slice(&buffer[..taken]);
+        reader.consume(taken + usize::from(end.is_some()));
         if line.len() > MAX_LINE_BYTES {
             return Err(BridgeError::Protocol("answer longer than 1 MiB".into()));
+        }
+        if end.is_some() {
+            return Ok(line);
         }
     }
 }
