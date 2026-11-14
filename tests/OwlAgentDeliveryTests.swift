@@ -16,12 +16,18 @@ private final class FakeTarget: OwlAgentDeliveryTarget {
   var isTerminated = false
   var outcome = OwlTemplateDeliveryOutcome.confirmed
   var writes: [String] = []
+  var deferCompletion = false
+  var completions: [(OwlTemplateDeliveryOutcome) -> Void] = []
 
   init(_ process: pid_t) { processIdentifier = process }
 
   func write(_ text: String, completion: @escaping (OwlTemplateDeliveryOutcome) -> Void) {
     writes.append(text)
-    completion(outcome)
+    if deferCompletion {
+      completions.append(completion)
+    } else {
+      completion(outcome)
+    }
   }
 }
 
@@ -112,6 +118,114 @@ final class OwlAgentDeliveryTests: XCTestCase {
     preview.decide?(false)
     XCTAssertEqual(try result(reply()).status, .cancelled)
     XCTAssertTrue(host.target.writes.isEmpty)
+  }
+
+  func testConfirmationKeepsTheOriginallyBoundFieldInTheSameApp() throws {
+    let reply = start(params())
+    let otherField = FakeTarget(host.target.processIdentifier)
+    host.bindResult = .success(otherField)
+
+    preview.decide?(true)
+
+    XCTAssertEqual(try result(reply()), .init(requestId: "r1", status: .delivered(verified: true), replayed: false))
+    XCTAssertEqual(host.target.writes, ["你好"])
+    XCTAssertTrue(otherField.writes.isEmpty)
+  }
+
+  func testBusyRequestCannotReplaceTheActiveRequestsBoundField() throws {
+    let active = start(params("active"))
+    let otherField = FakeTarget(host.target.processIdentifier)
+    host.bindResult = .success(otherField)
+    let busy = start(params("busy", text: "other"))
+    guard case .failure(let error) = try XCTUnwrap(busy()) else { return XCTFail("expected delivery_busy") }
+    XCTAssertEqual(error.code, .deliveryBusy)
+    host.bindResult = .failure(.noTarget)
+
+    preview.decide?(true)
+
+    XCTAssertEqual(try result(active()), .init(requestId: "active", status: .delivered(verified: true), replayed: false))
+    XCTAssertEqual(host.target.writes, ["你好"])
+    XCTAssertTrue(otherField.writes.isEmpty)
+  }
+
+  func testReplayedRequestCannotReplaceTheActiveRequestsBoundField() throws {
+    let completed = start(params("completed"))
+    preview.decide?(false)
+    XCTAssertEqual(try result(completed()).status, .cancelled)
+    let active = start(params("active"))
+    let otherField = FakeTarget(host.target.processIdentifier)
+    host.bindResult = .success(otherField)
+    let replay = start(params("completed"))
+    XCTAssertEqual(try result(replay()), .init(requestId: "completed", status: .cancelled, replayed: true))
+    host.bindResult = .failure(.noTarget)
+
+    preview.decide?(true)
+
+    XCTAssertEqual(try result(active()), .init(requestId: "active", status: .delivered(verified: true), replayed: false))
+    XCTAssertEqual(host.target.writes, ["你好"])
+    XCTAssertTrue(otherField.writes.isEmpty)
+  }
+
+  func testCompletedRequestsTimeoutCannotExpireTheNextRequest() throws {
+    let first = start(params("first", timeout: 5_000))
+    preview.decide?(false)
+    XCTAssertEqual(try result(first()).status, .cancelled)
+    let next = start(params("next", text: "next", timeout: 120_000))
+
+    host.fire(5)
+
+    XCTAssertNil(next())
+    XCTAssertTrue(coordinator.isWaiting)
+    XCTAssertTrue(host.target.writes.isEmpty)
+    preview.decide?(true)
+    XCTAssertEqual(try result(next()), .init(requestId: "next", status: .delivered(verified: true), replayed: false))
+    XCTAssertEqual(host.target.writes, ["next"])
+  }
+
+  func testExpiredRequestsPreviewCannotConfirmTheNextRequest() throws {
+    let first = start(params("first", timeout: 5_000))
+    let oldDecision = try XCTUnwrap(preview.decide)
+    host.fire(5)
+    XCTAssertEqual(try result(first()).status, .expired)
+    let next = start(params("next", text: "next"))
+
+    oldDecision(true)
+
+    XCTAssertNil(next())
+    XCTAssertTrue(coordinator.isWaiting)
+    XCTAssertTrue(host.target.writes.isEmpty)
+    preview.decide?(true)
+    XCTAssertEqual(try result(next()), .init(requestId: "next", status: .delivered(verified: true), replayed: false))
+    XCTAssertEqual(host.target.writes, ["next"])
+  }
+
+  func testCompletedRequestsHostReceiptCannotCompleteTheNextWrite() throws {
+    host.target.deferCompletion = true
+    let first = start(params("first", text: "first"))
+    preview.decide?(true)
+    let oldCompletion = try XCTUnwrap(host.target.completions.first)
+    host.target.isTerminated = true
+    coordinator.applicationDidTerminate(host.target.processIdentifier)
+    XCTAssertEqual(try result(first()).status, .targetChanged(.targetQuit))
+
+    let nextTarget = FakeTarget(300)
+    nextTarget.deferCompletion = true
+    host.frontmostProcess = nextTarget.processIdentifier
+    host.bindResult = .success(nextTarget)
+    let next = start(params("next", text: "next"))
+    preview.decide?(true)
+    let nextCompletion = try XCTUnwrap(nextTarget.completions.first)
+
+    oldCompletion(.confirmed)
+
+    XCTAssertNil(next())
+    XCTAssertTrue(coordinator.isWaiting)
+    XCTAssertEqual(host.target.writes, ["first"])
+    XCTAssertEqual(nextTarget.writes, ["next"])
+    nextCompletion(.attemptedUnverified)
+    XCTAssertEqual(try result(next()), .init(requestId: "next", status: .delivered(verified: false), replayed: false))
+    XCTAssertFalse(coordinator.isWaiting)
+    XCTAssertEqual(nextTarget.writes, ["next"])
   }
 
   func testNoDecisionExpiresAndALateClickCannotWrite() throws {
