@@ -1,16 +1,16 @@
 import Foundation
 
-public struct OwlVoiceASRPreset: Identifiable, Equatable, Sendable {
-  public let id: String
-  public let displayName: String
-  public let endpoint: String
-  public let defaultModel: String
-  public let curatedModels: [String]
-  public let keyLabel: String
-  public let keyHint: String
-  public let sharesProviderProfileKey: Bool
+struct OwlVoiceASRPreset: Identifiable, Equatable, Sendable {
+  let id: String
+  let displayName: String
+  let endpoint: String
+  let defaultModel: String
+  let curatedModels: [String]
+  let keyLabel: String
+  let keyHint: String
+  let sharesProviderProfileKey: Bool
 
-  public init(
+  init(
     id: String,
     displayName: String,
     endpoint: String,
@@ -30,11 +30,11 @@ public struct OwlVoiceASRPreset: Identifiable, Equatable, Sendable {
     self.sharesProviderProfileKey = sharesProviderProfileKey
   }
 
-  public var requiresAPIKey: Bool { true }
+  var requiresAPIKey: Bool { true }
 }
 
-public enum OwlVoiceASRCatalog {
-  public static let openai = OwlVoiceASRPreset(
+enum OwlVoiceASRCatalog {
+  static let openai = OwlVoiceASRPreset(
     id: "openai",
     displayName: "OpenAI",
     endpoint: "https://api.openai.com/v1/audio/transcriptions",
@@ -49,7 +49,7 @@ public enum OwlVoiceASRCatalog {
     keyHint: "sk-..."
   )
 
-  public static let gemini = OwlVoiceASRPreset(
+  static let gemini = OwlVoiceASRPreset(
     id: "gemini",
     displayName: "Google Gemini",
     endpoint: "https://generativelanguage.googleapis.com/v1beta/models",
@@ -63,7 +63,7 @@ public enum OwlVoiceASRCatalog {
     keyHint: "AIza..."
   )
 
-  public static let deepseek = OwlVoiceASRPreset(
+  static let deepseek = OwlVoiceASRPreset(
     id: "deepseek",
     displayName: "DeepSeek",
     endpoint: "https://api.deepseek.com/v1/tools/asr",
@@ -73,25 +73,23 @@ public enum OwlVoiceASRCatalog {
     keyHint: "sk-..."
   )
 
-  public static let presets: [OwlVoiceASRPreset] = [openai, gemini, deepseek]
+  static let presets: [OwlVoiceASRPreset] = [openai, gemini, deepseek]
 
-  public static func preset(id: String) -> OwlVoiceASRPreset {
+  static func preset(id: String) -> OwlVoiceASRPreset {
     let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     return presets.first(where: { $0.id == trimmed }) ?? openai
   }
 }
 
-public enum OwlVoiceSettings {
-  public static let enabledKey = "OwlVoiceInputEnabled"
-  public static let polishEnabledKey = "OwlVoicePolishEnabled"
-  public static let holdRightOptionKey = "OwlVoiceHoldRightOptionEnabled"
-  public static let asrProviderIDKey = "OwlVoiceASRProviderID"
-  public static let asrEndpointKey = "OwlVoiceASREndpoint"
-  public static let asrModelKey = "OwlVoiceASRModel"
+enum OwlVoiceSettings {
+  static let enabledKey = "OwlVoiceInputEnabled"
+  static let polishEnabledKey = "OwlVoicePolishEnabled"
+  static let holdRightOptionKey = "OwlVoiceHoldRightOptionEnabled"
+  static let asrProviderIDKey = "OwlVoiceASRProviderID"
+  static let asrEndpointKey = "OwlVoiceASREndpoint"
+  static let asrModelKey = "OwlVoiceASRModel"
 
-  public static let defaultASRProviderID = OwlVoiceASRCatalog.openai.id
-  public static let defaultASREndpoint = OwlVoiceASRCatalog.openai.endpoint
-  public static let defaultASRModel = OwlVoiceASRCatalog.openai.defaultModel
+  static let defaultASRProviderID = OwlVoiceASRCatalog.openai.id
 
   private static let knownPresetEndpoints: Set<String> = Set(
     OwlVoiceASRCatalog.presets.map(\.endpoint) + ["https://api.x.ai/v1/audio/transcriptions"]
@@ -100,17 +98,17 @@ public enum OwlVoiceSettings {
     OwlVoiceASRCatalog.presets.flatMap(\.curatedModels) + ["grok-2-vision-1212", "grok-asr-1", "chatgpt-dictation"]
   )
 
-  public static var isEnabled: Bool {
+  static var isEnabled: Bool {
     get { OwlDefaults.standard.bool(forKey: enabledKey) }
     set { OwlDefaults.standard.set(newValue, forKey: enabledKey) }
   }
 
-  public static var isPolishEnabled: Bool {
+  static var isPolishEnabled: Bool {
     get { OwlDefaults.standard.bool(forKey: polishEnabledKey) }
     set { OwlDefaults.standard.set(newValue, forKey: polishEnabledKey) }
   }
 
-  public static var holdRightOptionEnabled: Bool {
+  static var holdRightOptionEnabled: Bool {
     get {
       if OwlDefaults.standard.object(forKey: holdRightOptionKey) == nil {
         return true
@@ -155,7 +153,7 @@ public enum OwlVoiceSettings {
     return defaultASRProviderID
   }
 
-  public static var asrProviderID: String {
+  static var asrProviderID: String {
     get { resolvedASRProviderID() }
     set {
       let preset = OwlVoiceASRCatalog.preset(id: newValue)
@@ -163,11 +161,11 @@ public enum OwlVoiceSettings {
     }
   }
 
-  public static var asrPreset: OwlVoiceASRPreset {
+  static var asrPreset: OwlVoiceASRPreset {
     OwlVoiceASRCatalog.preset(id: asrProviderID)
   }
 
-  public static var asrEndpoint: String {
+  static var asrEndpoint: String {
     get {
       let preset = asrPreset
       guard let raw = OwlDefaults.standard.string(forKey: asrEndpointKey) else {
@@ -189,7 +187,7 @@ public enum OwlVoiceSettings {
     }
   }
 
-  public static var asrModel: String {
+  static var asrModel: String {
     get {
       let preset = asrPreset
       guard let raw = OwlDefaults.standard.string(forKey: asrModelKey) else {
@@ -211,7 +209,7 @@ public enum OwlVoiceSettings {
     }
   }
 
-  public static var resolvedASREndpointURL: URL {
+  static var resolvedASREndpointURL: URL {
     let preset = asrPreset
     if let url = URL(string: asrEndpoint),
        let scheme = url.scheme?.lowercased(),
@@ -221,7 +219,7 @@ public enum OwlVoiceSettings {
     return URL(string: preset.endpoint)!
   }
 
-  public static var resolvedASRModel: String {
+  static var resolvedASRModel: String {
     let m = asrModel.trimmingCharacters(in: .whitespacesAndNewlines)
     return m.isEmpty ? asrPreset.defaultModel : m
   }
@@ -311,14 +309,5 @@ public enum OwlVoiceSettings {
     secrets: OwlSecretStoring = OwlProviderKeychain()
   ) throws {
     try secrets.deleteSecret(named: asrSecretName(forProviderID: providerID))
-  }
-
-  public static func resetForTesting() {
-    OwlDefaults.standard.removeObject(forKey: enabledKey)
-    OwlDefaults.standard.removeObject(forKey: polishEnabledKey)
-    OwlDefaults.standard.removeObject(forKey: holdRightOptionKey)
-    OwlDefaults.standard.removeObject(forKey: asrProviderIDKey)
-    OwlDefaults.standard.removeObject(forKey: asrEndpointKey)
-    OwlDefaults.standard.removeObject(forKey: asrModelKey)
   }
 }

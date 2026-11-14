@@ -25,10 +25,6 @@ enum AppRequest {
         rule: String,
         args: Value,
     },
-    ProviderRule {
-        rule: String,
-        args: Value,
-    },
     TemplateSessionRule {
         rule: String,
         args: Value,
@@ -47,9 +43,6 @@ enum AppRequest {
         rule: String,
         #[serde(default)]
         args: Value,
-    },
-    TemplateValidate {
-        library: Value,
     },
     TemplateDuplicate {
         entry: Value,
@@ -101,9 +94,6 @@ enum AppRequest {
     TemplateDatePattern {
         pattern: String,
         values: Vec<String>,
-    },
-    TemplateQuoted {
-        value: String,
     },
     KeyboardSelection {
         changed: String,
@@ -249,9 +239,6 @@ fn app_dispatch(bytes: &[u8]) -> Value {
             owl_app_core::client_capability::evaluate(&input)
         }
         AppRequest::UserDataRule { rule, args } => owl_app_core::user_data::rule(&rule, args),
-        AppRequest::ProviderRule { rule, args } => {
-            json!({"result": owl_app_core::provider_wire::rule(&rule, args)})
-        }
         AppRequest::TemplateSessionRule { rule, args } => {
             owl_app_core::template_session::rule(&rule, args)
         }
@@ -263,19 +250,6 @@ fn app_dispatch(bytes: &[u8]) -> Value {
         AppRequest::PureRule { rule, args } => {
             match owl_app_core::pure_rules::dispatch(&rule, args) {
                 Ok(value) => value,
-                Err(code) => return app_error(&code),
-            }
-        }
-        AppRequest::TemplateValidate { library } => {
-            let lib = match owl_app_core::storage::decode::<
-                owl_app_core::template_library::Library,
-            >(library)
-            {
-                Ok(l) => l,
-                Err(code) => return app_error(&code),
-            };
-            match owl_app_core::template_library::validate(&lib) {
-                Ok(()) => json!(true),
                 Err(code) => return app_error(&code),
             }
         }
@@ -408,7 +382,6 @@ fn app_dispatch(bytes: &[u8]) -> Value {
         AppRequest::TemplateDatePattern { pattern, values } => {
             json!(owl_app_core::template::date_pattern(&pattern, &values))
         }
-        AppRequest::TemplateQuoted { value } => json!(owl_app_core::template::quoted(&value)),
         AppRequest::KeyboardSelection { changed, raw } => {
             owl_app_core::keyboard::selection(&changed, &raw)
         }
@@ -739,8 +712,7 @@ mod app_ffi_tests {
     }
 
     #[test]
-    fn both_template_duplicate_entrypoints_preserve_content_and_reset_identity_metadata() {
-        let dir = TempDir::new().unwrap();
+    fn template_duplicate_preserves_content_and_resets_identity_metadata() {
         for exposure in [Value::Null, json!(false), json!(true)] {
             let mut entry = json!({
                 "id": "abcdefab-cdef-4abc-8def-abcdefabcdef",
@@ -784,28 +756,27 @@ mod app_ffi_tests {
             })).unwrap());
             assert_eq!(direct, json!({"ok":true,"value":expected}));
 
-            for request in [
-                json!({"operation":"template_duplicate", "entry":entry}),
-                json!({"operation":"storage", "data_dir":dir.path(),
-                    "storage_op":"library_duplicate", "args":{"entry":entry}}),
-            ] {
-                let result = call(1, &serde_json::to_vec(&request).unwrap());
-                assert_eq!(result["ok"], true);
-                let mut copy = result["value"].clone();
-                let id = copy["id"].as_str().unwrap();
-                assert!(owl_app_core::template_library::valid_id(id), "{result}");
-                assert_ne!(id, "ABCDEFAB-CDEF-4ABC-8DEF-ABCDEFABCDEF");
-                copy["id"] = json!("supplied-id");
-                assert_eq!(copy, expected);
-            }
+            let generated = call(
+                1,
+                &serde_json::to_vec(&json!({"operation":"template_duplicate", "entry":entry}))
+                    .unwrap(),
+            );
+            assert_eq!(generated["ok"], true);
+            let mut copy = generated["value"].clone();
+            let id = copy["id"].as_str().unwrap();
+            assert!(owl_app_core::template_library::valid_id(id), "{generated}");
+            assert_ne!(id, "ABCDEFAB-CDEF-4ABC-8DEF-ABCDEFABCDEF");
+            copy["id"] = json!("supplied-id");
+            assert_eq!(copy, expected);
         }
-        for request in [
-            json!({"operation":"template_duplicate", "entry":{"id":"invalid"}}),
-            json!({"operation":"storage", "data_dir":dir.path(),
-                "storage_op":"library_duplicate", "args":{"entry":{"id":"invalid"}}}),
-        ] {
-            assert_eq!(call(1, &serde_json::to_vec(&request).unwrap()), app_error("invalid_payload"));
-        }
+        assert_eq!(
+            call(
+                1,
+                &serde_json::to_vec(&json!({"operation":"template_duplicate", "entry":{"id":"invalid"}}))
+                    .unwrap()
+            ),
+            app_error("invalid_payload")
+        );
     }
 
     #[test]

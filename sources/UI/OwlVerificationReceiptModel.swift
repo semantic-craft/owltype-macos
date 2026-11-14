@@ -96,8 +96,6 @@ final class OwlVerificationReceiptModel: ObservableObject {
 
   // MARK: - 锚点准入（案号闸）
 
-  /// 抽取 + 案号准入闸：案例类锚点显示前必过 OwlCaseNumberVerifier（spec §1.7），
-  /// 形状对但年份非法（疑似杜撰）或残缺的案号不进清单。其余 kind 直接放行。
   static func admittedAnchors(from text: String, currentYear: Int) -> [OwlVerificationAnchor] {
     OwlAIBusinessCore.call("admittedAnchors", ["text": text, "currentYear": currentYear])
   }
@@ -165,15 +163,6 @@ final class OwlVerificationReceiptModel: ObservableObject {
 
   func cancelAll() {
     for anchor in anchors { cancel(anchor) }
-  }
-
-  /// 结果 → 行状态的纯映射（可单测）：有来源→绿；无来源（含 emptyResponse）→ notFound；
-  /// 其余错误→error。永不产出「判驳」。
-  nonisolated static func resolvedState(
-    from result: Result<OwlSourceVerificationOutcome, Error>, at date: Date
-  ) -> OwlAnchorVerifyState {
-    let value: Row = OwlAIBusinessCore.call("receiptState", resultFacts(result, at: date))
-    return value.native
   }
 
   func confirm(_ anchor: OwlVerificationAnchor) {

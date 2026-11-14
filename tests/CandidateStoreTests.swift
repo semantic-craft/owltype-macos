@@ -26,12 +26,10 @@ final class OwlCloudSharedBaseTests: XCTestCase {
   override func setUp() async throws {
     try await super.setUp()
     OwlCloudPreferences.resetForTesting()
-    OwlCloudUsageTelemetry.resetForTesting()
   }
 
   override func tearDown() async throws {
     OwlCloudPreferences.resetForTesting()
-    OwlCloudUsageTelemetry.resetForTesting()
     try await super.tearDown()
   }
 
@@ -62,31 +60,6 @@ final class OwlCloudSharedBaseTests: XCTestCase {
   // 任意提问的专属云闸测试（OwlAskAnythingGate）已随状态栏入口一并删除（2026-07-26）：无选区入口
   // 没了之后它只剩划词菜单一条路，关闸由 `OwlSelectionMenuAction.enabledActions(cloudEnabled:)`
   // 统一挡下（断言在 OwlSettingsActionTests，关闸返空数组＝连 .ask 都不出现）。
-
-  func testDeepSeekUsageTelemetryStoresOnlyCountsAndCache() {
-    OwlCloudUsageTelemetry.record(
-      OwlCloudUsageSnapshot(
-        model: "deepseek-v4-flash",
-        completionTokens: 3,
-        promptTokens: 10,
-        promptCacheHitTokens: 7,
-        promptCacheMissTokens: 3,
-        totalTokens: 13
-      )
-    )
-
-    XCTAssertEqual(
-      OwlCloudUsageTelemetry.lastUsage,
-      OwlCloudUsageSnapshot(
-        model: "deepseek-v4-flash",
-        completionTokens: 3,
-        promptTokens: 10,
-        promptCacheHitTokens: 7,
-        promptCacheMissTokens: 3,
-        totalTokens: 13
-      )
-    )
-  }
 
   func testParserRejectsBadJSONAndCleansFields() {
     // Malformed JSON-looking text → no candidates (never surface raw braces/brackets).
@@ -366,12 +339,28 @@ final class OwlModernUISmokeTests: XCTestCase {
     )
     XCTAssertEqual(OwlWubiScheme.allCases.map(\.displayName),
       ["86 版五笔", "86 版五笔拼音混输", "98 版五笔", "98 版五笔拼音混输"])
-    XCTAssertEqual(OwlInputMethod.pinyin.schemaId(doublePinyin: .flypy, wubiScheme: .jidian86), "rime_ice")
-    XCTAssertEqual(OwlInputMethod.doublePinyin.schemaId(doublePinyin: .flypy, wubiScheme: .jidian86), "double_pinyin_flypy")
-    XCTAssertEqual(OwlInputMethod.wubi.schemaId(doublePinyin: .flypy, wubiScheme: .jidian86), "wubi86_jidian")
-    XCTAssertEqual(OwlInputMethod.wubi.schemaId(doublePinyin: .flypy, wubiScheme: .pinyinMix), "wubi86_jidian_pinyin")
-    XCTAssertEqual(OwlInputMethod.wubi.schemaId(doublePinyin: .flypy, wubiScheme: .jidian98), "wubi98")
-    XCTAssertEqual(OwlInputMethod.wubi.schemaId(doublePinyin: .flypy, wubiScheme: .pinyinMix98), "wubi98_pinyin")
+    let savedMethod = OwlKeyboardPreferences.inputMethod
+    let savedDouble = OwlKeyboardPreferences.doublePinyin
+    let savedWubi = OwlKeyboardPreferences.wubiScheme
+    defer {
+      OwlKeyboardPreferences.inputMethod = savedMethod
+      OwlKeyboardPreferences.doublePinyin = savedDouble
+      OwlKeyboardPreferences.wubiScheme = savedWubi
+    }
+    OwlKeyboardPreferences.doublePinyin = .flypy
+    OwlKeyboardPreferences.wubiScheme = .jidian86
+    OwlKeyboardPreferences.inputMethod = .pinyin
+    XCTAssertEqual(OwlKeyboardPreferences.preferredSchemaID, "rime_ice")
+    OwlKeyboardPreferences.inputMethod = .doublePinyin
+    XCTAssertEqual(OwlKeyboardPreferences.preferredSchemaID, "double_pinyin_flypy")
+    OwlKeyboardPreferences.inputMethod = .wubi
+    XCTAssertEqual(OwlKeyboardPreferences.preferredSchemaID, "wubi86_jidian")
+    OwlKeyboardPreferences.wubiScheme = .pinyinMix
+    XCTAssertEqual(OwlKeyboardPreferences.preferredSchemaID, "wubi86_jidian_pinyin")
+    OwlKeyboardPreferences.wubiScheme = .jidian98
+    XCTAssertEqual(OwlKeyboardPreferences.preferredSchemaID, "wubi98")
+    OwlKeyboardPreferences.wubiScheme = .pinyinMix98
+    XCTAssertEqual(OwlKeyboardPreferences.preferredSchemaID, "wubi98_pinyin")
     XCTAssertFalse(OwlKeyboardPage.isDoublePinyinPickerEnabled(for: .pinyin))
     XCTAssertTrue(OwlKeyboardPage.isDoublePinyinPickerEnabled(for: .doublePinyin))
     XCTAssertFalse(OwlKeyboardPage.isDoublePinyinPickerEnabled(for: .wubi))
@@ -562,7 +551,7 @@ final class OwlSelectionPolishPromptTests: XCTestCase {
 
   func testPolishPromptAsksForJSONCandidatesAndRewrite() {
     // B4 reuses the json_object {"candidates":[...]} contract so the shared parser is reused.
-    let prompt = OwlSelectionPolish.systemPrompt
+    let prompt = OwlPolishPromptCatalog.variant(id: "v1-legacy").systemPrompt
     XCTAssertTrue(prompt.contains("{\"candidates\":"), "polish prompt must demand the {\"candidates\":[...]} shape")
     XCTAssertTrue(prompt.lowercased().contains("json"), "polish prompt must ask for JSON (json_object mode)")
     XCTAssertTrue(
@@ -594,7 +583,7 @@ final class OwlSelectionPolishPromptTests: XCTestCase {
 
     let request = try OwlSelectionPolish.chatRequest(for: "他撤销了合同")
     XCTAssertEqual(request.model, OwlCloudPreferences.deepSeekModel, "polish uses the flash model")
-    XCTAssertEqual(request.responseFormat, .jsonObject)
+    XCTAssertEqual(request.responseFormat, OwlDeepSeekResponseFormat(type: "json_object"))
     // The selected text IS the payload here — the documented CodeOnly exception.
     let userContent = request.messages.first(where: { $0.role == "user" })?.content ?? ""
     XCTAssertTrue(userContent.contains("他撤销了合同"), "the user payload carries the selected text")
@@ -631,12 +620,10 @@ final class OwlSelectionPolishServiceTests: XCTestCase {
   override func setUp() async throws {
     try await super.setUp()
     OwlCloudPreferences.resetForTesting()
-    OwlCloudUsageTelemetry.resetForTesting()
   }
 
   override func tearDown() async throws {
     OwlCloudPreferences.resetForTesting()
-    OwlCloudUsageTelemetry.resetForTesting()
     try await super.tearDown()
   }
 

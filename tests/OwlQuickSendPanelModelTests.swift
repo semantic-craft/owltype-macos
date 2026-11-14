@@ -44,7 +44,7 @@ final class OwlQuickSendPanelModelTests: XCTestCase {
     )
     XCTAssertEqual(model.rows.map(\.display), ["北京市朝阳区人民法院", "判决摘要", "最高人民法院"])
     // First row selected by default → the ⏎ target.
-    XCTAssertFalse(model.isEmpty)
+    XCTAssertFalse(model.visible.isEmpty)
     XCTAssertTrue(model.isSelected(0))
     XCTAssertEqual(model.selectedRow?.display, "北京市朝阳区人民法院")
 
@@ -70,7 +70,7 @@ final class OwlQuickSendPanelModelTests: XCTestCase {
     let model = OwlPickerPanelModel(
       rows: try OwlTemplateStore.load(dataDir: dir).entries.map(OwlPickerRow.template)
     )
-    XCTAssertTrue(model.isEmpty)
+    XCTAssertTrue(model.visible.isEmpty)
     XCTAssertNil(model.selectedRow)
     XCTAssertNil(model.row(forNumber: 1))
     var mutated = model
@@ -147,7 +147,6 @@ final class OwlQuickSendPanelModelTests: XCTestCase {
     var model = quickSendModel()
     model.setQuery("zzz-no-such-thing")
     XCTAssertTrue(model.visible.isEmpty)
-    XCTAssertTrue(model.isEmpty)
     XCTAssertNil(model.selectedRow)
     XCTAssertNil(model.row(forNumber: 1))
     model.moveSelection(by: 1)  // must not crash / must not resurrect a selection

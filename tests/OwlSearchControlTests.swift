@@ -78,9 +78,9 @@ final class OwlSearchControlTests: XCTestCase {
       JSONSerialization.jsonObject(with: XCTUnwrap(request.httpBody)) as? [String: Any])
     let query = try XCTUnwrap(body["query"] as? String)
     XCTAssertTrue(query.hasPrefix("民法典 施行字"))
-    XCTAssertEqual(query.count, OwlDeepSeekSearchWire.maxQueryLength)
+    XCTAssertEqual(query.count, 128)
     XCTAssertEqual(body["ori_question"] as? String, query)
-    XCTAssertEqual(body["count"] as? Int, OwlDeepSeekSearchWire.maxCount)
+    XCTAssertEqual(body["count"] as? Int, 50)
     XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer sk-test")
   }
 

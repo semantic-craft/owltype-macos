@@ -44,25 +44,6 @@ enum OwlVerificationSource: String, Codable, Sendable, CaseIterable {
   case webSearch       // 百度网页兜底
   case qwenSearch      // 模型内置联网搜索（不走 URL）
   case manual          // 复制检索词
-
-  /// 菜单/徽标显示名，逐字对齐 Responsay `VerificationSourceDisplay`。
-  var displayName: String {
-    switch self {
-    case .govLaw: return "国家法规库"
-    case .pkulaw: return "北大法宝"
-    case .cnki: return "知网"
-    case .vip: return "维普"
-    case .wanfang: return "万方"
-    case .baiduScholar: return "百度学术"
-    case .itslaw: return "无讼"
-    case .wenshu: return "裁判文书网"
-    case .rmfyalk: return "人民法院案例库"
-    case .bing: return "必应"
-    case .webSearch: return "百度"
-    case .qwenSearch: return "AI 联网搜索"
-    case .manual: return "复制检索词"
-    }
-  }
 }
 
 enum OwlVerificationRouteKind: String, Codable, Sendable, Equatable {
@@ -98,31 +79,6 @@ enum OwlVerificationQueryRouter {
   /// 把检索词路由到指定来源。
   static func route(query: String, source: OwlVerificationSource) -> OwlVerificationRoute {
     OwlAIBusinessCore.call("route", ["query": query, "source": source.rawValue])
-  }
-
-  // MARK: - 逐源检索样式
-
-  enum SearchStyle: Equatable {
-    case directSearch(base: String, param: String)
-    case bingSite(domain: String)
-  }
-
-  static func style(for source: OwlVerificationSource) -> SearchStyle? {
-    struct Style: Decodable { let base: String?; let param: String?; let domain: String? }
-    let value: Style = OwlAIBusinessCore.call("searchStyle", ["source": source.rawValue])
-    if let domain = value.domain { return .bingSite(domain: domain) }
-    if let base = value.base, let param = value.param { return .directSearch(base: base, param: param) }
-    return nil
-  }
-
-  static func searchURL(for source: OwlVerificationSource, query: String) -> URL? {
-    route(query: query, source: source).url
-  }
-
-  /// RFC-3986 query-value 编码，且额外把 `+` 转义为 `%2B`：裸 `+` 会被百度/必应解成空格，
-  /// 撕裂多词法律检索（Responsay issue 328 踩坑修复，必须逐字复刻）。空格→%20，CJK→百分号。
-  static func encodeQueryValue(_ value: String) -> String {
-    OwlAIBusinessCore.call("queryEncode", ["text": value])
   }
 }
 

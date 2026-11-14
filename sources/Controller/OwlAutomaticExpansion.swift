@@ -108,9 +108,6 @@ struct OwlAutomaticExpansionInvocationSource {
 final class OwlAutomaticExpansionInvocationValidity {
   private let core: OwlAppSession
   private let current: () -> [String: String]
-  convenience init(isCurrent: @escaping () -> Bool) {
-    self.init(binding: ["current": "true"], current: { ["current": String(isCurrent())] })
-  }
   init(binding: [String: String], current: @escaping () -> [String: String]) {
     core = try! OwlAppSession("binding", args: binding)
     self.current = current
@@ -179,6 +176,13 @@ struct OwlAutomaticExpansionObservation: Equatable {
 
   var isReadable: Bool {
     OwlAutomaticExpansionScope.valid(selection) && documentLength >= 0 && documentLength != NSNotFound && nearbyText != nil
+  }
+
+  static func == (lhs: Self, rhs: Self) -> Bool {
+    lhs.selection == rhs.selection
+      && lhs.marked == rhs.marked
+      && lhs.documentLength == rhs.documentLength
+      && lhs.nearbyText == rhs.nearbyText
   }
 }
 

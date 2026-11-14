@@ -25,7 +25,7 @@ final class EngineCompositionRendererTests: XCTestCase {
     EngineComposition(
       preedit: preedit, selStart: selStart, selEnd: selEnd, cursorPos: cursorPos,
       commitTextPreview: commitTextPreview, candidates: [], labels: [],
-      pageNo: 0, pageSize: 5, isLastPage: true, highlightedIndex: 0, numCandidates: 0)
+      pageNo: 0, pageSize: 5, isLastPage: true, highlightedIndex: 0)
   }
 
   // MARK: - Branch: !inlineCandidate && inlinePreedit (raw preedit as marked text)

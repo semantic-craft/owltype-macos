@@ -391,12 +391,13 @@ final class OwlAIConversationModelTests: XCTestCase {
     )
     let model = OwlAIConversationModel(askAnything: streamer)
 
-    let overCap = OwlAIConversationModel.maxHistoryTurns + 3
+    let historyCap = 10
+    let overCap = historyCap + 3
     for i in 1...overCap {
       await completeTurn(model, question: "问题\(i)")
     }
 
-    XCTAssertEqual(model.turns.count, OwlAIConversationModel.maxHistoryTurns)
+    XCTAssertEqual(model.turns.count, historyCap)
     XCTAssertEqual(
       model.turns.first?.question, "问题4",
       "超出上限时丢最早的轮，保留最近的对话")

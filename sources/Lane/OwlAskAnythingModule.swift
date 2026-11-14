@@ -69,17 +69,6 @@ struct OwlAskAnythingTransportAdapter: OwlAskAnythingTransporting {
     self.searchClient = searchClient ?? OwlDeepSeekSearchClient(fetch: { try await transport.send($0) })
   }
 
-  /// Scripted wires for tests; production composes through `init(gateway:searchClient:)`.
-  init(
-    chatClient: OwlChatStreaming,
-    responsesClient: OwlResponsesStreaming,
-    searchClient: OwlDeepSeekSearching
-  ) {
-    self.init(
-      gateway: OwlLLMGateway(chatStreamer: chatClient, responsesStreamer: responsesClient),
-      searchClient: searchClient)
-  }
-
   func streamPlain(
     messages: [OwlDeepSeekMessage],
     routing: OwlCloudRouting,

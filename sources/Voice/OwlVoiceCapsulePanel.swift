@@ -47,13 +47,6 @@ class OwlVoiceCapsulePanel: OwlFloatingPanel {
     lastAnchor = .zero
   }
 
-  func updatePosition(anchor: NSRect) {
-    if anchor != .zero {
-      lastAnchor = anchor
-    }
-    updateFrame(anchor: anchor)
-  }
-
   func updateFrame(anchor: NSRect, animated: Bool = true) {
     hostingView?.layoutSubtreeIfNeeded()
     let size = hostingView?.fittingSize ?? NSSize(width: 280, height: 44)

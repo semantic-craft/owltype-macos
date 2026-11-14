@@ -260,10 +260,6 @@ final class OwlAICandidateService: OwlAICandidateServiceProtocol, @unchecked Sen
     let ctx = preContext.map { String($0.suffix(100)) } ?? ""
     return "\(ctx)\u{1E}\(pinyin)\u{1E}\(candidates.joined(separator: "\u{1F}"))"
   }
-
-  func clearRerankCacheForTesting() {
-    rerankCache.clear()
-  }
 }
 
 final class OwlCandidateRerankCache: @unchecked Sendable {
@@ -296,12 +292,5 @@ final class OwlCandidateRerankCache: @unchecked Sendable {
       keys.append(key)
     }
     cache[key] = value
-  }
-
-  func clear() {
-    lock.lock()
-    defer { lock.unlock() }
-    cache.removeAll()
-    keys.removeAll()
   }
 }

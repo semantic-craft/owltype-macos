@@ -30,10 +30,6 @@ struct OwlRustResourceStore: Sendable {
     userRoot.appendingPathComponent("msime-cache", isDirectory: true)
   }
 
-  var bundledResourcesURL: URL? {
-    sharedSupportURL?.appendingPathComponent("msime", isDirectory: true)
-  }
-
   func prepareMutableDirectories() throws {
     for dir in [mutableUserDir, mutableCacheDir] {
       do {

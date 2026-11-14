@@ -12,25 +12,6 @@ import XCTest
 @MainActor
 final class OwlTextInserterTests: XCTestCase {
 
-  // MARK: - AC1 梯子排序
-
-  func testSequenceNoCacheIsDefaultOrder() {
-    XCTAssertEqual(OwlInsertLadder.sequence(cached: nil), [.axSelectedText, .paste, .clipboardOnly])
-    XCTAssertEqual(
-      OwlInsertLadder.sequence(mode: .caretInsertion, cached: nil),
-      [.imkInsert, .axSelectedText, .paste, .clipboardOnly]
-    )
-  }
-
-  func testSequenceCachedPromotedToFront() {
-    XCTAssertEqual(OwlInsertLadder.sequence(cached: .paste), [.paste, .axSelectedText, .clipboardOnly])
-    XCTAssertEqual(OwlInsertLadder.sequence(cached: .clipboardOnly), [.clipboardOnly, .axSelectedText, .paste])
-    XCTAssertEqual(
-      OwlInsertLadder.sequence(mode: .caretInsertion, cached: .paste),
-      [.paste, .imkInsert, .axSelectedText, .clipboardOnly]
-    )
-  }
-
   func testCaretInsertionPrefersIMKThenFallsBackToPaste() {
     var pasteCalled = false
     let directOutcome = OwlTemplateHostDelivery.insertCaretOrFallback(

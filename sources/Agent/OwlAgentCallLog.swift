@@ -85,8 +85,6 @@ final class OwlAgentCallLog: @unchecked Sendable {
     }
   }
 
-  /// Waits until every change so far is on disk (tests).
-  func flush() { writer.sync {} }
 
   private func loadedLocked() -> [OwlAgentCallRecord] {
     if let cached { return cached }

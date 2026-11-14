@@ -33,33 +33,6 @@ final class OwlAIWritingAuxiliaryTests: XCTestCase {
     )
   }
 
-  func testPolishStyleAliasesAndFuzzyInit() {
-    XCTAssertEqual(OwlPolishStyle.originalFidelity, .faithful)
-    XCTAssertEqual(OwlPolishStyle.conciseFormal, .conciseWritten)
-    XCTAssertEqual(OwlPolishStyle.professionalBusiness, .properBusiness)
-
-    XCTAssertEqual(OwlPolishStyle(fuzzy: "原意保真"), .faithful)
-    XCTAssertEqual(OwlPolishStyle(fuzzy: "faithful"), .faithful)
-    XCTAssertEqual(OwlPolishStyle(fuzzy: "originalfidelity"), .faithful)
-    XCTAssertEqual(OwlPolishStyle(fuzzy: "保真"), .faithful)
-
-    XCTAssertEqual(OwlPolishStyle(fuzzy: "精炼书面"), .conciseWritten)
-    XCTAssertEqual(OwlPolishStyle(fuzzy: "concisewritten"), .conciseWritten)
-    XCTAssertEqual(OwlPolishStyle(fuzzy: "conciseformal"), .conciseWritten)
-    XCTAssertEqual(OwlPolishStyle(fuzzy: "精炼"), .conciseWritten)
-
-    XCTAssertEqual(OwlPolishStyle(fuzzy: "得体商务"), .properBusiness)
-    XCTAssertEqual(OwlPolishStyle(fuzzy: "properbusiness"), .properBusiness)
-    XCTAssertEqual(OwlPolishStyle(fuzzy: "professionalbusiness"), .properBusiness)
-    XCTAssertEqual(OwlPolishStyle(fuzzy: "商务"), .properBusiness)
-
-    XCTAssertEqual(OwlPolishStyle(fuzzy: "口语转书面"), .spokenToWritten)
-    XCTAssertEqual(OwlPolishStyle(fuzzy: "spokentowritten"), .spokenToWritten)
-    XCTAssertEqual(OwlPolishStyle(fuzzy: "口语"), .spokenToWritten)
-
-    XCTAssertNil(OwlPolishStyle(fuzzy: "unknown_style"))
-  }
-
   func testPolishStylePropertiesAndMetadata() {
     for style in OwlPolishStyle.allCases {
       XCTAssertEqual(style.id, style.rawValue)
@@ -96,7 +69,6 @@ final class OwlAIWritingAuxiliaryTests: XCTestCase {
       allCases.map(\.rawValue),
       ["认同赞成", "委婉拒绝", "进一步询问", "感谢致意", "推进催办"]
     )
-    XCTAssertEqual(OwlReplyTemplate.inquire, .inquiry)
   }
 
   func testReplyTemplateMetadataAndPerspectives() {
@@ -112,14 +84,6 @@ final class OwlAIWritingAuxiliaryTests: XCTestCase {
       XCTAssertEqual(p.second, "专业周全")
       XCTAssertEqual(p.third, "积极推进")
     }
-
-    XCTAssertEqual(OwlReplyTemplate(fuzzy: "认同赞成"), .agree)
-    XCTAssertEqual(OwlReplyTemplate(fuzzy: "agree"), .agree)
-    XCTAssertEqual(OwlReplyTemplate(fuzzy: "decline"), .decline)
-    XCTAssertEqual(OwlReplyTemplate(fuzzy: "inquiry"), .inquiry)
-    XCTAssertEqual(OwlReplyTemplate(fuzzy: "gratitude"), .gratitude)
-    XCTAssertEqual(OwlReplyTemplate(fuzzy: "followup"), .followUp)
-    XCTAssertNil(OwlReplyTemplate(fuzzy: "random_template"))
   }
 
   func testReplyPromptCatalogThreeCandidateStructure() {

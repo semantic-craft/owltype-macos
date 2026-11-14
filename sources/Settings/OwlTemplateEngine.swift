@@ -165,23 +165,6 @@ enum OwlTemplateEngine {
     }
     return ["clipboard": clipboard, "clipboard_text": clipboardText as Any? ?? NSNull(), "temporal": facts]
   }
-  static func quoted(_ value: String) -> String {
-    // Quoting cannot fail for input size: use the same Rust escaping operation in bounded chunks.
-    // A string literal is escaped scalarly, so chunks do not alter its grammar.
-    var result = "\""
-    var chunk = ""
-    func appendChunk() {
-      let quoted: String = OwlAppCore.required(["operation": "template_quoted", "value": chunk])
-      result += String(String.UnicodeScalarView(quoted.unicodeScalars.dropFirst().dropLast()))
-      chunk = ""
-    }
-    for scalar in value.unicodeScalars {
-      chunk.unicodeScalars.append(scalar)
-      if chunk.utf8.count >= 65536 { appendChunk() }
-    }
-    if !chunk.isEmpty { appendChunk() }
-    return result + "\""
-  }
 
   private struct DatePart: Decodable { let symbol: String?; let count: Int }
   private struct DatePlan: Decodable {

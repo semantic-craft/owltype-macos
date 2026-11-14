@@ -24,7 +24,7 @@ final class OwlStreamingChatClientTests: XCTestCase {
 
   func testParserSingleDeltaYieldsContent() {
     var parser = OwlSSEChatParser()
-    let deltas = parser.consume(#"data: {"choices":[{"delta":{"content":"本"}}]}"# + "\n\n")
+    let deltas = parser.consume(Data((#"data: {"choices":[{"delta":{"content":"本"}}]}"# + "\n\n").utf8))
     XCTAssertEqual(deltas, ["本"])
     XCTAssertFalse(parser.isFinished)
   }
@@ -39,37 +39,37 @@ final class OwlStreamingChatClientTests: XCTestCase {
       #"data: {"choices":[{"delta":{"content":"认为"}}]}"#,
       "",
     ].joined(separator: "\n") + "\n"
-    let deltas = parser.consume(body)
+    let deltas = parser.consume(Data(body.utf8))
     XCTAssertEqual(deltas, ["本", "院", "认为"])
   }
 
   func testParserDoneEndsTheStream() {
     var parser = OwlSSEChatParser()
-    _ = parser.consume(#"data: {"choices":[{"delta":{"content":"甲"}}]}"# + "\n")
-    let tail = parser.consume("data: [DONE]\n\n")
+    _ = parser.consume(Data((#"data: {"choices":[{"delta":{"content":"甲"}}]}"# + "\n").utf8))
+    let tail = parser.consume(Data("data: [DONE]\n\n".utf8))
     XCTAssertTrue(tail.isEmpty)
     XCTAssertTrue(parser.isFinished)
     // After [DONE] further input is ignored.
-    let after = parser.consume(#"data: {"choices":[{"delta":{"content":"乙"}}]}"# + "\n")
+    let after = parser.consume(Data((#"data: {"choices":[{"delta":{"content":"乙"}}]}"# + "\n").utf8))
     XCTAssertTrue(after.isEmpty)
   }
 
   func testParserReassemblesDeltaSplitAcrossTwoChunks() {
     var parser = OwlSSEChatParser()
     // First chunk cuts the data line mid-JSON; nothing is complete yet.
-    let first = parser.consume(#"data: {"choices":[{"delta":{"con"#)
+    let first = parser.consume(Data(#"data: {"choices":[{"delta":{"con"#.utf8))
     XCTAssertTrue(first.isEmpty, "an incomplete line must not emit or error")
     // Second chunk completes the line.
-    let second = parser.consume(#"tent":"裁定"}}]}"# + "\n\n")
+    let second = parser.consume(Data((#"tent":"裁定"}}]}"# + "\n\n").utf8))
     XCTAssertEqual(second, ["裁定"])
   }
 
   func testParserReassemblesEventSplitAtLineBoundary() {
     var parser = OwlSSEChatParser()
     // Split exactly at the newline between the data line and its blank separator.
-    let first = parser.consume(#"data: {"choices":[{"delta":{"content":"管辖"}}]}"#)
+    let first = parser.consume(Data(#"data: {"choices":[{"delta":{"content":"管辖"}}]}"#.utf8))
     XCTAssertTrue(first.isEmpty, "no trailing newline yet → still buffered")
-    let second = parser.consume("\n\n")
+    let second = parser.consume(Data("\n\n".utf8))
     XCTAssertEqual(second, ["管辖"])
   }
 
@@ -87,7 +87,7 @@ final class OwlStreamingChatClientTests: XCTestCase {
       #"data: {"choices":[{"finish_reason":"stop","delta":{}}]}"#, // finish-only chunk
       "",
     ].joined(separator: "\n") + "\n"
-    let deltas = parser.consume(body)
+    let deltas = parser.consume(Data(body.utf8))
     XCTAssertEqual(deltas, ["驳回"], "comments / blanks / role-only / empty / finish-only are ignored without error")
     XCTAssertFalse(parser.isFinished)
   }
@@ -100,20 +100,20 @@ final class OwlStreamingChatClientTests: XCTestCase {
       #"data: {"choices":[{"delta":{"content":"成立"}}]}"#,
       "",
     ].joined(separator: "\n") + "\n"
-    let deltas = parser.consume(body)
+    let deltas = parser.consume(Data(body.utf8))
     XCTAssertEqual(deltas, ["成立"], "a malformed data line is skipped, the next valid one still emits")
   }
 
   func testParserHandlesCRLFFraming() {
     var parser = OwlSSEChatParser()
     let body = #"data: {"choices":[{"delta":{"content":"诉讼"}}]}"# + "\r\n\r\n"
-    XCTAssertEqual(parser.consume(body), ["诉讼"])
+    XCTAssertEqual(parser.consume(Data(body.utf8)), ["诉讼"])
   }
 
   func testParserFinishFlushesTrailingLineWithoutNewline() {
     var parser = OwlSSEChatParser()
     // Endpoint omits the final newline; consume buffers it, finish() flushes it.
-    let mid = parser.consume(#"data: {"choices":[{"delta":{"content":"终审"}}]}"#)
+    let mid = parser.consume(Data(#"data: {"choices":[{"delta":{"content":"终审"}}]}"#.utf8))
     XCTAssertTrue(mid.isEmpty)
     XCTAssertEqual(parser.finish(), ["终审"])
   }
@@ -130,11 +130,11 @@ final class OwlStreamingChatClientTests: XCTestCase {
         httpVersion: "HTTP/1.1",
         headerFields: ["Content-Type": "text/event-stream"]
       )
-      let stream = AsyncThrowingStream<String, Error> { continuation in
-        for chunk in chunks { continuation.yield(chunk) }
+      let stream = AsyncThrowingStream<Data, Error> { continuation in
+        for chunk in chunks { continuation.yield(Data(chunk.utf8)) }
         continuation.finish()
       }
-      return OwlStreamingBytesSource(response: http, chunks: stream)
+      return OwlStreamingBytesSource(response: http, dataChunks: stream)
     })
   }
 
@@ -201,7 +201,7 @@ final class OwlStreamingChatClientTests: XCTestCase {
       return OwlStreamingBytesSource(
         response: HTTPURLResponse(
           url: routing.endpoint, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: nil),
-        chunks: AsyncThrowingStream { $0.finish() })
+        dataChunks: AsyncThrowingStream { $0.finish() })
     })
     _ = try await collect(
       client.stream(messages: [], routing: routing, apiKey: "sk-test"))
@@ -279,12 +279,12 @@ final class OwlStreamingChatClientTests: XCTestCase {
     XCTAssertEqual(body["reasoning_split"] as? Bool, true)
     XCTAssertNil(body["thinking"])
     var parser = OwlSSEChatParser()
-    let deltas = parser.consume("""
+    let deltas = parser.consume(Data("""
       data: {"choices":[{"delta":{"reasoning_content":"private reasoning"}}]}
       data: {"choices":[{"delta":{"content":"最终答案"}}]}
       data: [DONE]
 
-      """)
+      """.utf8))
     XCTAssertEqual(deltas, ["最终答案"])
   }
 
@@ -478,7 +478,6 @@ final class OwlStreamingChatClientTests: XCTestCase {
     XCTAssertEqual(chat.callCount, 1)
   }
 
-
   /// DeepSeek 迁 `/responses` 后的传输判定，也是任意提问唯一的联网通道。
   /// 联网先走搜索接口，作答请求在检索返回后才发，所以要把流读完再看方言。
   @MainActor
@@ -525,36 +524,6 @@ final class OwlStreamingChatClientTests: XCTestCase {
     XCTAssertEqual(responses.callCount, 0)
   }
 
-  /// 断网/限流这类**暂时**故障不顺位，如实报给用户 ——
-  /// 把断网吞成「换一家」只会把一个错误变成好几个。
-  func testTransientFailuresAreReportedNotFailedOver() {
-    XCTAssertFalse(
-      OwlAskSearchFailover.isConfigurationRefusal(status: 400),
-      "generic request rejections may depend on user content")
-    XCTAssertTrue(OwlAskSearchFailover.isConfigurationRefusal(status: 401))
-    XCTAssertTrue(OwlAskSearchFailover.isConfigurationRefusal(status: 404), "方舟 ToolNotOpen")
-    XCTAssertFalse(
-      OwlAskSearchFailover.isConfigurationRefusal(status: 422),
-      "无法确认是否与问题内容有关的拒绝不能跨供应商追加请求")
-    XCTAssertFalse(OwlAskSearchFailover.isConfigurationRefusal(status: 451))
-    XCTAssertFalse(OwlAskSearchFailover.isConfigurationRefusal(status: 429), "限流稍后可重试")
-    XCTAssertFalse(OwlAskSearchFailover.isConfigurationRefusal(status: 408))
-    XCTAssertFalse(OwlAskSearchFailover.isConfigurationRefusal(status: 500))
-
-    XCTAssertFalse(
-      OwlAskSearchFailover.shouldTryNextAttempt(
-        after: URLError(.notConnectedToInternet), hasYieldedDelta: false),
-      "断网如实上报")
-    XCTAssertTrue(
-      OwlAskSearchFailover.shouldTryNextAttempt(
-        after: OwlStreamingError.invalidEndpoint, hasYieldedDelta: false),
-      "端点不可改写时请求尚未发出，属于候选配置不可用")
-    XCTAssertFalse(
-      OwlAskSearchFailover.shouldTryNextAttempt(
-        after: OwlStreamingError.badHTTPStatus(401), hasYieldedDelta: true),
-      "即便是明确配置拒绝，首个 delta 之后也不能再拼接另一家的答案")
-  }
-
   /// 一个**仍然走 `/chat/completions`** 的默认供应商：没有搜索通道时退回普通问答的那个角色。
   ///
   /// 曾经这里用的是 DeepSeek——它 2026-07-31 迁到 `/responses` 之后就不再是「chat 供应商」了，
@@ -578,7 +547,6 @@ final class OwlStreamingChatClientTests: XCTestCase {
 /// from the `@MainActor` tests (the stream is never consumed), so plain mutable state is enough.
 private final class RecordingChatClient: OwlChatStreaming, @unchecked Sendable {
   private(set) var callCount = 0
-  private(set) var lastMessages: [OwlDeepSeekMessage]?
 
   func stream(
     messages: [OwlDeepSeekMessage],
@@ -586,7 +554,6 @@ private final class RecordingChatClient: OwlChatStreaming, @unchecked Sendable {
     apiKey: String
   ) -> AsyncThrowingStream<String, Error> {
     callCount += 1
-    lastMessages = messages
     return AsyncThrowingStream { $0.finish() }
   }
 }

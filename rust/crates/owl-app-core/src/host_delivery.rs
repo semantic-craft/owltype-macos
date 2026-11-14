@@ -559,10 +559,6 @@ impl DeliveryMode {
     }
 }
 
-pub fn sequence(cached: &str) -> Vec<String> {
-    sequence_for_mode("selectionReplacement", cached, false, false)
-}
-
 pub fn sequence_for_mode(
     mode: &str,
     cached: &str,
@@ -688,6 +684,367 @@ mod tests {
         assert_eq!(
             caret_seq,
             vec!["imkInsert", "axSelectedText", "paste", "clipboardOnly"]
+        );
+    }
+
+    fn base_facts() -> Value {
+        json!({
+            "sourceValid": true,
+            "rejection": Value::Null,
+            "revision": 0,
+            "ranges": true,
+            "replace": true,
+            "marked": [i64::MAX, 0],
+            "selection": [0, 0],
+            "text": "",
+            "needsSelection": false
+        })
+    }
+
+    fn merge_facts(extra: Value) -> Value {
+        let mut f = base_facts();
+        if let (Some(dst), Some(src)) = (f.as_object_mut(), extra.as_object()) {
+            for (k, v) in src {
+                dst.insert(k.clone(), v.clone());
+            }
+        }
+        f
+    }
+
+    #[test]
+    fn delivery_marked_candidate_uses_marked_start_with_interior_caret_and_ignores_late_duplicates() {
+        let mut d = Delivery::new(json!({}));
+        assert_eq!(d.event("result_begin", json!({"cursorOffset": 3})).unwrap(), json!(true));
+        assert_eq!(d.event("result_chunk", json!({"text": "中😀尾"})).unwrap(), json!(true));
+
+        let plan = d
+            .event(
+                "plan",
+                merge_facts(json!({"marked": [1, 3], "selection": [2, 0], "text": ";;a"})),
+            )
+            .unwrap();
+        assert_eq!(plan["action"], "insert");
+        assert_eq!(plan["origin"], json!([1, 3]));
+        assert!(plan["replacement"].is_null());
+
+        // Second delivery attempt on reserved machine is refused cleanly.
+        assert_eq!(d.event("result_begin", json!({"cursorOffset": 0})).unwrap(), json!(false));
+        assert_eq!(d.event("plan", base_facts()).unwrap()["outcome"], "targetChanged");
+
+        assert_eq!(d.event("admit", merge_facts(json!({"kind": "result"}))).unwrap(), json!({}));
+        assert_eq!(
+            d.event("write_receipt", json!({"kind": "result", "dispatched": true})).unwrap(),
+            json!({})
+        );
+
+        let verify = d
+            .event(
+                "verify",
+                merge_facts(json!({"text": "中😀尾", "selection": [5, 0]})),
+            )
+            .unwrap();
+        assert_eq!(verify["inserted"], json!([1, 4]));
+        assert_eq!(verify["target"], json!([4, 0]));
+
+        assert_eq!(d.event("admit", merge_facts(json!({"kind": "cursor"}))).unwrap(), json!({}));
+        assert_eq!(
+            d.event(
+                "moved",
+                merge_facts(json!({"moved": true, "selection": [4, 0], "target": [4, 0]})),
+            )
+            .unwrap()["outcome"],
+            "positioned"
+        );
+
+        // Late duplicate verify/moved callbacks never emit a second cursor effect.
+        assert_eq!(
+            d.event("verify", merge_facts(json!({"text": "中😀尾", "selection": [5, 0]}))).unwrap(),
+            json!({"ignored": true})
+        );
+        assert_eq!(
+            d.event(
+                "moved",
+                merge_facts(json!({"moved": true, "selection": [4, 0], "target": [4, 0]})),
+            )
+            .unwrap()["outcome"],
+            "positionUnverified"
+        );
+    }
+
+    #[test]
+    fn delivery_readback_failure_and_left_at_end_cursor_invariants() {
+        let mut d = Delivery::new(json!({}));
+        d.event("result_begin", json!({"cursorOffset": 1})).unwrap();
+        d.event("result_chunk", json!({"text": "正文"})).unwrap();
+        d.event("plan", merge_facts(json!({"selection": [1, 0]}))).unwrap();
+        d.event("admit", merge_facts(json!({"kind": "result"}))).unwrap();
+        d.event("write_receipt", json!({"kind": "result", "dispatched": true})).unwrap();
+
+        // Host has not reflected the insert yet -> unverified, no move requested.
+        let unverified = d
+            .event("verify", merge_facts(json!({"text": "old", "selection": [1, 0]})))
+            .unwrap();
+        assert_eq!(unverified["outcome"], "attemptedUnverified");
+        assert!(unverified["target"].is_null());
+
+        // When verify succeeds but cursor move fails leaving selection at inserted end -> leftAtEnd.
+        let mut d2 = Delivery::new(json!({}));
+        d2.event("result_begin", json!({"cursorOffset": 1})).unwrap();
+        d2.event("result_chunk", json!({"text": "正文"})).unwrap();
+        d2.event("plan", merge_facts(json!({"selection": [1, 0]}))).unwrap();
+        d2.event("admit", merge_facts(json!({"kind": "result"}))).unwrap();
+        d2.event("write_receipt", json!({"kind": "result", "dispatched": true})).unwrap();
+        let verify2 = d2
+            .event("verify", merge_facts(json!({"text": "正文", "selection": [3, 0]})))
+            .unwrap();
+        assert_eq!(verify2["target"], json!([2, 0]));
+        d2.event("admit", merge_facts(json!({"kind": "cursor"}))).unwrap();
+        assert_eq!(
+            d2.event(
+                "moved",
+                merge_facts(json!({"moved": false, "selection": [3, 0], "target": [2, 0]})),
+            )
+            .unwrap()["outcome"],
+            "leftAtEnd"
+        );
+    }
+
+    #[test]
+    fn delivery_changed_original_or_lost_proof_aborts_without_append_fallback() {
+        let source = json!({
+            "original": ";;dynamic ",
+            "marked": ";;dyn",
+            "range": [7, 5],
+            "committed": false
+        });
+        let prepare_ok = |d: &mut Delivery| {
+            let prep = d
+                .event(
+                    "prepare",
+                    merge_facts(json!({"marked": [7, 5], "selection": [12, 0], "text": ";;dyn"})),
+                )
+                .unwrap();
+            assert_eq!(prep["text"], ";;dynamic ");
+            assert_eq!(prep["origin"], json!([7, 5]));
+            assert_eq!(d.event("admit", merge_facts(json!({"kind": "original"}))).unwrap(), json!({}));
+            assert_eq!(
+                d.event("write_receipt", json!({"kind": "original", "dispatched": true})).unwrap(),
+                json!({})
+            );
+            assert_eq!(
+                d.event(
+                    "prepared",
+                    merge_facts(json!({"text": ";;dynamic ", "selection": [17, 0]})),
+                )
+                .unwrap()["outcome"],
+                "ready"
+            );
+        };
+
+        let tamper_cases = [
+            merge_facts(json!({"text": ";;changed ", "selection": [17, 0]})),
+            merge_facts(json!({"text": ";;dynamic ", "selection": [0, 0]})),
+            merge_facts(json!({"text": ";;dynamic ", "selection": [17, 0], "marked": [17, 1]})),
+            merge_facts(json!({"text": ";;dynamic ", "selection": [17, 0], "replace": false})),
+            merge_facts(json!({"text": ";;dynamic ", "selection": [17, 0], "sourceValid": false})),
+        ];
+
+        for tampered in tamper_cases {
+            let mut d = Delivery::new(json!({"source": source}));
+            prepare_ok(&mut d);
+            d.event("result_begin", json!({"cursorOffset": 6})).unwrap();
+            d.event("result_chunk", json!({"text": "result"})).unwrap();
+            let outcome = d.event("plan", tampered).unwrap()["outcome"].clone();
+            assert_eq!(outcome, "targetChanged");
+        }
+
+        // Tampering between plan and admit("result") also aborts before dispatch.
+        let mut d_late = Delivery::new(json!({"source": source}));
+        prepare_ok(&mut d_late);
+        d_late.event("result_begin", json!({"cursorOffset": 6})).unwrap();
+        d_late.event("result_chunk", json!({"text": "result"})).unwrap();
+        let plan = d_late
+            .event(
+                "plan",
+                merge_facts(json!({"text": ";;dynamic ", "selection": [17, 0]})),
+            )
+            .unwrap();
+        assert_eq!(plan["action"], "insert");
+        let admit = d_late
+            .event(
+                "admit",
+                merge_facts(json!({"kind": "result", "text": ";;changed ", "selection": [17, 0]})),
+            )
+            .unwrap();
+        assert_eq!(admit["outcome"], "targetChanged");
+    }
+
+    #[test]
+    fn delivery_streams_large_multibyte_chunks_across_65k_boundary() {
+        let mut d = Delivery::new(json!({}));
+        assert_eq!(d.event("result_begin", json!({"cursorOffset": 25_001})).unwrap(), json!(true));
+        let half = "你".repeat(25_000);
+        assert!(half.len() > 65_536);
+        assert_eq!(d.event("result_chunk", json!({"text": half})).unwrap(), json!(true));
+        assert_eq!(d.event("result_chunk", json!({"text": format!("{half}😀")})).unwrap(), json!(true));
+
+        let plan = d.event("plan", merge_facts(json!({"selection": [2, 0]}))).unwrap();
+        assert_eq!(plan["action"], "insert");
+        assert_eq!(plan["origin"], json!([2, 0]));
+
+        assert_eq!(d.event("admit", merge_facts(json!({"kind": "result"}))).unwrap(), json!({}));
+        assert_eq!(
+            d.event("write_receipt", json!({"kind": "result", "dispatched": true})).unwrap(),
+            json!({})
+        );
+        let full = format!("{half}{half}😀");
+        // 50,000 CJK chars (1 UTF-16 unit each) + 1 emoji (2 UTF-16 units) = 50,002 units.
+        let verify = d
+            .event(
+                "verify",
+                merge_facts(json!({"text": full, "selection": [50_004, 0]})),
+            )
+            .unwrap();
+        assert_eq!(verify["inserted"], json!([2, 50_002]));
+        assert_eq!(verify["target"], json!([25_003, 0]));
+    }
+
+    #[test]
+    fn delivery_selection_poll_ignores_stale_tokens_retries_and_bounds_exhaustion() {
+        let source = json!({
+            "original": ";;a",
+            "range": [1, 3],
+            "committed": true
+        });
+        let base_doc = merge_facts(json!({
+            "text": ";;a",
+            "selection": [4, 0],
+            "needsSelection": true
+        }));
+
+        let mut d = Delivery::new(json!({"source": source}));
+        d.event("result_begin", json!({"cursorOffset": 1})).unwrap();
+        d.event("result_chunk", json!({"text": "前后"})).unwrap();
+        let plan = d.event("plan", base_doc.clone()).unwrap();
+        assert_eq!(plan["action"], "select");
+        assert_eq!(d.event("admit", merge_facts(json!({
+            "kind": "selection",
+            "text": ";;a",
+            "selection": [4, 0],
+            "needsSelection": true
+        }))).unwrap(), json!({}));
+
+        let wait1 = d.event("selection_poll", merge_facts(json!({
+            "text": ";;a",
+            "selection": [4, 0],
+            "needsSelection": true
+        }))).unwrap();
+        assert_eq!(wait1["ignored"], true); // selection_set has not run yet
+
+        let poll1 = d.event("selection_set", json!({"accepted": true})).unwrap();
+        assert_eq!(poll1["action"], "wait_selection");
+        let token1 = poll1["token"].as_u64().unwrap();
+
+        // Stale token ignored without advancing state.
+        assert_eq!(
+            d.event("selection_poll", merge_facts(json!({
+                "token": token1 + 99,
+                "text": ";;a",
+                "selection": [4, 0]
+            }))).unwrap(),
+            json!({"ignored": true})
+        );
+
+        // Matching token while host still reports end caret retries with token + 1.
+        let poll2 = d.event("selection_poll", merge_facts(json!({
+            "token": token1,
+            "text": ";;a",
+            "selection": [4, 0]
+        }))).unwrap();
+        assert_eq!(poll2["action"], "wait_selection");
+        let token2 = poll2["token"].as_u64().unwrap();
+        assert_ne!(token2, token1);
+
+        // Once selection becomes [1, 3], delivery authorizes insert; replaying old token is ignored.
+        let ready_insert = d.event("selection_poll", merge_facts(json!({
+            "token": token2,
+            "text": ";;a",
+            "selection": [1, 3]
+        }))).unwrap();
+        assert_eq!(ready_insert["action"], "insert");
+        assert_eq!(ready_insert["origin"], json!([1, 3]));
+        assert_eq!(
+            d.event("selection_poll", merge_facts(json!({
+                "token": token2,
+                "text": ";;a",
+                "selection": [1, 3]
+            }))).unwrap(),
+            json!({"ignored": true})
+        );
+
+        // Separate session: exhausting all 7 retries stops with selectionNotPrepared.
+        let mut d_exhaust = Delivery::new(json!({"source": source}));
+        d_exhaust.event("result_begin", json!({"cursorOffset": 1})).unwrap();
+        d_exhaust.event("result_chunk", json!({"text": "前后"})).unwrap();
+        d_exhaust.event("plan", base_doc.clone()).unwrap();
+        d_exhaust.event("admit", merge_facts(json!({
+            "kind": "selection",
+            "text": ";;a",
+            "selection": [4, 0],
+            "needsSelection": true
+        }))).unwrap();
+        let mut next = d_exhaust.event("selection_set", json!({"accepted": true})).unwrap();
+        for _ in 0..7 {
+            assert_eq!(next["action"], "wait_selection");
+            let tok = next["token"].as_u64().unwrap();
+            next = d_exhaust.event("selection_poll", merge_facts(json!({
+                "token": tok,
+                "text": ";;a",
+                "selection": [4, 0]
+            }))).unwrap();
+        }
+        assert_eq!(next["action"], "wait_selection");
+        let final_tok = next["token"].as_u64().unwrap();
+        let exhausted = d_exhaust.event("selection_poll", merge_facts(json!({
+            "token": final_tok,
+            "text": ";;a",
+            "selection": [4, 0]
+        }))).unwrap();
+        assert_eq!(exhausted["outcome"], "selectionNotPrepared");
+    }
+
+    #[test]
+    fn delivery_focus_shift_invalidation_vs_verified_parameter_panel_roundtrip() {
+        let source = json!({"original": ";;a", "range": [1, 3], "committed": true});
+
+        // External non-presentation app invalidates even if user switches back.
+        let mut ext = Delivery::new(json!({"source": source}));
+        assert_eq!(
+            ext.event("application", json!({"original": false, "presentation": false})).unwrap(),
+            json!(true)
+        );
+        assert_eq!(
+            ext.event("application", json!({"original": true, "presentation": false})).unwrap(),
+            json!(true)
+        );
+        assert_eq!(ext.event("ready", base_facts()).unwrap(), json!(false));
+        ext.event("result_begin", json!({"cursorOffset": 1})).unwrap();
+        ext.event("result_chunk", json!({"text": "结果"})).unwrap();
+        assert_eq!(
+            ext.event("plan", merge_facts(json!({"text": ";;a", "selection": [4, 0]}))).unwrap()["outcome"],
+            "targetChanged"
+        );
+
+        // Verified parameter panel deactivate -> activate keeps session valid.
+        let mut panel = Delivery::new(json!({"source": source}));
+        panel.event("deactivate", json!({"canRestore": true, "presentationFocused": true})).unwrap();
+        panel.event("activate", json!({"sourceValid": true, "rejection": Value::Null})).unwrap();
+        assert_eq!(panel.event("ready", base_facts()).unwrap(), json!(true));
+        panel.event("result_begin", json!({"cursorOffset": 1})).unwrap();
+        panel.event("result_chunk", json!({"text": "结果"})).unwrap();
+        assert_eq!(
+            panel.event("plan", merge_facts(json!({"text": ";;a", "selection": [4, 0]}))).unwrap()["action"],
+            "insert"
         );
     }
 }

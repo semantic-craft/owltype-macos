@@ -1,15 +1,12 @@
 import Foundation
 
 enum OwlCloudPreferences {
-  private static let enabledKey = "OwlCloudLaneEnabled"
-  private static let modelKey = "OwlDeepSeekModel"
-  private static let endpointKey = "OwlDeepSeekEndpoint"
+  static let enabledKey = "OwlCloudLaneEnabled"
+  static let modelKey = "OwlDeepSeekModel"
+  static let endpointKey = "OwlDeepSeekEndpoint"
 
   static let defaultDeepSeekEndpoint = URL(string: "https://api.deepseek.com/chat/completions")!
   static let defaultDeepSeekModel = "deepseek-flash"
-  static let reasonerDeepSeekModel = "deepseek-v4-pro"
-
-  static var requestTimeout: TimeInterval { OwlLLMCallPurpose.interactiveRewrite.timeout }
 
   static var isEnabled: Bool {
     get { OwlDefaults.standard.object(forKey: enabledKey) as? Bool ?? false }
@@ -36,12 +33,6 @@ enum OwlCloudPreferences {
     set { OwlDefaults.standard.set(newValue.absoluteString, forKey: endpointKey) }
   }
 
-  static func resetForTesting() {
-    OwlDefaults.standard.removeObject(forKey: enabledKey)
-    OwlDefaults.standard.removeObject(forKey: modelKey)
-    OwlDefaults.standard.removeObject(forKey: endpointKey)
-  }
-
   static func canonicalDeepSeekModel(_ raw: String?) -> String {
     OwlProviderCore.call("canonicalModel", ["model": raw ?? ""])
   }
@@ -65,7 +56,6 @@ struct OwlDeepSeekMessage: Codable, Equatable, Sendable {
 
 struct OwlDeepSeekResponseFormat: Codable, Equatable, Sendable {
   let type: String
-  static let jsonObject = OwlDeepSeekResponseFormat(type: "json_object")
 }
 
 struct OwlDeepSeekThinking: Codable, Equatable, Sendable {
@@ -74,15 +64,6 @@ struct OwlDeepSeekThinking: Codable, Equatable, Sendable {
 }
 
 enum OwlThinkingControl {
-  static func offBody(providerID: String, model: String) -> [String: Any] {
-    offBody(offFields(providerID: providerID, model: model))
-  }
-
-  static func offBody(_ fields: Fields) -> [String: Any] {
-    let data = try! JSONEncoder().encode(fields)
-    return (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] ?? [:]
-  }
-
   struct Fields: Codable {
     var thinking: OwlDeepSeekThinking?
     var enableThinking: Bool?
@@ -95,12 +76,6 @@ enum OwlThinkingControl {
   }
   static func offFields(providerID: String, model: String) -> Fields {
     OwlProviderCore.call("thinking", ["providerID": providerID, "model": model])
-  }
-}
-
-enum OwlChatSamplingControl {
-  static func temperature(_ value: Double, model: String) -> Double? {
-    OwlProviderCore.call("temperature", ["model": model, "value": value])
   }
 }
 
@@ -138,9 +113,6 @@ struct OwlDeepSeekChatRequest: Codable, Equatable, Sendable {
 }
 
 enum OwlCloudRequestError: Error, Equatable {
-  case disabled
-  case missingAPIKey
-  case unsupportedProvider
   case badHTTPStatus(Int, detail: OwlServerErrorDetail? = nil)
   case emptyResponse
 }
@@ -151,17 +123,6 @@ struct OwlServerErrorDetail: Codable, Equatable, Sendable {
 
   static func parse(_ data: Data) -> OwlServerErrorDetail? {
     OwlProviderCore.call("errorDetail", ["bytes": Array(data)])
-  }
-
-  static func read(_ chunks: AsyncThrowingStream<String, Error>, limit: Int = 16_384) async -> OwlServerErrorDetail? {
-    var body = ""
-    do {
-      for try await chunk in chunks {
-        body += chunk
-        if body.utf8.count >= limit { break }
-      }
-    } catch {}
-    return parse(Data(body.utf8))
   }
 
   static func read(_ chunks: AsyncThrowingStream<Data, Error>, limit: Int = 16_384) async -> OwlServerErrorDetail? {
@@ -210,73 +171,13 @@ struct OwlCloudRouting: Codable, Equatable, Sendable {
   }
 }
 
-struct OwlCloudUsageSnapshot: Codable, Equatable, Sendable {
-  let model: String
-  let completionTokens: Int
-  let promptTokens: Int
-  let promptCacheHitTokens: Int
-  let promptCacheMissTokens: Int
-  let totalTokens: Int
-}
-
-enum OwlCloudUsageTelemetry {
-  private static let lastUsageKey = "OwlCloudLastUsageTelemetry"
-
-  static var lastUsage: OwlCloudUsageSnapshot? {
-    guard let data = OwlDefaults.standard.data(forKey: lastUsageKey) else { return nil }
-    return try? JSONDecoder().decode(OwlCloudUsageSnapshot.self, from: data)
-  }
-
-  static func record(_ usage: OwlCloudUsageSnapshot) {
-    guard let data = try? JSONEncoder().encode(usage) else { return }
-    OwlDefaults.standard.set(data, forKey: lastUsageKey)
-  }
-
-  static func resetForTesting() {
-    OwlDefaults.standard.removeObject(forKey: lastUsageKey)
-  }
-}
-
 enum OwlNumberedRewriteParser {
   static func parse(_ content: String) -> [String] {
     OwlProviderCore.call("numberedRewrite", ["text": content])
   }
 }
 
-enum OwlDeepSeekClient {
-  struct Usage: Decodable {
-    let completionTokens: Int
-    let promptTokens: Int
-    let promptCacheHitTokens: Int?
-    let promptCacheMissTokens: Int?
-    let totalTokens: Int
-
-    enum CodingKeys: String, CodingKey {
-      case completionTokens = "completion_tokens"
-      case promptTokens = "prompt_tokens"
-      case promptCacheHitTokens = "prompt_cache_hit_tokens"
-      case promptCacheMissTokens = "prompt_cache_miss_tokens"
-      case totalTokens = "total_tokens"
-    }
-  }
-
-  struct Response: Decodable {
-    struct Choice: Decodable {
-      struct Message: Decodable {
-        let content: String
-      }
-
-      let message: Message
-    }
-
-    let choices: [Choice]
-    let model: String?
-    let usage: Usage?
-  }
-}
-
 enum OwlCloudRetry {
-  static var maxAttempts: Int { OwlLLMCallPurpose.interactiveRewrite.maxAttempts }
   static var backoffNanoseconds: UInt64 { OwlProviderCore.call("retryDelay") }
 
   static func isRetryable(_ error: Error) -> Bool {
@@ -301,13 +202,11 @@ enum OwlCloudRetry {
 /// Callers ask this value instead of re-deriving provider identity.
 struct OwlProviderCapabilities {
   let dialect: OwlResponsesDialect?
-  let thinkingOff: OwlThinkingControl.Fields
   let searchChannel: OwlSearchControl.Channel
   let model: String
 
   init(providerID: String, model: String, endpoint: URL? = nil) {
     self.dialect = OwlResponsesWire.dialect(providerID: providerID, model: model, endpoint: endpoint)
-    self.thinkingOff = OwlThinkingControl.offFields(providerID: providerID, model: model)
     self.searchChannel = Self.searchChannel(providerID: providerID, host: endpoint?.host ?? "")
     self.model = model
   }
@@ -315,14 +214,6 @@ struct OwlProviderCapabilities {
   init(routing: OwlCloudRouting) {
     self.init(providerID: routing.providerID, model: routing.model, endpoint: routing.endpoint)
   }
-
-  var sendsChatJSONMode: Bool { OwlProviderCore.call("jsonMode", ["hasSplit": thinkingOff.reasoningSplit != nil]) }
-
-  func temperature(_ value: Double) -> Double? {
-    OwlChatSamplingControl.temperature(value, model: model)
-  }
-
-  var thinkingOffBody: [String: Any] { OwlThinkingControl.offBody(thinkingOff) }
 
   var searchTransport: OwlSearchControl.Transport {
     switch searchChannel {
@@ -362,12 +253,6 @@ enum OwlLLMCallPurpose: String {
     struct Policy: Decodable { let timeout: Double }
     let policy: Policy = OwlProviderCore.call("purpose", ["purpose": rawValue])
     return policy.timeout
-  }
-
-  var maxAttempts: Int {
-    struct Policy: Decodable { let maxAttempts: Int }
-    let policy: Policy = OwlProviderCore.call("purpose", ["purpose": rawValue])
-    return policy.maxAttempts
   }
 }
 
@@ -520,14 +405,12 @@ struct OwlLLMGateway: Sendable {
     try Task.checkCancellation()
     struct Parsed: Decodable {
       let text: String?
-      let usage: OwlCloudUsageSnapshot?
       let error: String?
       let detail: OwlServerErrorDetail?
     }
     let status = (response as? HTTPURLResponse)?.statusCode
     let parsed: Parsed = OwlProviderCore.call("completionParse", ["bytes": Array(data),
       "responses": dialect != nil, "status": status as Any? ?? NSNull(), "model": routing.model])
-    if let usage = parsed.usage { OwlCloudUsageTelemetry.record(usage) }
     switch parsed.error {
     case "http": throw OwlCloudRequestError.badHTTPStatus(status!, detail: parsed.detail)
     case "empty": throw OwlCloudRequestError.emptyResponse
@@ -674,10 +557,6 @@ public final class OwlVoicePolisher: OwlVoicePolishServiceProtocol, @unchecked S
     } catch {
       return trimmed
     }
-  }
-
-  public func polish(rawTranscript: String) async throws -> String {
-    try await polish(rawTranscript: rawTranscript, hotwords: [], preContext: nil)
   }
 
   public func polishWithTimeout(

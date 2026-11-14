@@ -46,8 +46,6 @@ struct EngineComposition {
   let isLastPage: Bool
   /// `ctx.menu.highlighted_candidate_index`.
   let highlightedIndex: Int
-  /// `ctx.menu.num_candidates`.
-  let numCandidates: Int
 }
 
 /// A snapshot of session status, decoded into Swift values.

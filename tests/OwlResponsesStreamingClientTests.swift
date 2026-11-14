@@ -43,8 +43,8 @@ final class OwlResponsesStreamingClientTests: XCTestCase {
   func testResponsesFramesActuallyProduceDeltas() {
     // The reason this whole file exists: a Responses `output_text.delta` must become content.
     var parser = OwlResponsesStreamParser()
-    let deltas = parser.consume(
-      #"data: {"type":"response.output_text.delta","delta":"本院"}"# + "\n\n")
+    let deltas = parser.consume(Data(
+      (#"data: {"type":"response.output_text.delta","delta":"本院"}"# + "\n\n").utf8))
     XCTAssertEqual(deltas, ["本院"], "/responses 帧必须真的产出 delta，否则用户看到空白答案")
     XCTAssertFalse(parser.isFinished)
     XCTAssertNil(parser.failure)
@@ -54,9 +54,9 @@ final class OwlResponsesStreamingClientTests: XCTestCase {
     // The trap, pinned from the other side: the chat parser does not throw on Responses frames —
     // it returns nothing at all. That is why `/responses` needs its own parser, not a tweak.
     var chatParser = OwlSSEChatParser()
-    let deltas = chatParser.consume(
-      #"data: {"type":"response.output_text.delta","delta":"本院"}"# + "\n\n"
-        + "data: [DONE]\n\n")
+    let deltas = chatParser.consume(Data(
+      (#"data: {"type":"response.output_text.delta","delta":"本院"}"# + "\n\n"
+        + "data: [DONE]\n\n").utf8))
     XCTAssertEqual(deltas, [], "chat/completions 解析器读 /responses 帧＝静默零内容（不报错）")
     XCTAssertTrue(chatParser.isFinished, "……而且流还“正常”结束了 —— 正是这个组合最危险")
   }
@@ -73,25 +73,25 @@ final class OwlResponsesStreamingClientTests: XCTestCase {
       #"data: {"type":"response.completed"}"#,
       "",
     ].joined(separator: "\n") + "\n"
-    XCTAssertEqual(parser.consume(body), ["本院", "认为"])
+    XCTAssertEqual(parser.consume(Data(body.utf8)), ["本院", "认为"])
     XCTAssertTrue(parser.isFinished)
     // After the terminal frame further input is ignored.
     XCTAssertEqual(
-      parser.consume(#"data: {"type":"response.output_text.delta","delta":"乙"}"# + "\n"), [])
+      parser.consume(Data((#"data: {"type":"response.output_text.delta","delta":"乙"}"# + "\n").utf8)), [])
   }
 
   func testParserDoneAlsoEndsTheStream() {
     var parser = OwlResponsesStreamParser()
-    _ = parser.consume(#"data: {"type":"response.output_text.delta","delta":"甲"}"# + "\n")
-    XCTAssertEqual(parser.consume("data: [DONE]\n\n"), [])
+    _ = parser.consume(Data((#"data: {"type":"response.output_text.delta","delta":"甲"}"# + "\n").utf8))
+    XCTAssertEqual(parser.consume(Data("data: [DONE]\n\n".utf8)), [])
     XCTAssertTrue(parser.isFinished)
   }
 
   func testParserRecordsUpstreamFailureMessage() {
     var parser = OwlResponsesStreamParser()
-    let deltas = parser.consume(
-      #"data: {"type":"response.failed","response":{"error":{"message":"search quota exhausted"}}}"#
-        + "\n\n")
+    let deltas = parser.consume(Data(
+      (#"data: {"type":"response.failed","response":{"error":{"message":"search quota exhausted"}}}"#
+        + "\n\n").utf8))
     XCTAssertEqual(deltas, [])
     XCTAssertTrue(parser.isFinished)
     XCTAssertEqual(parser.failure, "search quota exhausted", "失败帧必须被记住，否则退化成空答案")
@@ -99,7 +99,7 @@ final class OwlResponsesStreamingClientTests: XCTestCase {
 
   func testParserRecordsBareErrorFrame() {
     var parser = OwlResponsesStreamParser()
-    _ = parser.consume(#"data: {"type":"error","error":{"message":"bad request"}}"# + "\n\n")
+    _ = parser.consume(Data((#"data: {"type":"error","error":{"message":"bad request"}}"# + "\n\n").utf8))
     XCTAssertEqual(parser.failure, "bad request")
   }
 
@@ -122,20 +122,20 @@ final class OwlResponsesStreamingClientTests: XCTestCase {
       #"data: {"type":"response.output_text.delta","delta":"管辖"}"#,
       "",
     ].joined(separator: "\n") + "\n"
-    XCTAssertEqual(parser.consume(body), ["管辖"])
+    XCTAssertEqual(parser.consume(Data(body.utf8)), ["管辖"])
     XCTAssertNil(parser.failure)
     XCTAssertFalse(parser.isFinished)
   }
 
   func testParserReassemblesDeltaSplitAcrossChunks() {
     var parser = OwlResponsesStreamParser()
-    XCTAssertEqual(parser.consume(#"data: {"type":"response.output_text.de"#), [])
-    XCTAssertEqual(parser.consume(#"lta","delta":"裁定"}"# + "\n\n"), ["裁定"])
+    XCTAssertEqual(parser.consume(Data(#"data: {"type":"response.output_text.de"#.utf8)), [])
+    XCTAssertEqual(parser.consume(Data((#"lta","delta":"裁定"}"# + "\n\n").utf8)), ["裁定"])
   }
 
   func testParserFinishFlushesATrailingLineWithoutNewline() {
     var parser = OwlResponsesStreamParser()
-    XCTAssertEqual(parser.consume(#"data: {"type":"response.output_text.delta","delta":"末"}"#), [])
+    XCTAssertEqual(parser.consume(Data(#"data: {"type":"response.output_text.delta","delta":"末"}"#.utf8)), [])
     XCTAssertEqual(parser.finish(), ["末"])
   }
 
@@ -149,11 +149,11 @@ final class OwlResponsesStreamingClientTests: XCTestCase {
         httpVersion: "HTTP/1.1",
         headerFields: ["Content-Type": "text/event-stream"]
       )
-      let stream = AsyncThrowingStream<String, Error> { continuation in
-        for chunk in chunks { continuation.yield(chunk) }
+      let stream = AsyncThrowingStream<Data, Error> { continuation in
+        for chunk in chunks { continuation.yield(Data(chunk.utf8)) }
         continuation.finish()
       }
-      return OwlStreamingBytesSource(response: http, chunks: stream)
+      return OwlStreamingBytesSource(response: http, dataChunks: stream)
     })
   }
 
@@ -252,7 +252,7 @@ final class OwlResponsesStreamingClientTests: XCTestCase {
       return OwlStreamingBytesSource(
         response: HTTPURLResponse(
           url: request.url!, statusCode: 200, httpVersion: "HTTP/1.1", headerFields: nil),
-        chunks: AsyncThrowingStream { $0.finish() })
+        dataChunks: AsyncThrowingStream { $0.finish() })
     })
     _ = try await collect(
       client.stream(
@@ -393,7 +393,7 @@ final class OwlResponsesStreamingClientTests: XCTestCase {
     XCTAssertEqual(input.compactMap { $0["content"] as? String }, ["你是法律助理", "第一问", "第一答"])
   }
 
-  func testQwenNonStreamingPayloadParsesOutputUsageAndSearchSources() throws {
+  func testQwenNonStreamingPayloadParsesOutputViaGateway() async throws {
     let data = Data(#"""
       {
         "model":"qwen3.7-plus",
@@ -408,24 +408,35 @@ final class OwlResponsesStreamingClientTests: XCTestCase {
           "input_tokens_details":{"cached_tokens":3}}
       }
       """#.utf8)
-    let parsed = try OwlResponsesWire.parse(data)
-    XCTAssertEqual(parsed.text, "结论")
-    XCTAssertEqual(parsed.model, "qwen3.7-plus")
-    XCTAssertEqual(parsed.usage?.inputTokens, 12)
-    XCTAssertEqual(parsed.usage?.outputTokens, 7)
-    XCTAssertEqual(parsed.usage?.totalTokens, 19)
-    XCTAssertEqual(parsed.usage?.cachedTokens, 3)
-    XCTAssertEqual(parsed.sources, [OwlResponsesSource(title: "", url: "https://example.com/a")])
+    let text = try await OwlLLMGateway(transport: OwlRecordingTransport.replying(data, status: 200)).complete(
+      try OwlSelectionPolish.chatRequest(for: "hi", model: "qwen3.7-plus", providerID: "qwen"),
+      routing: OwlCloudRouting(
+        providerID: "qwen",
+        endpoint: URL(string: "https://dashscope.aliyuncs.com/compatible-mode/v1/responses")!,
+        model: "qwen3.7-plus",
+        secretName: nil,
+        authHeaderStyle: .bearer),
+      apiKey: "sk-test",
+      purpose: .drafting)
+    XCTAssertEqual(text, "结论")
   }
 
   func testQwenStructuredSkillsUseResponsesWithoutUnsupportedChatFields() throws {
     let payloads = [
       try OwlSelectionPolish.chatRequest(
         for: "他撤销了合同", model: "qwen3.7-plus", providerID: "qwen"),
-      OwlPromptOptimizer.chatRequest(
-        forDraft: "帮我写个爬虫", model: "qwen3.7-plus", providerID: "qwen"),
-      OwlGoalBrief.chatRequest(
-        forDraft: "把词库下载做稳", model: "qwen3.7-plus", providerID: "qwen"),
+      OwlStructuredDrafting.chatRequest(
+        systemPrompt: OwlPromptOptimizer.systemPrompt,
+        draft: "帮我写个爬虫",
+        model: "qwen3.7-plus",
+        providerID: "qwen",
+        temperature: OwlPromptOptimizer.structuredDraftingConfiguration.temperature),
+      OwlStructuredDrafting.chatRequest(
+        systemPrompt: OwlGoalBrief.systemPrompt,
+        draft: "把词库下载做稳",
+        model: "qwen3.7-plus",
+        providerID: "qwen",
+        temperature: OwlGoalBrief.structuredDraftingConfiguration.temperature),
     ]
     let legacyEndpoint = URL(
       string: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions")!
@@ -463,11 +474,13 @@ final class OwlResponsesStreamingClientTests: XCTestCase {
   /// `deepseek-*` 也必须走 `/responses`，不被服务时由上游 400 说话，而不是静默换一条旧链路。
   func testEveryDashScopeRoutingSpeaksResponsesRegardlessOfModel() {
     let endpoint = URL(string: "https://dashscope.aliyuncs.com/compatible-mode/v1/responses")!
-    XCTAssertTrue(OwlResponsesWire.isQwen(providerID: "custom", endpoint: endpoint))
-    XCTAssertTrue(OwlResponsesWire.isQwen(providerID: "qwen", endpoint: endpoint))
+    XCTAssertEqual(OwlResponsesWire.dialect(providerID: "custom", model: "gpt-4o", endpoint: endpoint), .qwen)
+    XCTAssertEqual(OwlResponsesWire.dialect(providerID: "qwen", model: "gpt-4o", endpoint: endpoint), .qwen)
     // providerID 认百炼时，端点是不是阿里域名都不改变结论。
-    XCTAssertTrue(OwlResponsesWire.isQwen(
-      providerID: "qwen", endpoint: URL(string: "https://example.com/v1/responses")!))
+    XCTAssertEqual(
+      OwlResponsesWire.dialect(
+        providerID: "qwen", model: "gpt-4o", endpoint: URL(string: "https://example.com/v1/responses")!),
+      .qwen)
     for model in ["qwen3.7-plus", "deepseek-v3.2", "kimi-k2", "glm-4.6"] {
       XCTAssertEqual(
         OwlResponsesWire.dialect(providerID: "qwen", model: model, endpoint: endpoint),
@@ -515,10 +528,13 @@ final class OwlResponsesStreamingClientTests: XCTestCase {
   /// 平台级 Responses。这处不对称一旦被"顺手对齐"，豆包档案上的第三方模型就会被错发 Responses。
   func testArkStillRequiresTheModelPrefix() {
     let endpoint = URL(string: "https://ark.cn-beijing.volces.com/api/v3/responses")!
-    XCTAssertTrue(OwlResponsesWire.isArk(
-      providerID: "doubao", model: "doubao-seed-2-1-pro-260628", endpoint: endpoint))
-    XCTAssertFalse(OwlResponsesWire.isArk(
-      providerID: "doubao", model: "deepseek-v3.2", endpoint: endpoint))
+    XCTAssertEqual(
+      OwlResponsesWire.dialect(
+        providerID: "doubao", model: "doubao-seed-2-1-pro-260628", endpoint: endpoint),
+      .ark)
+    XCTAssertNil(
+      OwlResponsesWire.dialect(
+        providerID: "doubao", model: "deepseek-v3.2", endpoint: endpoint))
   }
 
   // MARK: - DeepSeek 方言（`/responses` 迁移）
@@ -563,13 +579,14 @@ final class OwlResponsesStreamingClientTests: XCTestCase {
     let endpoint = URL(string: "https://api.deepseek.com/v1/chat/completions")!
     XCTAssertNil(
       OwlResponsesWire.dialect(
-        providerID: "deepseek", model: OwlCloudPreferences.reasonerDeepSeekModel,
+        providerID: "deepseek", model: "deepseek-v4-pro",
         endpoint: endpoint),
       "deepseek-v4-pro 尚未被 Responses 支持，必须留在 chat")
-    XCTAssertEqual(OwlCloudPreferences.reasonerDeepSeekModel, "deepseek-v4-pro")
     // 前缀匹配：DeepSeek 在同名下滚版本（flash 现已是 -0731 版），带后缀的写法不该被闸误伤。
-    XCTAssertTrue(OwlResponsesWire.isDeepSeek(
-      providerID: "deepseek", model: "deepseek-v4-flash-0731", endpoint: endpoint))
+    XCTAssertEqual(
+      OwlResponsesWire.dialect(
+        providerID: "deepseek", model: "deepseek-v4-flash-0731", endpoint: endpoint),
+      .deepseek)
   }
 
   /// **判定次序的守卫**。百炼是平台级 Responses 供应商且不看 model，所以它托管的
@@ -582,8 +599,6 @@ final class OwlResponsesStreamingClientTests: XCTestCase {
         providerID: "qwen", model: "deepseek-v4-flash", endpoint: dashScope),
       .qwen,
       "百炼托管的 deepseek 归百炼——不是 DeepSeek 自家端点")
-    XCTAssertFalse(OwlResponsesWire.isDeepSeek(
-      providerID: "qwen", model: "deepseek-v4-flash", endpoint: dashScope))
   }
 
   /// JSON 护栏：Chat 时代 DeepSeek 这三条技能发的是 `response_format:{"type":"json_object"}`，

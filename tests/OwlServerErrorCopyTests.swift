@@ -128,8 +128,6 @@ final class OwlServerErrorCopyTests: XCTestCase {
     } catch let error as OwlStreamingError {
       XCTAssertEqual(
         error, .badHTTPStatus(401, detail: OwlServerErrorDetail(code: "invalid_api_key", message: "Incorrect API key")))
-      // Failover still decides from the status alone.
-      XCTAssertTrue(OwlAskSearchFailover.shouldTryNextAttempt(after: error, hasYieldedDelta: false))
     }
   }
 

@@ -56,40 +56,17 @@ final class OwlLaneTasksTests: XCTestCase {
     await fulfillment(of: [firstObservedCancel], timeout: 2.0)
   }
 
-  /// A `run` on a DIFFERENT lane does NOT cancel the first.
-  func testRunDifferentLaneDoesNotCancel() async {
-    let tasks = OwlLaneTasks()
-    let cloudStarted = expectation(description: "cloud op started")
-    let cloudFinished = expectation(description: "cloud op finished without cancellation")
-
-    tasks.run(.cloud) {
-      cloudStarted.fulfill()
-      do {
-        try await Task.sleep(nanoseconds: 200_000_000)
-        XCTAssertFalse(Task.isCancelled, "a different-lane run must not cancel the cloud op")
-        cloudFinished.fulfill()
-      } catch {
-        XCTFail("the cloud op must not be cancelled by a different-lane run: \(error)")
-      }
-    }
-    await fulfillment(of: [cloudStarted], timeout: 2.0)
-
-    // Run on a DIFFERENT lane while cloud is in flight — must leave cloud alone.
-    tasks.run(.polish) { }
-    await fulfillment(of: [cloudFinished], timeout: 2.0)
-  }
-
   /// `cancel(lane)` cancels exactly that one lane.
   func testCancelOneLane() async {
     let tasks = OwlLaneTasks()
-    let started = expectation(description: "polish op started")
-    let cancelled = expectation(description: "polish op observed cancellation")
+    let started = expectation(description: "cloud op started")
+    let cancelled = expectation(description: "cloud op observed cancellation")
 
-    tasks.run(.polish) {
+    tasks.run(.cloud) {
       started.fulfill()
       do {
         try await Task.sleep(nanoseconds: 5_000_000_000)
-        XCTFail("the polish op should have been cancelled")
+        XCTFail("the cloud op should have been cancelled")
       } catch {
         XCTAssertTrue(Task.isCancelled)
         cancelled.fulfill()
@@ -97,7 +74,7 @@ final class OwlLaneTasksTests: XCTestCase {
     }
     await fulfillment(of: [started], timeout: 2.0)
 
-    tasks.cancel(.polish)
+    tasks.cancel(.cloud)
     await fulfillment(of: [cancelled], timeout: 2.0)
   }
 
@@ -105,24 +82,17 @@ final class OwlLaneTasksTests: XCTestCase {
   func testCancelAllCancelsAllLanes() async {
     let tasks = OwlLaneTasks()
     let cloudStarted = expectation(description: "cloud started")
-    let polishStarted = expectation(description: "polish started")
     let cloudCancelled = expectation(description: "cloud cancelled")
-    let polishCancelled = expectation(description: "polish cancelled")
 
     tasks.run(.cloud) {
       cloudStarted.fulfill()
       do { try await Task.sleep(nanoseconds: 5_000_000_000); XCTFail("cloud not cancelled") }
       catch { XCTAssertTrue(Task.isCancelled); cloudCancelled.fulfill() }
     }
-    tasks.run(.polish) {
-      polishStarted.fulfill()
-      do { try await Task.sleep(nanoseconds: 5_000_000_000); XCTFail("polish not cancelled") }
-      catch { XCTAssertTrue(Task.isCancelled); polishCancelled.fulfill() }
-    }
-    await fulfillment(of: [cloudStarted, polishStarted], timeout: 2.0)
+    await fulfillment(of: [cloudStarted], timeout: 2.0)
 
     tasks.cancelAll()
-    await fulfillment(of: [cloudCancelled, polishCancelled], timeout: 2.0)
+    await fulfillment(of: [cloudCancelled], timeout: 2.0)
   }
 
 }

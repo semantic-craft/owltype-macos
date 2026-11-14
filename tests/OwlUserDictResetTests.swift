@@ -80,10 +80,6 @@ final class OwlUserDictResetTests: XCTestCase {
     FileManager.default.fileExists(atPath: url.path)
   }
 
-  private func names(in dir: URL) -> [String] {
-    ((try? FileManager.default.contentsOfDirectory(atPath: dir.path)) ?? []).sorted()
-  }
-
   private func assertLegacyDataUnchanged() throws {
     XCTAssertEqual(
       try Data(contentsOf: root.appendingPathComponent("rime_ice.userdb/000095.ldb")),

@@ -66,7 +66,7 @@ final class OwlProviderRegistryTests: XCTestCase {
       XCTFail("seed add failed: \(change.outcome)")
       throw Injected.failure
     }
-    registry.markVerified(profile)
+    OwlProviderKeyVerification.markVerified(secretName: profile.secretName)
     return profile
   }
 
@@ -89,7 +89,7 @@ final class OwlProviderRegistryTests: XCTestCase {
     XCTAssertEqual(change.outcome.statusText, "已添加供应商「DeepSeek」。")
     XCTAssertEqual(writes, 1, "replacement and add are one file write")
     XCTAssertEqual(Set(makeStore().profiles().map(\.displayName)), ["阿里云百炼", "DeepSeek"])
-    XCTAssertNil(makeStore().profile(id: old.id))
+    XCTAssertNil(makeStore().profiles().first { $0.id == old.id })
     XCTAssertEqual(makeStore().defaultProfile?.id, added.id)
     XCTAssertEqual(try secrets.secret(named: added.secretName), "new-key")
     XCTAssertNil(try secrets.secret(named: old.secretName), "the replaced key is retired")
@@ -244,7 +244,7 @@ final class OwlProviderRegistryTests: XCTestCase {
     guard case let .added(profile) = registry.upsert(deepSeekForm(), key: "old").outcome else {
       return XCTFail()
     }
-    registry.markVerified(profile)
+    OwlProviderKeyVerification.markVerified(secretName: profile.secretName)
     registry.probeSucceeded(endpoint: profile.endpoint, key: "new", editing: profile)
     XCTAssertEqual(registry.keyState(for: profile), .verified, "the old key's marker is untouched")
 
@@ -266,7 +266,7 @@ final class OwlProviderRegistryTests: XCTestCase {
     guard case let .added(qwen) = registry.upsert(OwlProviderRegistry.Form(
       providerID: "qwen", displayName: "阿里云百炼", endpoint: OwlLLMProviderCatalog.qwenResponsesEndpoint,
       model: "qwen3.8-flash"), key: "old-key").outcome else { return XCTFail() }
-    registry.markVerified(qwen)
+    OwlProviderKeyVerification.markVerified(secretName: qwen.secretName)
     registry.probeSucceeded(endpoint: qwen.endpoint, key: "old-key", editing: qwen)
 
     let change = registry.applyQwenWorkspace("ws-test123abc", key: "new-key")
@@ -309,14 +309,22 @@ final class OwlProviderRegistryTests: XCTestCase {
     let store = makeStore()
     let secrets = Secrets()
     let registry = makeRegistry(store, secrets)
-    let shared = try store.add(OwlProviderProfile(
+    let shared = OwlProviderProfile(
       displayName: "A", endpoint: URL(string: "https://a.example.com/v1")!, model: "m",
-      providerID: OwlLLMProviderCatalog.customID, secretName: "shared", isDefault: true))
-    let other = try store.add(OwlProviderProfile(
+      providerID: OwlLLMProviderCatalog.customID, secretName: "shared", isDefault: true,
+      createdAt: Date(timeIntervalSinceReferenceDate: 1))
+    let other = OwlProviderProfile(
       displayName: "B", endpoint: URL(string: "https://b.example.com/v1")!, model: "m",
-      providerID: OwlLLMProviderCatalog.customID, secretName: "shared"))
+      providerID: OwlLLMProviderCatalog.customID, secretName: "shared",
+      createdAt: Date(timeIntervalSinceReferenceDate: 2))
+    struct ProvidersFile: Encodable { let schemaVersion = 1; let profiles: [OwlProviderProfile] }
+    let encoder = JSONEncoder()
+    encoder.dateEncodingStrategy = .iso8601
+    try FileManager.default.createDirectory(
+      at: store.fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try encoder.encode(ProvidersFile(profiles: [shared, other])).write(to: store.fileURL)
     try secrets.setSecret("k", named: "shared")
-    registry.markVerified(shared)
+    OwlProviderKeyVerification.markVerified(secretName: shared.secretName)
 
     let first = registry.delete(shared)
     XCTAssertEqual(first.outcome.statusText, "已删除供应商「A」。")

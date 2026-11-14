@@ -673,6 +673,8 @@ final class OwlAICandidateTests: XCTestCase {
   func testJevLRUCacheAvoidsDuplicateNetworkCalls() async throws {
     let cache = OwlCandidateRerankCache(capacity: 2)
     let key1 = OwlAICandidateService.cacheKey(preContext: "ctx", pinyin: "ni", candidates: ["你", "泥"])
+    let key2 = OwlAICandidateService.cacheKey(preContext: "ctx", pinyin: "hao", candidates: ["好", "号"])
+    let key3 = OwlAICandidateService.cacheKey(preContext: "ctx", pinyin: "ma", candidates: ["吗", "马"])
     XCTAssertFalse(cache.get(key1).hit)
 
     cache.set(key1, value: 1)
@@ -680,9 +682,11 @@ final class OwlAICandidateTests: XCTestCase {
     XCTAssertTrue(hit.hit)
     XCTAssertEqual(hit.value, 1)
 
-    // Clear cache
-    cache.clear()
+    cache.set(key2, value: 0)
+    cache.set(key3, value: nil)
     XCTAssertFalse(cache.get(key1).hit)
+    XCTAssertTrue(cache.get(key2).hit)
+    XCTAssertTrue(cache.get(key3).hit)
   }
 
   func testJevControllerKeyInterceptionAndCommit() throws {

@@ -8,32 +8,27 @@
 
 import Foundation
 
-public enum OwlAICandidatePreferences: Sendable {
-  public static let aiAssociationEnabledKey = "OwlAIAssociationEnabled"
-  public static let aiEnglishCandidateEnabledKey = "OwlAIEnglishCandidateEnabled"
-  public static let jevDiscriminativeRerankEnabledKey = "OwlJevDiscriminativeRerankEnabled"
+enum OwlAICandidatePreferences: Sendable {
+  static let aiAssociationEnabledKey = "OwlAIAssociationEnabled"
+  static let aiEnglishCandidateEnabledKey = "OwlAIEnglishCandidateEnabled"
+  static let jevDiscriminativeRerankEnabledKey = "OwlJevDiscriminativeRerankEnabled"
 
   /// Default false: user must explicitly enable cloud AI associations.
-  public static var aiAssociationEnabled: Bool {
+  static var aiAssociationEnabled: Bool {
     get { OwlDefaults.standard.object(forKey: aiAssociationEnabledKey) as? Bool ?? false }
     set { OwlDefaults.standard.set(newValue, forKey: aiAssociationEnabledKey) }
   }
 
   /// Default false: user must explicitly enable AI candidates in English input mode.
-  public static var aiEnglishCandidateEnabled: Bool {
+  static var aiEnglishCandidateEnabled: Bool {
     get { OwlDefaults.standard.object(forKey: aiEnglishCandidateEnabledKey) as? Bool ?? false }
     set { OwlDefaults.standard.set(newValue, forKey: aiEnglishCandidateEnabledKey) }
   }
 
   /// Default false: user must explicitly enable discriminative Jev candidate reranking.
-  public static var jevDiscriminativeRerankEnabled: Bool {
+  static var jevDiscriminativeRerankEnabled: Bool {
     get { OwlDefaults.standard.object(forKey: jevDiscriminativeRerankEnabledKey) as? Bool ?? false }
     set { OwlDefaults.standard.set(newValue, forKey: jevDiscriminativeRerankEnabledKey) }
   }
 
-  public static func resetForTesting() {
-    OwlDefaults.standard.removeObject(forKey: aiAssociationEnabledKey)
-    OwlDefaults.standard.removeObject(forKey: aiEnglishCandidateEnabledKey)
-    OwlDefaults.standard.removeObject(forKey: jevDiscriminativeRerankEnabledKey)
-  }
 }

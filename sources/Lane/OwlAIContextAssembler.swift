@@ -35,31 +35,9 @@ enum OwlAIContextAssembler {
       "label": label as Any? ?? NSNull()])
   }
 
-  /// Explicit selections are bounded before being added to a chat request. 与划词入口的选区闸
-  /// （`isAllowedSelection` ≤ `OwlSelectionPolish.maxSelectionLength`）对齐：旧值 400 会把菜单
-  /// 放行的长选区静默截残，「对选中文本下指令加工」（排版/改引号/扩写）就会只改到前 400 字。
-  static let selectedTextCharCap = OwlSelectionPolish.maxSelectionLength
-
-  static let systemPrompt: String = OwlAIBusinessCore.call("prompt", ["id": "context"])
-
-  /// Assemble `[system, (explicit selection), history..., user]`.
-  static func assemble(
-    selectedText: String? = nil,
-    history: [OwlConversationTurn] = [],
-    question: String
-  ) -> [OwlDeepSeekMessage] {
-    OwlAIBusinessCore.call("context", ["selectedText": selectedText as Any? ?? NSNull(),
-      "history": OwlAIBusinessCore.json(history), "question": question])
-  }
-
   static func selectionSummary(_ selectedText: String?) -> String {
     OwlAIBusinessCore.call("selectionSummary", ["text": selectedText as Any? ?? NSNull()])
   }
-
-  /// 选中文本的加工出口规则。跟着选区走（拼在选区 system 消息里、置于不可信文本之后），无选区的
-  /// 纯提问完全不受影响。核心约定：凡是「对选中文本加工」的指令（替换/改写/润色/扩写/排版/翻译/
-  /// 拟回复…），只输出加工结果本身——窗口的「复制」抓的是整段回答，多一句解释就没法直接粘贴回去。
-  static let selectionProcessingRule: String = OwlAIBusinessCore.call("prompt", ["id": "selectionProcessing"])
 
 }
 

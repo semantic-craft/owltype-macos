@@ -440,7 +440,7 @@ final class OwlCandidatePanelGeometryTests: XCTestCase {
   private struct Expected {
     let size: OwlPanelFontSize
     let minimumWidth: CGFloat
-    let selectionInset: CGFloat
+    let rowInset: CGFloat
     let selectionRadius: CGFloat
     let headerSpacing: CGFloat
     let headerLeading: CGFloat
@@ -457,19 +457,19 @@ final class OwlCandidatePanelGeometryTests: XCTestCase {
   }
 
   private let expected: [Expected] = [
-    Expected(size: .small, minimumWidth: 177, selectionInset: 4, selectionRadius: 9,
+    Expected(size: .small, minimumWidth: 177, rowInset: 4, selectionRadius: 9,
              headerSpacing: 7, headerLeading: 11, headerTrailing: 7, headerTop: 8, headerBottom: 4,
              rowSpacing: 0, pagerSpacing: 5, pillHorizontal: 7, pillVertical: 6,
              chevronFont: 11, chevronHitPadding: 3, collapseClearance: 22),
-    Expected(size: .medium, minimumWidth: 210, selectionInset: 5, selectionRadius: 8,
+    Expected(size: .medium, minimumWidth: 210, rowInset: 5, selectionRadius: 8,
              headerSpacing: 8, headerLeading: 13, headerTrailing: 8, headerTop: 9, headerBottom: 5,
              rowSpacing: 0, pagerSpacing: 6, pillHorizontal: 8, pillVertical: 7,
              chevronFont: 14, chevronHitPadding: 4, collapseClearance: 28),
-    Expected(size: .large, minimumWidth: 254, selectionInset: 6, selectionRadius: 7,
+    Expected(size: .large, minimumWidth: 254, rowInset: 6, selectionRadius: 7,
              headerSpacing: 10, headerLeading: 16, headerTrailing: 10, headerTop: 11, headerBottom: 6,
              rowSpacing: 0, pagerSpacing: 7, pillHorizontal: 10, pillVertical: 8,
              chevronFont: 18, chevronHitPadding: 5, collapseClearance: 35),
-    Expected(size: .extraLarge, minimumWidth: 298, selectionInset: 7, selectionRadius: 6,
+    Expected(size: .extraLarge, minimumWidth: 298, rowInset: 7, selectionRadius: 6,
              headerSpacing: 11, headerLeading: 18, headerTrailing: 11, headerTop: 13, headerBottom: 7,
              rowSpacing: 0, pagerSpacing: 9, pillHorizontal: 11, pillVertical: 10,
              chevronFont: 22, chevronHitPadding: 6, collapseClearance: 43),
@@ -483,7 +483,7 @@ final class OwlCandidatePanelGeometryTests: XCTestCase {
       )
 
       XCTAssertEqual(geometry.minimumWidth, want.minimumWidth, want.size.rawValue)
-      XCTAssertEqual(geometry.selectionInset, want.selectionInset, want.size.rawValue)
+      XCTAssertEqual(geometry.compactRow.inset, want.rowInset, want.size.rawValue)
       XCTAssertEqual(geometry.selectionRadius, want.selectionRadius, want.size.rawValue)
 
       XCTAssertEqual(geometry.header.preeditFontSize, want.size.base - 3, want.size.rawValue)
@@ -493,7 +493,6 @@ final class OwlCandidatePanelGeometryTests: XCTestCase {
       XCTAssertEqual(geometry.header.topPadding, want.headerTop, want.size.rawValue)
       XCTAssertEqual(geometry.header.bottomPadding, want.headerBottom, want.size.rawValue)
 
-      XCTAssertEqual(geometry.compactRow.inset, want.selectionInset, want.size.rawValue)
       XCTAssertEqual(geometry.mainRow.spacing, want.rowSpacing, want.size.rawValue)
       XCTAssertEqual(geometry.mainRow.pagerSpacing, want.pagerSpacing, want.size.rawValue)
       XCTAssertEqual(geometry.compactPill.candidateFontSize, want.size.base + 1, want.size.rawValue)
@@ -522,12 +521,6 @@ final class OwlCandidatePanelGeometryTests: XCTestCase {
         size.rawValue
       )
 
-      // HStack 为展开按钮保留完整命中宽与前导间距；overlay 形态还会额外保留右壁净空。
-      XCTAssertEqual(
-        geometry.expandChevronReservedWidth,
-        geometry.mainRow.expandChevronLeadingPadding + geometry.expandChevron.hitWidth,
-        size.rawValue
-      )
       XCTAssertEqual(
         geometry.collapseClearance,
         geometry.expandChevron.hitWidth + geometry.verticalList.collapseTrailingPadding,
@@ -614,7 +607,7 @@ final class OwlCandidatePanelGeometryTests: XCTestCase {
 
       XCTAssertEqual(geometry.verticalList.minimumWidth, verticalMinimumWidth[index], size.rawValue)
       XCTAssertEqual(geometry.verticalList.spacing, 0, size.rawValue)
-      XCTAssertEqual(geometry.verticalList.inset, geometry.selectionInset, size.rawValue)
+      XCTAssertEqual(geometry.verticalList.inset, geometry.compactRow.inset, size.rawValue)
       XCTAssertEqual(geometry.verticalList.hairlineHeight, 1, size.rawValue)
       XCTAssertEqual(geometry.verticalList.collapseTopPadding, collapseTopPadding[index], size.rawValue)
 
@@ -632,7 +625,7 @@ final class OwlCandidatePanelGeometryTests: XCTestCase {
       XCTAssertEqual(geometry.listRow.verticalPadding, listVerticalPadding[index], size.rawValue)
 
       XCTAssertEqual(geometry.scrollStack.spacing, scrollStackSpacing[index], size.rawValue)
-      XCTAssertEqual(geometry.scrollStack.inset, geometry.selectionInset, size.rawValue)
+      XCTAssertEqual(geometry.scrollStack.inset, geometry.compactRow.inset, size.rawValue)
       // 多行前/后页行与主行是同一张网格的相邻行：候选间隔差一点点都会逐列累加成错位，
       // 所以锁的是「与主行同值」这条不变式，而不是某个具体点数。
       XCTAssertEqual(geometry.scrollRow.spacing, geometry.mainRow.spacing, size.rawValue)
@@ -674,7 +667,6 @@ final class OwlCandidatePanelGeometryTests: XCTestCase {
         size.rawValue
       )
 
-      // 收起按钮命中区之外仍保留一个 selectionInset，第一行选中块不会被 overlay 截走。
       XCTAssertEqual(
         geometry.collapseClearance,
         geometry.expandChevron.hitWidth + geometry.verticalList.collapseTrailingPadding,
@@ -682,7 +674,7 @@ final class OwlCandidatePanelGeometryTests: XCTestCase {
       )
       let gap = geometry.verticalList.inset + geometry.collapseClearance
         - geometry.verticalList.collapseTrailingPadding - geometry.expandChevron.hitWidth
-      XCTAssertEqual(gap, geometry.selectionInset, size.rawValue)
+      XCTAssertEqual(gap, geometry.compactRow.inset, size.rawValue)
     }
   }
 }

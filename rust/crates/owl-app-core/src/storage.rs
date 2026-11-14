@@ -236,27 +236,9 @@ impl Host for FilesystemHost {
                     Err(_) => Ok(Value::Null),
                 }
             }
-            "relative" => {
-                let path = Path::new(args["path"].as_str().unwrap_or(""));
-                if let Ok(stripped) = path.strip_prefix(&self.data_dir) {
-                    Ok(json!(stripped.to_string_lossy()))
-                } else {
-                    Ok(json!(path
-                        .file_name()
-                        .map(|n| n.to_string_lossy().into_owned())
-                        .unwrap_or_default()))
-                }
-            }
             "path" => {
                 let target = self.resolve(args["name"].as_str().unwrap_or(""));
                 Ok(json!(target.to_string_lossy()))
-            }
-            "file_url" => {
-                let target = self.resolve(args["name"].as_str().unwrap_or(""));
-                let s = url::Url::from_file_path(&target)
-                    .map(|u| u.to_string())
-                    .unwrap_or_else(|_| format!("file://{}", target.to_string_lossy()));
-                Ok(json!(s))
             }
             "sibling" => {
                 let target = self.resolve(args["name"].as_str().unwrap_or(""));
@@ -265,16 +247,6 @@ impl Host for FilesystemHost {
                     .unwrap_or(&self.data_dir)
                     .join(args["sibling"].as_str().unwrap_or(""));
                 Ok(json!(sib.to_string_lossy()))
-            }
-            "rename" => {
-                let src = self.resolve(args["source"].as_str().unwrap_or(""));
-                let dst = self.resolve(args["destination"].as_str().unwrap_or(""));
-                msime_path_trust::reject_symlinked_components(&src)
-                    .map_err(|_| "write_failed".to_string())?;
-                msime_path_trust::reject_symlinked_components(&dst)
-                    .map_err(|_| "write_failed".to_string())?;
-                fs::rename(&src, &dst).map_err(|_| "write_failed".to_string())?;
-                Ok(Value::Bool(true))
             }
             "library_committed" => {
                 self.committed_library = true;
@@ -288,7 +260,7 @@ impl Host for FilesystemHost {
                 }
                 Ok(Value::Bool(true))
             }
-            "process_lock" | "process_unlock" | "lock" | "unlock" => Ok(Value::Bool(true)),
+            "lock" | "unlock" => Ok(Value::Bool(true)),
             "title_ranks" => {
                 let titles: Vec<String> = decode(args["titles"].clone()).unwrap_or_default();
                 let keys: Vec<String> = titles

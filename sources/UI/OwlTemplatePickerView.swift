@@ -23,8 +23,6 @@ extension OwlPickerRow {
 enum OwlPickerSegment: String, CaseIterable {
   case phrase
   case prompt
-
-  var label: String { self == .phrase ? "短语" : "提示词" }
 }
 
 struct OwlPickerPanelModel: Equatable, Codable {
@@ -41,7 +39,6 @@ struct OwlPickerPanelModel: Equatable, Codable {
   var visible: [OwlPickerRow] {
     OwlTemplateStore.core("picker_visible", ["model": OwlAppCore.payload(self)])
   }
-  var isEmpty: Bool { visible.isEmpty }
   private struct Selection: Decodable { let row: OwlPickerRow? }
   var selectedRow: OwlPickerRow? {
     let value: Selection = OwlTemplateStore.core("picker_selected", ["model": OwlAppCore.payload(self)]); return value.row

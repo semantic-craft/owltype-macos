@@ -20,26 +20,6 @@ enum OwlInsertOutcome: Equatable, Sendable {
   case failed(String)
 }
 
-enum OwlInsertLadder {
-  static func sequence(cached: OwlInsertStrategy?) -> [OwlInsertStrategy] {
-    OwlAIBusinessCore.call("insertSequence", ["cached": cached?.rawValue as Any? ?? NSNull()])
-  }
-
-  static func sequence(
-    mode: OwlHostDeliveryMode,
-    cached: OwlInsertStrategy? = nil,
-    hasIMK: Bool = true,
-    preferPaste: Bool = false
-  ) -> [OwlInsertStrategy] {
-    OwlAIBusinessCore.call("hostDeliverySequence", [
-      "mode": mode.rawValue,
-      "cached": cached?.rawValue as Any? ?? NSNull(),
-      "hasIMK": hasIMK,
-      "preferPaste": preferPaste
-    ])
-  }
-}
-
 enum OwlPasteInserter {
   static func paste(_ text: String) -> Bool {
     let pasteboard = NSPasteboard.general
@@ -236,11 +216,6 @@ final class OwlTemplateHostDelivery {
     }
   }
 
-  init(access: Access, automaticSource: AutomaticSource? = nil) {
-    self.access = access
-    source = automaticSource
-  }
-
   deinit { if let activationObserver { NSWorkspace.shared.notificationCenter.removeObserver(activationObserver) } }
 
   private lazy var core: OwlAppSession = try! OwlAppSession("delivery", args: ["source": source.map {
@@ -347,11 +322,6 @@ final class OwlTemplateHostDelivery {
       "rejection": access.rejection(immediate)?.rawValue as Any? ?? NSNull()])
   }
 
-  func prepareForPresentation() -> OwlTemplatePresentationPreparation {
-    var preparation = OwlTemplatePresentationPreparation.originalAttemptedUnverified
-    prepareForPresentation { preparation = $0 }
-    return preparation
-  }
   func prepareForPresentation(completion: @escaping (OwlTemplatePresentationPreparation) -> Void) {
     let effect: Effect = core.call("prepare", facts(planning: true))
     if let code = effect.outcome { completion(Self.preparation(code)); return }
@@ -374,11 +344,6 @@ final class OwlTemplateHostDelivery {
     access.settle(finish)
   }
 
-  func deliver(_ result: OwlTemplateInvocation.Result) -> OwlTemplateDeliveryOutcome {
-    var outcome = OwlTemplateDeliveryOutcome.attemptedUnverified
-    deliver(result) { outcome = $0 }
-    return outcome
-  }
   func deliver(_ result: OwlTemplateInvocation.Result, completion: @escaping (OwlTemplateDeliveryOutcome) -> Void) {
     // Stream UTF-8 scalar chunks: expanded output may exceed the bounded request ABI.
     let accepted: Bool = core.call("result_begin", ["cursorOffset": result.cursorOffset as Any? ?? NSNull()])
@@ -683,8 +648,6 @@ final class OwlTemplateHostDelivery {
   }
 
   // MARK: - Unified Host Delivery Service (.caretInsertion & .selectionReplacement)
-
-  typealias Mode = OwlHostDeliveryMode
 
   @MainActor
   static func insertCaretOrFallback(

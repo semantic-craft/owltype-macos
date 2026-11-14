@@ -88,7 +88,7 @@ final class OwlAskSearchResolverTests: XCTestCase {
       profiles: [deepseek(isDefault: true)],
       keys: ["owltype.provider.deepseek.apiKey": "sk-deepseek"]
     )
-    XCTAssertNil(resolver.resolve(), "开关关闭时绝不联网，即便配好了 DeepSeek")
+    XCTAssertNil(resolver.resolveAll().first, "开关关闭时绝不联网，即便配好了 DeepSeek")
   }
 
   // MARK: - Only DeepSeek searches
@@ -98,13 +98,13 @@ final class OwlAskSearchResolverTests: XCTestCase {
       profiles: [deepseek(isDefault: true)],
       keys: ["owltype.provider.deepseek.apiKey": "sk-deepseek"]
     )
-    guard let route = resolver.resolve() else { return XCTFail("expected a resolved route") }
+    guard let route = resolver.resolveAll().first else { return XCTFail("expected a resolved route") }
     XCTAssertEqual(route.providerID, "deepseek")
     XCTAssertEqual(route.routing.endpoint.host, "api.deepseek.com")
     XCTAssertEqual(route.routing.model, OwlSearchControl.searchModel, "官方端点联网作答固定用 flash")
     XCTAssertEqual(route.apiKey, "sk-deepseek")
     XCTAssertEqual(route.transport, .deepSeekSearchAPI)
-    XCTAssertEqual(route.displayName, "DeepSeek")
+    XCTAssertEqual(OwlProviderCapabilities.searchDisplayName(providerID: route.providerID), "DeepSeek")
   }
 
   func testOtherProvidersNeverSearchEvenWithKeys() {
@@ -129,7 +129,7 @@ final class OwlAskSearchResolverTests: XCTestCase {
         "owltype.provider.deepseek.apiKey": "sk-deepseek",
       ]
     )
-    guard let route = resolver.resolve() else { return XCTFail("expected a resolved route") }
+    guard let route = resolver.resolveAll().first else { return XCTFail("expected a resolved route") }
     XCTAssertEqual(route.providerID, "deepseek")
     XCTAssertEqual(route.apiKey, "sk-deepseek")
   }
@@ -151,7 +151,7 @@ final class OwlAskSearchResolverTests: XCTestCase {
       profiles: [deepseek(model: "deepseek-v4-pro", isDefault: true)],
       keys: ["owltype.provider.deepseek.apiKey": "sk-deepseek"]
     )
-    XCTAssertEqual(pro.resolve()?.routing.model, OwlSearchControl.searchModel)
+    XCTAssertEqual(pro.resolveAll().first?.routing.model, OwlSearchControl.searchModel)
 
     let mixed = makeResolver(
       profiles: [
@@ -173,8 +173,8 @@ final class OwlAskSearchResolverTests: XCTestCase {
       profiles: [profile("deepseek", host: "deepseek.proxy.example", model: "deepseek-v4-pro")],
       keys: ["owltype.provider.deepseek.apiKey": "sk-proxy"]
     )
-    XCTAssertEqual(proxy.resolve()?.routing.model, "deepseek-v4-pro")
-    XCTAssertEqual(proxy.resolve()?.routing.endpoint.host, "deepseek.proxy.example")
+    XCTAssertEqual(proxy.resolveAll().first?.routing.model, "deepseek-v4-pro")
+    XCTAssertEqual(proxy.resolveAll().first?.routing.endpoint.host, "deepseek.proxy.example")
   }
 
   func testCustomProfileResolvesDeepSeekByHost() {
@@ -191,7 +191,7 @@ final class OwlAskSearchResolverTests: XCTestCase {
       profiles: [custom],
       keys: ["owltype.provider.custom-deepseek.apiKey": "sk-custom"]
     )
-    guard let route = resolver.resolve() else { return XCTFail("expected a resolved route") }
+    guard let route = resolver.resolveAll().first else { return XCTFail("expected a resolved route") }
     XCTAssertEqual(route.providerID, "deepseek", "host 兜底推断出 DeepSeek")
     XCTAssertEqual(route.transport, .deepSeekSearchAPI)
   }
@@ -215,7 +215,7 @@ final class OwlAskSearchResolverTests: XCTestCase {
       keys: ["owltype.provider.ds-b.apiKey": "sk-b"],
       secretThrows: ["owltype.provider.ds-a.apiKey"]
     )
-    XCTAssertEqual(resolver.resolve()?.apiKey, "sk-b", "钥匙串读失败只淘汰这一份，不整问失败")
+    XCTAssertEqual(resolver.resolveAll().first?.apiKey, "sk-b", "钥匙串读失败只淘汰这一份，不整问失败")
   }
 
   // MARK: - Silent fallback
@@ -225,11 +225,11 @@ final class OwlAskSearchResolverTests: XCTestCase {
       profiles: [minimax(isDefault: true)],
       keys: ["owltype.provider.minimax.apiKey": "sk-minimax"]
     )
-    XCTAssertNil(resolver.resolve(), "调用方退回普通问答，绝不报错")
+    XCTAssertNil(resolver.resolveAll().first, "调用方退回普通问答，绝不报错")
   }
 
   func testNoProfilesAtAllResolvesToNil() {
-    XCTAssertNil(makeResolver(profiles: [], keys: [:]).resolve())
+    XCTAssertNil(makeResolver(profiles: [], keys: [:]).resolveAll().first)
   }
 
   // MARK: - Preference default

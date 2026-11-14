@@ -56,6 +56,7 @@ final class OwlAgentAccess: NSObject, OwlAgentBridgeService {
   }
   private lazy var deliveryCoordinator = makeDeliveryCoordinator()
   private(set) var bridge: OwlAgentBridge?
+  private var isFollowing = false
   private var makeBridge: (OwlAgentAccess) -> OwlAgentBridge = {
     OwlAgentBridge(verifier: OwlAgentPeerVerifier(), service: $0)
   }
@@ -67,17 +68,23 @@ final class OwlAgentAccess: NSObject, OwlAgentBridgeService {
     super.init()
   }
 
+  deinit {
+    if isFollowing {
+      defaults.removeObserver(self, forKeyPath: OwlAgentAccessPreferences.enabledKey)
+    }
+    bridge?.stop()
+  }
+
   /// Follows the switch from now on; `bridgeFactory` replaces the production socket in tests.
   func start(bridgeFactory: ((OwlAgentAccess) -> OwlAgentBridge)? = nil) {
     if let bridgeFactory { makeBridge = bridgeFactory }
+    if isFollowing {
+      apply()
+      return
+    }
+    isFollowing = true
     defaults.addObserver(self, forKeyPath: OwlAgentAccessPreferences.enabledKey, options: [.new], context: nil)
     apply()
-  }
-
-  func stopFollowing() {
-    defaults.removeObserver(self, forKeyPath: OwlAgentAccessPreferences.enabledKey)
-    bridge?.stop()
-    bridge = nil
   }
 
   // swiftlint:disable:next block_based_kvo

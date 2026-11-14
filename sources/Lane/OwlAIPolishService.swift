@@ -12,20 +12,20 @@ import Foundation
 
 // MARK: - Protocols
 
-public protocol OwlSelectionPolishClientProtocol: Sendable {
+protocol OwlSelectionPolishClientProtocol: Sendable {
   /// Polishes the selection text into exactly 2 distinct candidates.
   func polishSelection(text: String, style: OwlPolishStyle) async throws -> [String]
 }
 
-public protocol OwlReplyGeneratorProtocol: Sendable {
+protocol OwlReplyGeneratorProtocol: Sendable {
   /// Generates exactly 3 reply candidates given the context and template.
   func generateReplies(contextText: String, template: OwlReplyTemplate) async throws -> [String]
 }
 
 // MARK: - Live Service
 
-public final class OwlAIPolishService: OwlSelectionPolishClientProtocol, OwlReplyGeneratorProtocol, @unchecked Sendable {
-  public static let shared = OwlAIPolishService()
+final class OwlAIPolishService: OwlSelectionPolishClientProtocol, OwlReplyGeneratorProtocol, @unchecked Sendable {
+  static let shared = OwlAIPolishService()
 
   private let gateway: OwlLLMGateway
   private let authGateProvider: @Sendable () async -> OwlProviderAuthOutcome
@@ -53,7 +53,7 @@ public final class OwlAIPolishService: OwlSelectionPolishClientProtocol, OwlRepl
     self.customReplier = customReplier
   }
 
-  public convenience init(
+  convenience init(
     customPolisher: (@Sendable (String, OwlPolishStyle) async throws -> [String])? = nil,
     customReplier: (@Sendable (String, OwlReplyTemplate) async throws -> [String])? = nil
   ) {
@@ -67,7 +67,7 @@ public final class OwlAIPolishService: OwlSelectionPolishClientProtocol, OwlRepl
 
   // MARK: - OwlSelectionPolishClientProtocol
 
-  public func polishSelection(text: String, style: OwlPolishStyle) async throws -> [String] {
+  func polishSelection(text: String, style: OwlPolishStyle) async throws -> [String] {
     if let customPolisher {
       return try await customPolisher(text, style)
     }
@@ -110,7 +110,7 @@ public final class OwlAIPolishService: OwlSelectionPolishClientProtocol, OwlRepl
 
   // MARK: - OwlReplyGeneratorProtocol
 
-  public func generateReplies(contextText: String, template: OwlReplyTemplate) async throws -> [String] {
+  func generateReplies(contextText: String, template: OwlReplyTemplate) async throws -> [String] {
     if let customReplier {
       return try await customReplier(contextText, template)
     }

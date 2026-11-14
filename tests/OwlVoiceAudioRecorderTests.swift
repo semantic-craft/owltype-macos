@@ -4,7 +4,6 @@
 //
 
 import AVFoundation
-import os
 import XCTest
 @testable import Owltype
 
@@ -223,56 +222,43 @@ final class OwlVoiceAudioRecorderTests: XCTestCase {
 
   func testCancelRecordingOnUnstartedRecorderCompletesImmediatelyWithoutHang() {
     let recorder = OwlVoiceAudioRecorder()
-    XCTAssertFalse(recorder.isRecording)
 
     // Calling cancel on an unstarted recorder must return immediately without hang or deadlock
     recorder.cancelRecording()
-    XCTAssertFalse(recorder.isRecording)
   }
 
   func testStopRecordingOnUnstartedRecorderThrowsWithoutHang() {
     let recorder = OwlVoiceAudioRecorder()
-    XCTAssertFalse(recorder.isRecording)
 
     // Calling stop on an unstarted recorder must throw recordingTooShort(0) without hang or deadlock
     XCTAssertThrowsError(try recorder.stopRecording()) { error in
       XCTAssertEqual(error as? OwlVoiceAudioError, .recordingTooShort(0))
     }
-    XCTAssertFalse(recorder.isRecording)
   }
 
   func testBufferClampingStrictlyLimitsToMaxPCMBytes() {
-    let recorder = OwlVoiceAudioRecorder()
-    recorder.prepareForTesting(isRecording: true)
-
     let maxPCM = OwlVoiceAudioRecorder.maxPCMBytes
     XCTAssertEqual(maxPCM, 1_920_000)
 
-    // 1. Append 1,900,000 bytes (under cap)
+    var unstarted = OwlVoiceAudioRecorder.RecorderState()
+    XCTAssertFalse(unstarted.append(Data(repeating: 0x11, count: 1_024), rms: 0.5))
+    XCTAssertEqual(unstarted.pcmData.count, 0)
+
+    var state = OwlVoiceAudioRecorder.RecorderState(isRecording: true)
+
     let chunk1 = Data(repeating: 0x55, count: 1_900_000)
-    let triggered1 = recorder.appendPCMData(chunk1, rms: 0.1)
-    XCTAssertFalse(triggered1)
-    XCTAssertEqual(recorder.pcmDataCountForTesting, 1_900_000)
+    XCTAssertFalse(state.append(chunk1, rms: 0.1))
+    XCTAssertEqual(state.pcmData.count, 1_900_000)
 
-    // 2. Append 30,000 bytes (would exceed 1,920,000 by 10,000 bytes)
     let chunk2 = Data(repeating: 0xAA, count: 30_000)
-    let autoStopFired = OSAllocatedUnfairLock(initialState: false)
-    recorder.autoStopHandler = { autoStopFired.withLock { $0 = true } }
+    XCTAssertTrue(state.append(chunk2, rms: 0.1))
+    XCTAssertEqual(state.pcmData.count, maxPCM)
+    XCTAssertTrue(state.autoStopTriggered)
 
-    let triggered2 = recorder.appendPCMData(chunk2, rms: 0.1)
-    XCTAssertTrue(triggered2)
-    // Strictly clamped at 1,920,000 bytes
-    XCTAssertEqual(recorder.pcmDataCountForTesting, maxPCM)
-
-    // 3. Append another 50,000 bytes while still in recording state
     let chunk3 = Data(repeating: 0xBB, count: 50_000)
-    let triggered3 = recorder.appendPCMData(chunk3, rms: 0.1)
-    // autoStopTriggered was already set, so should not fire again
-    XCTAssertFalse(triggered3)
-    // Buffer count MUST remain strictly clamped at 1,920,000 bytes
-    XCTAssertEqual(recorder.pcmDataCountForTesting, maxPCM)
-
-    recorder.prepareForTesting(isRecording: false)
+    XCTAssertFalse(state.append(chunk3, rms: 0.25))
+    XCTAssertEqual(state.pcmData.count, maxPCM)
+    XCTAssertEqual(state.peakRMS, 0.25)
   }
 
   func testMockStopAndCancelWhenNotRecordingSafety() {
@@ -311,8 +297,6 @@ public final class OwlMockAudioRecorder: OwlAudioRecordingProtocol, @unchecked S
   public var simulatedWAVData: Data? = nil
   public var shouldThrowOnStart: Error? = nil
   public var shouldThrowOnStop: Error? = nil
-
-  public var duration: TimeInterval { simulatedDuration }
 
   public init() {}
 

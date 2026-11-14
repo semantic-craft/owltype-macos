@@ -53,13 +53,6 @@ enum OwlCandidateAnchor {
     rejectionReason(rect, screens: screens, minimumHeight: minimumHeight) == nil
   }
 
-  /// Resolve cascade: usable `fresh` → usable `previous` → `nil` (caller supplies a safe default).
-  /// Deliberately small: no AX provider and no TTL cache; reusing the last usable anchor handles
-  /// the common case with much less state. Delegates to the ordered multi-candidate form (B4).
-  static func resolve(fresh: CGRect, previous: CGRect?, screens: [CGRect], minimumHeight: CGFloat = 1) -> CGRect? {
-    resolve(candidates: [fresh], previous: previous, screens: screens, minimumHeight: minimumHeight)
-  }
-
   /// Ordered multi-candidate resolve (B4 — caret-end anchoring). Tries each rect in `candidates`
   /// in order and returns the first usable one; else a usable `previous`; else `nil` (caller
   /// supplies a safe default). The caller passes "this composition" candidates first (e.g.

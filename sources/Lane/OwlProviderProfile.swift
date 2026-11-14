@@ -29,12 +29,6 @@ import Security
 /// Anthropic/Gemini + on-device FoundationModels as new cases under the same profile model.
 enum OwlProviderKind: String, Codable, CaseIterable, Sendable {
   case openAICompatible = "openai_compatible"
-
-  var displayName: String {
-    switch self {
-    case .openAICompatible: return "OpenAI 兼容"
-    }
-  }
 }
 
 enum OwlProviderAuthHeaderStyle: String, Codable, Sendable, Equatable {
@@ -59,11 +53,9 @@ enum OwlLLMProviderCatalog {
   static let qwenResponsesEndpoint =
     "https://dashscope.aliyuncs.com/compatible-mode/v1/responses"
 
-  private struct Catalog: Decodable { let presets: [OwlLLMProviderPreset]; let qwenModels: [String]; let minimaxModels: [String] }
+  private struct Catalog: Decodable { let presets: [OwlLLMProviderPreset] }
   private static let catalog: Catalog = OwlProviderCore.call("catalog")
   static let presets = catalog.presets
-  static let qwenModels = catalog.qwenModels
-  static let minimaxModels = catalog.minimaxModels
 
   static let customID = "custom"
 
@@ -74,13 +66,6 @@ enum OwlLLMProviderCatalog {
 
   static func inferredProviderID(for profile: OwlProviderProfile?) -> String {
     OwlProviderCore.call("inferred", ["profile": profile.map(OwlAppCore.payload) ?? NSNull()])
-  }
-
-  /// Whether a resolved provider id is still routable: a preset in the catalog, or the custom id.
-  /// A profile whose id has left the preset catalog (a provider retired by a newer build) is not a
-  /// usable default and must fall back to the repo's default config instead of its own endpoint.
-  static func isKnownProviderID(_ id: String) -> Bool {
-    OwlProviderCore.call("known", ["id": id])
   }
 
   /// The provider id the settings form shows when editing a profile. A retired id is shown as
@@ -109,8 +94,6 @@ enum OwlLLMProviderCatalog {
 /// 设置页允许粘贴三种等价输入：`ws-…`、完整 API Host、完整 Responses URL。只接受阿里云
 /// 北京地域 Workspace Host，避免把任意用户输入直接插进 URL host。
 enum OwlQwenWorkspace {
-  static let beijingHostSuffix = ".cn-beijing.maas.aliyuncs.com"
-
   static func normalizedAPIHost(_ rawValue: String) -> String? {
     OwlProviderHost().required("workspace", ["input": rawValue])
   }
@@ -134,31 +117,6 @@ enum OwlQwenWorkspaceSettings {
     defaults.string(forKey: key) ?? ""
   }
 
-  /// 空值表示清除并回退通用端点；非法 Host 不覆盖上一次可用配置。
-  @discardableResult
-  static func save(
-    _ rawValue: String,
-    defaults: UserDefaults = OwlDefaults.standard
-  ) -> Bool {
-    guard let commit = prepareSave(rawValue, defaults: defaults) else { return false }
-    commit()
-    return true
-  }
-
-  /// Validate before a profile transaction. The returned write has no remaining validation
-  /// or throwing operations, so settings cannot reject the input after profiles commit.
-  static func prepareSave(
-    _ rawValue: String,
-    defaults: UserDefaults = OwlDefaults.standard
-  ) -> (() -> Void)? {
-    let host: String? = OwlProviderHost().required("prepareWorkspace", ["input": rawValue])
-    guard let host else { return nil }
-    return {
-      if host.isEmpty { defaults.removeObject(forKey: key) }
-      else { defaults.set(host, forKey: key) }
-    }
-  }
-
   static func responsesEndpoint(defaults: UserDefaults = OwlDefaults.standard) -> URL {
     let value: String = OwlProviderHost().required("storedWorkspaceEndpoint", ["input": apiHost(defaults: defaults)])
     return URL(string: value)!
@@ -166,18 +124,6 @@ enum OwlQwenWorkspaceSettings {
 }
 
 // MARK: - Errors
-
-enum OwlProviderError: LocalizedError, Equatable {
-  case emptyName
-  case notFound(String)
-
-  var errorDescription: String? {
-    switch self {
-    case .emptyName: return "供应商名称不能为空。"
-    case let .notFound(id): return "未找到供应商配置（\(id)）。"
-    }
-  }
-}
 
 enum OwlProviderKeychainError: Error, Equatable {
   case unexpectedStatus(OSStatus)
@@ -261,26 +207,6 @@ struct OwlProviderProfile: Codable, Identifiable, Equatable, Sendable {
   /// distinct Keychain account so multiple providers coexist.
   static func defaultSecretName(for id: String) -> String {
     OwlProviderCore.call("secretName", ["id": id])
-  }
-}
-
-/// Schema-versioned on-disk wrapper. The version is on the file, not per-record — the standard
-/// forward-migration seam. v1 reads/writes version 1.
-struct OwlProviderProfilesFile: Codable, Equatable, Sendable {
-  static let currentSchemaVersion = 1
-
-  var schemaVersion: Int
-  var profiles: [OwlProviderProfile]
-
-  init(schemaVersion: Int = currentSchemaVersion, profiles: [OwlProviderProfile] = []) {
-    self.schemaVersion = schemaVersion
-    self.profiles = profiles
-  }
-
-  init(from decoder: Decoder) throws {
-    let c = try decoder.container(keyedBy: CodingKeys.self)
-    self.schemaVersion = try c.decodeIfPresent(Int.self, forKey: .schemaVersion) ?? Self.currentSchemaVersion
-    self.profiles = try c.decodeIfPresent([OwlProviderProfile].self, forKey: .profiles) ?? []
   }
 }
 
@@ -378,35 +304,8 @@ final class OwlProviderProfileStore {
   var fileURL: URL { root.appendingPathComponent(Self.fileName, isDirectory: false) }
 
   private var host: OwlProviderHost { OwlProviderHost(store: self) }
-  func load() -> OwlProviderProfilesFile { host.required("load") }
   func profiles() -> [OwlProviderProfile] { host.required("profiles") }
-  func readableProfiles() -> [OwlProviderProfile]? { host.required("readable") }
   var defaultProfile: OwlProviderProfile? { host.required("defaultProfile") }
-  func profile(id: String) -> OwlProviderProfile? { host.required("profile", ["id": id]) }
-  @discardableResult
-  func add(_ profile: OwlProviderProfile) throws -> OwlProviderProfile {
-    try add(profile, replacing: []).first { $0.id == profile.id } ?? profile
-  }
-  @discardableResult
-  func add(_ profile: OwlProviderProfile, replacing replacedIDs: [String]) throws -> [OwlProviderProfile] {
-    try host.call("add", ["profile": OwlAppCore.payload(profile), "replacing": replacedIDs])
-  }
-  @discardableResult
-  func update(_ profile: OwlProviderProfile) throws -> OwlProviderProfile {
-    let values: [OwlProviderProfile] = try host.call("update", ["profile": OwlAppCore.payload(profile)])
-    return values.first { $0.id == profile.id } ?? profile
-  }
-  @discardableResult
-  func update(_ profiles: [OwlProviderProfile]) throws -> [OwlProviderProfile] {
-    try host.call("batch", ["profiles": OwlAppCore.payload(profiles)])
-  }
-  func delete(id: String) throws {
-    let _: [OwlProviderProfile] = try host.call("delete", ["id": id])
-  }
-  func setDefault(id: String) throws {
-    let _: [OwlProviderProfile] = try host.call("default", ["id": id])
-  }
-
 }
 
 // MARK: - Model list fetch
@@ -477,11 +376,6 @@ enum OwlProviderConnectivityCheck {
   /// 最小请求体。Chat providers cap output at 16 tokens; the Responses providers (Qwen / 豆包)
   /// do not carry that old field because their compatibility references do not list it as an
   /// accepted request field.
-  ///
-  /// 一并合上 `OwlThinkingControl.offBody`：混合思考模型默认开着思考时，会在回第一个字前先烧几百
-  /// 上千推理 token（同 任意提问 那条路的理由），验证个连通性没必要等那么久。Responses 方言的
-  /// 关思考（qwen `reasoning.effort:none`、方舟 `thinking.type:disabled`）由
-  /// `OwlResponsesWire.body` 统一带上。
   static func body(providerID: String, model: String, endpoint: URL? = nil) -> [String: Any] {
     OwlProviderCore.object("probeBody", ["providerID": providerID, "model": model, "host": endpoint?.host ?? ""])
   }

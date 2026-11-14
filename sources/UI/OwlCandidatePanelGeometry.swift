@@ -134,7 +134,6 @@ struct OwlCandidatePanelGeometry: Equatable, Sendable {
   /// 前/后页行的空槽都按这**同一个**宽度摆放，各行候选文字于是落在同一条左边界上；
   /// 两侧共用一个数，任何度量误差同时发生、不会让列错开。视图量出后交给这里解析。
   let labelSlotWidth: CGFloat
-  let selectionInset: CGFloat
   let selectionRadius: CGFloat
   let header: Header
   let verticalHeader: Header
@@ -151,10 +150,6 @@ struct OwlCandidatePanelGeometry: Equatable, Sendable {
 
   var collapseClearance: CGFloat {
     expandChevron.hitWidth + verticalList.collapseTrailingPadding
-  }
-
-  var expandChevronReservedWidth: CGFloat {
-    mainRow.expandChevronLeadingPadding + expandChevron.hitWidth
   }
 
   init(candidateFontSize: CGFloat, panelCornerRadius: CGFloat, labelSlotWidth: CGFloat = 0) {
@@ -189,7 +184,6 @@ struct OwlCandidatePanelGeometry: Equatable, Sendable {
     panel = Panel(spacing: 0, cornerRadius: panelCornerRadius, strokeWidth: 1)
     minimumWidth = resolve(210)
     self.labelSlotWidth = labelSlotWidth
-    self.selectionInset = selectionInset
     selectionRadius = max(4, panelCornerRadius - selectionInset)
     header = Header(
       preeditFontSize: candidateFontSize - 3,

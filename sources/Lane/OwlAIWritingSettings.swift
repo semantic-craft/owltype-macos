@@ -17,7 +17,4 @@ enum OwlAIWritingSettings: Sendable {
     }
   }
 
-  static func resetForTesting() {
-    OwlDefaults.standard.removeObject(forKey: enabledKey)
-  }
 }

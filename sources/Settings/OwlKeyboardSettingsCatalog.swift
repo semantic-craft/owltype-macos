@@ -170,11 +170,6 @@ struct OwlKeyboardSettingsCatalog {
     return defaults.object(forKey: row.key) == nil ? row.defaultValue : defaults.bool(forKey: row.key)
   }
 
-  /// Every switch's current value.
-  func load() -> [OwlKeyboardSwitch: Bool] {
-    Dictionary(uniqueKeysWithValues: OwlKeyboardSwitch.allCases.map { ($0, load($0)) })
-  }
-
   /// Settings-window seed: every switch mirror, plus the one UI switch derived from two keys.
   func seed(into state: OwlSettingsState) {
     for toggle in OwlKeyboardSwitch.allCases {

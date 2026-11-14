@@ -318,18 +318,6 @@ enum OwlSelectionMenuPreferences {
     set { OwlDefaults.standard.set(newValue, forKey: goalBriefEnabledKey) }
   }
 
-  static func resetForTesting() {
-    OwlDefaults.standard.removeObject(forKey: enabledKey)
-    OwlDefaults.standard.removeObject(forKey: askEnabledKey)
-    OwlDefaults.standard.removeObject(forKey: polishEnabledKey)
-    OwlDefaults.standard.removeObject(forKey: sourceVerificationEnabledKey)
-    OwlDefaults.standard.removeObject(forKey: researchAssistEnabledKey)
-    OwlDefaults.standard.removeObject(forKey: publishFormattingEnabledKey)
-    OwlDefaults.standard.removeObject(forKey: translationEnabledKey)
-    OwlDefaults.standard.removeObject(forKey: promptOptimizeEnabledKey)
-    OwlDefaults.standard.removeObject(forKey: goalBriefEnabledKey)
-  }
-
   private static func bool(_ key: String, default defaultValue: Bool) -> Bool {
     guard OwlDefaults.standard.object(forKey: key) != nil else { return defaultValue }
     return OwlDefaults.standard.bool(forKey: key)

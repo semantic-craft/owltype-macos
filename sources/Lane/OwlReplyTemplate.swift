@@ -11,20 +11,17 @@ import Foundation
 
 // MARK: - Reply Templates
 
-public enum OwlReplyTemplate: String, CaseIterable, Identifiable, Codable, Sendable {
+enum OwlReplyTemplate: String, CaseIterable, Identifiable, Codable, Sendable {
   case agree = "认同赞成"
   case decline = "委婉拒绝"
   case inquiry = "进一步询问"
   case gratitude = "感谢致意"
   case followUp = "推进催办"
 
-  // Backward-compatible alias
-  public static let inquire = OwlReplyTemplate.inquiry
+  var id: String { rawValue }
+  var title: String { rawValue }
 
-  public var id: String { rawValue }
-  public var title: String { rawValue }
-
-  public var subtitle: String {
+  var subtitle: String {
     switch self {
     case .agree:
       return "表达积极认同 · 确认承诺推进"
@@ -39,7 +36,7 @@ public enum OwlReplyTemplate: String, CaseIterable, Identifiable, Codable, Senda
     }
   }
 
-  public var iconName: String {
+  var iconName: String {
     switch self {
     case .agree:
       return "hand.thumbsup"
@@ -54,7 +51,7 @@ public enum OwlReplyTemplate: String, CaseIterable, Identifiable, Codable, Senda
     }
   }
 
-  public var promptDescription: String {
+  var promptDescription: String {
     switch self {
     case .agree:
       return "认同赞成：表达充分赞同与支持，态度积极主动，承诺按此推进。"
@@ -69,36 +66,15 @@ public enum OwlReplyTemplate: String, CaseIterable, Identifiable, Codable, Senda
     }
   }
 
-  public var candidatePerspectives: (first: String, second: String, third: String) {
+  var candidatePerspectives: (first: String, second: String, third: String) {
     (first: "精炼直接", second: "专业周全", third: "积极推进")
-  }
-
-  public init?(fuzzy: String) {
-    if let template = OwlReplyTemplate(rawValue: fuzzy) {
-      self = template
-    } else {
-      switch fuzzy.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
-      case "agree", "赞成", "认同", "认同赞成":
-        self = .agree
-      case "decline", "拒绝", "委婉拒绝":
-        self = .decline
-      case "inquiry", "inquire", "询问", "进一步询问":
-        self = .inquiry
-      case "gratitude", "感谢", "感谢致意":
-        self = .gratitude
-      case "followup", "催办", "推进", "推进催办":
-        self = .followUp
-      default:
-        return nil
-      }
-    }
   }
 }
 
 // MARK: - Reply Prompt Catalog
 
-public enum OwlReplyPromptCatalog {
-  public static func buildSystemPrompt(template: OwlReplyTemplate) -> String {
+enum OwlReplyPromptCatalog {
+  static func buildSystemPrompt(template: OwlReplyTemplate) -> String {
     """
     你是一名专业高效的沟通秘书与文字表达顾问。
     请阅读用户给出的前文沟通内容，按照回复意图【\(template.rawValue)】生成恰好 3 个得体、自然的候选回复。
@@ -129,7 +105,7 @@ public enum OwlReplyPromptCatalog {
     """
   }
 
-  public static func buildUserPrompt(contextText: String) -> String {
+  static func buildUserPrompt(contextText: String) -> String {
     "沟通上下文：\n\(contextText)"
   }
 }

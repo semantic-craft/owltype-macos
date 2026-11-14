@@ -37,14 +37,14 @@ struct OwlAIComposerTask: Codable, Equatable {
   let scaffold: String
 }
 
-public enum OwlAIWritingMode: String, CaseIterable, Identifiable, Sendable {
+enum OwlAIWritingMode: String, CaseIterable, Identifiable, Sendable {
   case chat = "对话"
   case polish = "双候选润色"
   case quickReply = "快捷回复"
 
-  public var id: String { rawValue }
+  var id: String { rawValue }
 
-  public var iconName: String {
+  var iconName: String {
     switch self {
     case .chat: return "bubble.left.and.bubble.right"
     case .polish: return "sparkles"
@@ -105,8 +105,7 @@ struct OwlAIConversationView: View {
               inputFocused: inputFocused,
               onChoose: { chosen in
                 onWriteback?(chosen)
-              },
-              onDismiss: onClose
+              }
             )
           }
         case .quickReply:
@@ -117,8 +116,7 @@ struct OwlAIConversationView: View {
               inputFocused: inputFocused,
               onChoose: { chosen in
                 onWriteback?(chosen)
-              },
-              onDismiss: onClose
+              }
             )
           }
         case .chat:

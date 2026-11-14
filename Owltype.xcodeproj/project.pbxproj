@@ -161,7 +161,6 @@
 		FAB1A001CAFE0001CAFE0001 /* OwlLLMGateway.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAB1A002CAFE0002CAFE0002 /* OwlLLMGateway.swift */; };
 		C5A1D001BEEF0001C5A1D001 /* OwlProviderRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5A1D002BEEF0002C5A1D002 /* OwlProviderRegistry.swift */; };
 		FA133001CAFE0001CAFE0001 /* OwlVerificationRouting.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA133002CAFE0002CAFE0002 /* OwlVerificationRouting.swift */; };
-		FA133003CAFE0003CAFE0003 /* OwlCNKIExpertQueryBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA133004CAFE0004CAFE0004 /* OwlCNKIExpertQueryBuilder.swift */; };
 		FA133005CAFE0005CAFE0005 /* OwlVerificationRoutingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA133006CAFE0006CAFE0006 /* OwlVerificationRoutingTests.swift */; };
 		FA134001CAFE0001CAFE0001 /* OwlVerificationAnchors.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA134002CAFE0002CAFE0002 /* OwlVerificationAnchors.swift */; };
 		FA134003CAFE0003CAFE0003 /* OwlSelectionVerifyMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA134004CAFE0004CAFE0004 /* OwlSelectionVerifyMenu.swift */; };
@@ -473,7 +472,6 @@
 		FAB1A002CAFE0002CAFE0002 /* OwlLLMGateway.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlLLMGateway.swift; path = sources/Lane/OwlLLMGateway.swift; sourceTree = "<group>"; };
 		C5A1D002BEEF0002C5A1D002 /* OwlProviderRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlProviderRegistry.swift; path = sources/Lane/OwlProviderRegistry.swift; sourceTree = "<group>"; };
 		FA133002CAFE0002CAFE0002 /* OwlVerificationRouting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlVerificationRouting.swift; path = sources/Lane/OwlVerificationRouting.swift; sourceTree = "<group>"; };
-		FA133004CAFE0004CAFE0004 /* OwlCNKIExpertQueryBuilder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlCNKIExpertQueryBuilder.swift; path = sources/Lane/OwlCNKIExpertQueryBuilder.swift; sourceTree = "<group>"; };
 		FA133006CAFE0006CAFE0006 /* OwlVerificationRoutingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlVerificationRoutingTests.swift; path = tests/OwlVerificationRoutingTests.swift; sourceTree = "<group>"; };
 		FA134002CAFE0002CAFE0002 /* OwlVerificationAnchors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlVerificationAnchors.swift; path = sources/Lane/OwlVerificationAnchors.swift; sourceTree = "<group>"; };
 		FA134004CAFE0004CAFE0004 /* OwlSelectionVerifyMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = OwlSelectionVerifyMenu.swift; path = sources/Lane/OwlSelectionVerifyMenu.swift; sourceTree = "<group>"; };
@@ -761,7 +759,6 @@
 				FAB1A002CAFE0002CAFE0002 /* OwlLLMGateway.swift */,
 				C5A1D002BEEF0002C5A1D002 /* OwlProviderRegistry.swift */,
 				FA133002CAFE0002CAFE0002 /* OwlVerificationRouting.swift */,
-				FA133004CAFE0004CAFE0004 /* OwlCNKIExpertQueryBuilder.swift */,
 				FA134002CAFE0002CAFE0002 /* OwlVerificationAnchors.swift */,
 				FA134004CAFE0004CAFE0004 /* OwlSelectionVerifyMenu.swift */,
 				FA136002CAFE0002CAFE0002 /* OwlPolishPromptCatalog.swift */,
@@ -1278,7 +1275,6 @@
 				FAB1A001CAFE0001CAFE0001 /* OwlLLMGateway.swift in Sources */,
 				C5A1D001BEEF0001C5A1D001 /* OwlProviderRegistry.swift in Sources */,
 				FA133001CAFE0001CAFE0001 /* OwlVerificationRouting.swift in Sources */,
-				FA133003CAFE0003CAFE0003 /* OwlCNKIExpertQueryBuilder.swift in Sources */,
 				FA134001CAFE0001CAFE0001 /* OwlVerificationAnchors.swift in Sources */,
 				FA135001CAFE0001CAFE0001 /* OwlVerificationReceiptModel.swift in Sources */,
 				FA135003CAFE0003CAFE0003 /* OwlVerificationReceiptCard.swift in Sources */,

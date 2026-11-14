@@ -13,7 +13,6 @@
 import Foundation
 
 struct OwlVerifyMenuItem: Codable, Sendable, Equatable {
-  let source: OwlVerificationSource
   let title: String                    // 显示名（北大法宝 / 知网·关键词 / 必应 …）
   let route: OwlVerificationRoute     // 已备好的可打开 route
 }

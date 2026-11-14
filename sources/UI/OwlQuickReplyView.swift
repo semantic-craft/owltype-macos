@@ -22,7 +22,11 @@ final class OwlQuickReplyViewModel: ObservableObject {
   let contextText: String
   let invocationContext: OwlAIInvocationContext
   private let generator: OwlReplyGeneratorProtocol
-  private var activeTask: Task<Void, Never>?
+  nonisolated(unsafe) private var activeTask: Task<Void, Never>?
+
+  deinit {
+    activeTask?.cancel()
+  }
   private var generationEpoch: UInt64 = 0
 
   init(
@@ -71,11 +75,6 @@ final class OwlQuickReplyViewModel: ObservableObject {
         self.isLoading = false
       }
     }
-  }
-
-  func cancel() {
-    activeTask?.cancel()
-    activeTask = nil
   }
 }
 
@@ -140,20 +139,17 @@ struct OwlQuickReplyView: View {
   let palette: OwlCandidatePalette
   var inputFocused: Bool = false
   let onChoose: (String) -> Void
-  let onDismiss: () -> Void
 
   init(
     viewModel: OwlQuickReplyViewModel,
     palette: OwlCandidatePalette,
     inputFocused: Bool = false,
-    onChoose: @escaping (String) -> Void,
-    onDismiss: @escaping () -> Void
+    onChoose: @escaping (String) -> Void
   ) {
     self.viewModel = viewModel
     self.palette = palette
     self.inputFocused = inputFocused
     self.onChoose = onChoose
-    self.onDismiss = onDismiss
   }
 
   var body: some View {

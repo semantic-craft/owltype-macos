@@ -96,16 +96,12 @@ enum OwlTemplateStore {
   static func load(dataDir: URL = OwlApp.userDir) throws -> OwlTemplateLibrary {
     try exclusively { try OwlStorageHost(dataDir: dataDir).call("library_load") }
   }
-  static func validate(_ library: OwlTemplateLibrary) throws {
-    let _: Bool = try OwlAppCore.call(["operation": "template_validate", "library": OwlAppCore.payload(library)])
-  }
   static func sorted(_ entries: [OwlTemplateEntry]) -> [OwlTemplateEntry] { core("library_sorted", ["entries": OwlAppCore.payload(entries)]) }
   static func filtered(_ entries: [OwlTemplateEntry], query: String = "", tag: String? = nil, promptOnly: Bool = false) -> [OwlTemplateEntry] {
     core("library_filtered", ["entries": OwlAppCore.payload(entries), "query": query, "tag": tag as Any? ?? NSNull(), "promptOnly": promptOnly])
   }
   static func searchText(_ entry: OwlTemplateEntry) -> String { core("library_search_text", ["entry": OwlAppCore.payload(entry)]) }
   static func tags(in entries: [OwlTemplateEntry]) -> [String] { core("library_tags", ["entries": OwlAppCore.payload(entries)]) }
-  static func candidateText(_ entry: OwlTemplateEntry) -> String { core("library_candidate", ["entry": OwlAppCore.payload(entry)]) }
   static func candidateID(_ text: String) -> UUID? {
     struct Identifier: Decodable { let id: UUID? }
     let value: Identifier = core("library_candidate_id", ["text": text]); return value.id

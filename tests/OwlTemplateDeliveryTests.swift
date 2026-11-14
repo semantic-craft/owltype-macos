@@ -49,7 +49,7 @@ final class OwlTemplateDeliveryTests: XCTestCase {
     let invocation = OwlTemplateInvocation(content: .template(template),
       broker: OwlPanelInsertionBroker(), deliver: { delivered.append($0.text); return .confirmed },
       intent: .resultPreview, captureContext: { _ in self.context() })
-    XCTAssertEqual(invocation.preview(values: [:]).text, "材料A")
+    XCTAssertEqual(invocation.evaluate(values: [:]).previewText, "材料A")
     try OwlAutomaticExpansionRuntime.shared.publish(entries: [], enabled: false, disabledBundleIDs: [])
     XCTAssertFalse(invocation.confirm(values: [:]))
     XCTAssertTrue(delivered.isEmpty)
@@ -63,7 +63,7 @@ final class OwlTemplateDeliveryTests: XCTestCase {
     let invocation = OwlTemplateInvocation(content: .template(selected), broker: OwlPanelInsertionBroker(),
       deliver: { delivered.append($0.text); return .confirmed }, intent: .resultPreview,
       captureContext: { _ in self.context() })
-    XCTAssertEqual(invocation.preview(values: [:]).text, "材料A")
+    XCTAssertEqual(invocation.evaluate(values: [:]).previewText, "材料A")
     other.body = "改过的另一个模板"
     try OwlAutomaticExpansionRuntime.shared.publish(entries: [selected, other], enabled: false, disabledBundleIDs: [])
     XCTAssertTrue(invocation.confirm(values: [:]))
@@ -84,9 +84,13 @@ final class OwlTemplateDeliveryTests: XCTestCase {
       XCTAssertTrue(shown === invocation)
       XCTAssertEqual(reads, 1)
       XCTAssertTrue(delivered.isEmpty)
-      let expected = invocation.preview(values: [:])
+      let firstEval = invocation.evaluate(values: [:])
+      let expected = OwlTemplateInvocation.Result(text: firstEval.previewText, cursorOffset: firstEval.cursorOffset)
       source = context("材料B")
-      for _ in 0..<3 { XCTAssertEqual(invocation.preview(values: [:]), expected) }
+      for _ in 0..<3 {
+        let eval = invocation.evaluate(values: [:])
+        XCTAssertEqual(OwlTemplateInvocation.Result(text: eval.previewText, cursorOffset: eval.cursorOffset), expected)
+      }
       XCTAssertTrue(invocation.confirm(values: [:]))
       XCTAssertEqual(delivered, [expected])
       XCTAssertEqual(reads, 1)
@@ -108,7 +112,7 @@ final class OwlTemplateDeliveryTests: XCTestCase {
       deliver: nil, intent: .resultPreview, captureContext: { _ in XCTFail("plain text"); return .init() })
     invocation.start { _ in shown += 1 }
     XCTAssertEqual(shown, 1)
-    XCTAssertEqual(invocation.preview(values: [:]).text, text)
+    XCTAssertEqual(invocation.evaluate(values: [:]).previewText, text)
     XCTAssertEqual(invocation.state, .awaitingConfirmation)
   }
 
@@ -139,7 +143,8 @@ final class OwlTemplateDeliveryTests: XCTestCase {
       captureContext: { _ in reads += 1; return self.context() })
     invocation.start { _ in }
     let values = ["n:目的": "解释"]
-    let expected = invocation.preview(values: values)
+    let eval = invocation.evaluate(values: values)
+    let expected = OwlTemplateInvocation.Result(text: eval.previewText, cursorOffset: eval.cursorOffset)
     XCTAssertEqual(expected.text, "材料A/解释" + suffix)
     XCTAssertNil(expected.cursorOffset)
     XCTAssertFalse(invocation.copyResult(), "preview is not an implicit clipboard write")
@@ -208,7 +213,7 @@ final class OwlTemplateDeliveryTests: XCTestCase {
     text = "B"
     let second = make()
     second.start { _ in }
-    XCTAssertEqual(second.preview(values: [:]).text, "B")
+    XCTAssertEqual(second.evaluate(values: [:]).previewText, "B")
     XCTAssertEqual(reads, 2)
   }
   func testDismissAndCloseReleasePreviewAndRetainedResult() {

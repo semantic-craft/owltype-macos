@@ -46,8 +46,8 @@ final class OwlSettingsE2EContractTests: XCTestCase {
     OwlKeyboardPreferences.slashSymbolMenu = true
     OwlKeyboardPreferences.cjkAlnumSpacing = true
     OwlKeyboardPreferences.appEnglishBundleIDs = ["com.apple.Terminal", "bad:key", "com.apple.Terminal"]
-    OwlKeyboardPreferences.wubiCodeHint = true
-    OwlKeyboardPreferences.wubiAutoClear = true
+    OwlKeyboardSettingsCatalog.live.set(.wubiCodeHint, true)
+    OwlKeyboardSettingsCatalog.live.set(.wubiAutoClear, true)
     OwlKeyboardPreferences.wubiCandidateMode = .singleOnly
     OwlFuzzyPreferences.zhz = true
     OwlFuzzyPreferences.chc = true
@@ -85,7 +85,7 @@ final class OwlSettingsE2EContractTests: XCTestCase {
     XCTAssertFalse(panelSettings.snapshot().animationsEnabled)
     XCTAssertEqual(panelSettings.snapshot().skin, .wuda)
     XCTAssertTrue(OwlCloudPreferences.isEnabled)
-    XCTAssertEqual(OwlCloudPreferences.deepSeekModel, OwlCloudPreferences.reasonerDeepSeekModel)
+    XCTAssertEqual(OwlCloudPreferences.deepSeekModel, "deepseek-v4-pro")
   }
 
   func testStoreBackedSettingsUseIsolatedLocalStorage() throws {
@@ -121,10 +121,6 @@ final class OwlSettingsE2EContractTests: XCTestCase {
     return dir
   }
 
-  private func read(_ fileName: String, in dir: URL) throws -> String {
-    try String(contentsOf: dir.appendingPathComponent(fileName), encoding: .utf8)
-  }
-
   private func setKnownPreferenceBaseline() {
     OwlKeyboardPreferences.inputMethod = .pinyin
     OwlKeyboardPreferences.doublePinyin = .flypy
@@ -138,8 +134,8 @@ final class OwlSettingsE2EContractTests: XCTestCase {
     OwlKeyboardPreferences.slashSymbolMenu = false
     OwlKeyboardPreferences.cjkAlnumSpacing = false
     OwlKeyboardPreferences.appEnglishBundleIDs = []
-    OwlKeyboardPreferences.wubiCodeHint = false
-    OwlKeyboardPreferences.wubiAutoClear = false
+    OwlKeyboardSettingsCatalog.live.set(.wubiCodeHint, false)
+    OwlKeyboardSettingsCatalog.live.set(.wubiAutoClear, false)
     OwlKeyboardPreferences.wubiCandidateMode = .normal
     resetFuzzyPreferences()
     let panelSettings = OwlCandidatePanelSettings.live

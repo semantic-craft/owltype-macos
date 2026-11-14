@@ -1,15 +1,12 @@
 pub mod app_input_memory;
-pub mod auto_pair;
 pub mod commit_transform;
 pub mod emoji;
-pub mod engine_runtime_rule;
 pub mod forced_finalize;
 pub mod hotkey;
 pub mod input_source_diag;
 pub mod logout_prompt;
 pub mod marked_text_resend;
 pub mod onboarding_practice;
-pub mod session_restart;
 pub mod user_action;
 
 use serde_json::{json, Value};
@@ -17,24 +14,6 @@ use std::collections::HashMap;
 
 pub fn dispatch(rule: &str, args: Value) -> Result<Value, String> {
     match rule {
-        // --- 1. AutoPair ---
-        "auto_pair_decision" | "auto_pair_decide" => {
-            let enabled = args["enabled"].as_bool().unwrap_or(false);
-            let commit_text = args["commit_text"].as_str().unwrap_or("");
-            let right_neighbor = args["right_neighbor"]
-                .as_str()
-                .and_then(|s| s.chars().next());
-            let caret_move_allowed = args["caret_move_allowed"].as_bool().unwrap_or(false);
-            let action = auto_pair::decide(enabled, commit_text, right_neighbor, caret_move_allowed);
-            Ok(json!(action))
-        }
-        "auto_pair_single_closer" => {
-            let text = args["text"].as_str().unwrap_or("");
-            let closer = auto_pair::single_closer(text).map(|c| c.to_string());
-            Ok(json!(closer))
-        }
-
-        // --- 2. CommitTransform ---
         "commit_transform_apply" => {
             let text = args["text"].as_str().unwrap_or("");
             let cjk_english = args["cjk_english_spacing"].as_bool().unwrap_or(false);
@@ -49,35 +28,18 @@ pub fn dispatch(rule: &str, args: Value) -> Result<Value, String> {
             Ok(json!(transformed))
         }
 
-        // --- 3. ForcedFinalize ---
         "forced_finalize_commit_text" => {
             let preview = args["preview"].as_str();
             let input = args["input"].as_str().unwrap_or("");
             let text = forced_finalize::commit_text(preview, input);
             Ok(json!(text))
         }
-        "forced_finalize_plan" => {
-            let input = args["input"].as_str();
-            let preview = args["preview"].as_str();
-            let plan = forced_finalize::plan_forced_finalize(input, preview);
-            Ok(json!(plan))
-        }
 
-        // --- 4. MarkedTextResend ---
-        "marked_text_resend_should_send" => {
-            let previous = args["previous"].as_str().unwrap_or("");
-            let next = args["next"].as_str().unwrap_or("");
-            let should_send = marked_text_resend::should_resend_marked_text(previous, next);
-            Ok(json!(should_send))
-        }
-
-        // --- 5. UserAction ---
         "user_action_classify" => {
             let action = user_action::classify_user_action_value(&args)?;
             Ok(json!(action))
         }
 
-        // --- 6. AppInputMemory ---
         "app_input_memory_initial_mode" => {
             let app = args["app"].as_str().unwrap_or("");
             let fallback = args["fallback"].as_bool().unwrap_or(false);
@@ -98,11 +60,10 @@ pub fn dispatch(rule: &str, args: Value) -> Result<Value, String> {
             Ok(json!(should))
         }
 
-        // --- 7. OnboardingPractice ---
         "onboarding_practice_is_complete" => {
             let target = args["target"]
                 .as_str()
-                .unwrap_or(onboarding_practice::PracticeProof::TARGET);
+                .unwrap_or(onboarding_practice::TARGET);
             let text = args["text"].as_str().unwrap_or("");
             let has_owl_commit = args["has_owl_commit"].as_bool().unwrap_or(false);
             let has_other_source = args["has_other_source"].as_bool().unwrap_or(false);
@@ -119,21 +80,8 @@ pub fn dispatch(rule: &str, args: Value) -> Result<Value, String> {
             };
             Ok(json!(hint))
         }
-        "practice_proof_eval" => {
-            let proof: onboarding_practice::PracticeProof =
-                serde_json::from_value(args["proof"].clone()).unwrap_or_default();
-            let text = args["text"].as_str().unwrap_or("");
-            let has_marked = args["has_marked_text"].as_bool().unwrap_or(false);
-            let is_complete = proof.is_complete(text, has_marked);
-            let hint = proof.hint().map(str::to_string);
-            Ok(json!({
-                "is_complete": is_complete,
-                "hint": hint,
-            }))
-        }
 
-        // --- 8. EmojiData ---
-        "emoji_category_items" | "emoji_items" => {
+        "emoji_category_items" => {
             let category = args["category"].as_str().unwrap_or("");
             let items = emoji::emoji_catalog(category);
             Ok(json!(items))
@@ -143,7 +91,7 @@ pub fn dispatch(rule: &str, args: Value) -> Result<Value, String> {
             let items = emoji::emoji_search(query);
             Ok(json!(items))
         }
-        "emoji_push_recent" | "emoji_recents_push" => {
+        "emoji_push_recent" => {
             let recents: Vec<String> = serde_json::from_value(
                 args.get("list").or_else(|| args.get("recents")).cloned().unwrap_or_default(),
             )
@@ -157,9 +105,7 @@ pub fn dispatch(rule: &str, args: Value) -> Result<Value, String> {
             let updated = emoji::recents_push(&recents, item, cap);
             Ok(json!(updated))
         }
-        "emoji_recents_seed" => Ok(json!(emoji::recents_seed())),
 
-        // --- 9. QuickSendHotKey ---
         "hotkey_validate" => {
             let key_code = args["key_code"].as_u64().unwrap_or(0) as u32;
             let modifiers = args["modifiers"].as_u64().unwrap_or(0) as u32;
@@ -224,8 +170,7 @@ pub fn dispatch(rule: &str, args: Value) -> Result<Value, String> {
             Ok(json!(matches))
         }
 
-        // --- 10. InputSource TIS/LS ---
-        "input_source_diag_classify" | "tis_diagnose" => {
+        "input_source_diag_classify" => {
             let sources: Vec<input_source_diag::TisSourceState> =
                 serde_json::from_value(args["sources"].clone()).unwrap_or_default();
             let current = args["current_source_id"].as_str();
@@ -235,7 +180,7 @@ pub fn dispatch(rule: &str, args: Value) -> Result<Value, String> {
             let diag = input_source_diag::classify_tis_diagnosis(&sources, current, &expected, primary);
             Ok(json!(diag))
         }
-        "input_source_diag_classify_claims" | "tis_classify_claims" => {
+        "input_source_diag_classify_claims" => {
             let bundle_id = args["bundle_id"].as_str().unwrap_or("");
             let claims: Vec<input_source_diag::LsBundleClaim> =
                 serde_json::from_value(args["claims"].clone()).unwrap_or_default();
@@ -243,25 +188,7 @@ pub fn dispatch(rule: &str, args: Value) -> Result<Value, String> {
             Ok(json!(report))
         }
 
-        // --- 11. SessionRestart ---
-        "session_restart_maps_lsof" => {
-            let lsof = args["lsof"].as_str().unwrap_or("");
-            let path = args["path"].as_str().unwrap_or("");
-            let inode = args["inode"].as_u64().unwrap_or(0);
-            let matches = session_restart::maps_lsof(lsof, path, inode);
-            Ok(json!({ "maps": matches }))
-        }
-        "session_restart_unmet_conditions" => {
-            let observation: session_restart::RestartObservation =
-                serde_json::from_value(args["observation"].clone()).map_err(|e| e.to_string())?;
-            let request: session_restart::RestartRequest =
-                serde_json::from_value(args["request"].clone()).map_err(|e| e.to_string())?;
-            let unmet = session_restart::unmet_conditions(&observation, &request);
-            Ok(json!(unmet))
-        }
-
-        // --- 12. UpdateLogoutPrompt ---
-        "logout_prompt_should_suggest" | "logout_should_suggest" => {
+        "logout_prompt_should_suggest" => {
             let failed = args["failed_version"].as_str();
             let current = args
                 .get("current")
@@ -271,7 +198,7 @@ pub fn dispatch(rule: &str, args: Value) -> Result<Value, String> {
             let should = logout_prompt::should_suggest(failed, current);
             Ok(json!(should))
         }
-        "logout_prompt_recheck_decision" | "logout_recheck_decision" => {
+        "logout_prompt_recheck_decision" => {
             let unmet: Option<Vec<String>> = serde_json::from_value(args["unmet"].clone()).ok();
             let error = args["error"].as_str();
             let dec = logout_prompt::recheck_decision(unmet.as_deref(), error);
@@ -281,7 +208,7 @@ pub fn dispatch(rule: &str, args: Value) -> Result<Value, String> {
             };
             Ok(json!(dec_str))
         }
-        "logout_prompt_safe_verdict" | "logout_safe_verdict" => {
+        "logout_prompt_safe_verdict" => {
             let snapshot_id = args["snapshot_id"].as_u64();
             let idle_seconds = args["idle_seconds"].as_f64();
             let is_login = args["is_login_window"].as_bool().unwrap_or(false);
@@ -353,23 +280,10 @@ pub fn dispatch(rule: &str, args: Value) -> Result<Value, String> {
                 }))
             }
         }
-        "logout_prompt_classify" | "logout_classify_error" => {
+        "logout_prompt_classify" => {
             let error_num = args["error_number"].as_i64().map(|v| v as i32);
             let classification = logout_prompt::classify_logout_error(error_num);
             Ok(json!(classification))
-        }
-
-        // --- 13. EngineRuntime ---
-        "engine_option_valid" => {
-            let name = args["name"].as_str().unwrap_or("");
-            let valid = engine_runtime_rule::is_valid_engine_option(name);
-            Ok(json!(valid))
-        }
-        "engine_refresh_decision" => {
-            let pending = args["pending"].as_bool().unwrap_or(false);
-            let composing = args["composing"].as_bool().unwrap_or(false);
-            let decision = engine_runtime_rule::refresh_decision(pending, composing);
-            Ok(json!(decision))
         }
 
         _ => Err(format!("unknown_pure_rule:{}", rule)),

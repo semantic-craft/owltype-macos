@@ -9,28 +9,19 @@ import Foundation
 import InputMethodKit
 
 struct OwlVoiceTargetSnapshot: @unchecked Sendable {
-  weak var controller: OwlInputController?
   weak var client: IMKTextInput?
   let frontmostApp: NSRunningApplication?
-  let bundleIdentifier: String?
-  let capturedAt: Date
   let caretAnchor: NSRect
-  public let preContext: String
+  let preContext: String
 
   init(
-    controller: OwlInputController? = nil,
     client: IMKTextInput? = nil,
     frontmostApp: NSRunningApplication? = nil,
-    bundleIdentifier: String? = nil,
-    capturedAt: Date = Date(),
     caretAnchor: NSRect = .zero,
     preContext: String = ""
   ) {
-    self.controller = controller
     self.client = client
     self.frontmostApp = frontmostApp
-    self.bundleIdentifier = bundleIdentifier
-    self.capturedAt = capturedAt
     self.caretAnchor = caretAnchor
     self.preContext = preContext
   }
@@ -312,11 +303,8 @@ final class OwlVoiceInputCoordinator {
       }
 
       targetSnapshot = OwlVoiceTargetSnapshot(
-        controller: controller,
         client: client,
         frontmostApp: frontApp,
-        bundleIdentifier: frontApp?.bundleIdentifier,
-        capturedAt: Date(),
         caretAnchor: anchor,
         preContext: preContext
       )

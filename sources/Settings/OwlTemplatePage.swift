@@ -27,10 +27,6 @@ final class OwlTemplateEditorModel: ObservableObject {
     draft.category = category
   }
 
-  func reload() {
-    applyLibrary(Result { try OwlTemplateStore.load(dataDir: dataDir) })
-  }
-
   @MainActor
   func loadLibraryForEditing(
     read: @escaping @Sendable (URL) throws -> OwlTemplateLibrary = { try OwlTemplateStore.load(dataDir: $0) }

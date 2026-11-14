@@ -16,67 +16,15 @@ enum OwlResponsesDialect: String, Codable, CaseIterable, Equatable, Sendable {
   case deepseek
 }
 
-struct OwlResponsesSource: Codable, Equatable, Sendable {
-  let title: String
-  let url: String
-}
-
-struct OwlResponsesUsage: Codable, Equatable, Sendable {
-  let inputTokens: Int
-  let outputTokens: Int
-  let totalTokens: Int
-  let cachedTokens: Int
-}
-
-struct OwlResponsesResult: Codable, Equatable, Sendable {
-  let text: String
-  let model: String?
-  let usage: OwlResponsesUsage?
-  let sources: [OwlResponsesSource]
-}
-
 enum OwlResponsesWireError: Error {
   case malformedResponse
 }
 
 enum OwlResponsesWire {
-  /// Whether this routing belongs to 阿里云百炼 (DashScope). Note what it does NOT look at: the
-  /// **model**. 百炼 is Responses-only by product decision (2026-07-31) — 旧的 `/chat/completions`
-  /// 不再兼容 — so the platform alone decides the wire, and a 百炼-hosted third-party model
-  /// (`deepseek-*` / `kimi-*` / …) goes to `/responses` like everything else. It may well come back
-  /// 400 there: 官方 Responses 文档只列 Qwen 系列。That upstream refusal is surfaced verbatim
-  /// (「验证连通性」prints the server's own words), which is the honest outcome — the alternative
-  /// was the silent fallback this guard used to perform, quietly speaking a wire we no longer
-  /// support and calling it success.
-  ///
-  /// The host fallback preserves custom profiles created before provider ids were persisted; a nil
-  /// endpoint (a form with no URL yet) leaves the provider id alone to decide.
-  static func isQwen(providerID: String, endpoint: URL?) -> Bool {
-    dialect(providerID: providerID, model: "", endpoint: endpoint) == .qwen
-  }
-
-  /// Whether this routing belongs to 火山方舟's Doubao service. Deliberately NOT symmetric with
-  /// `isQwen`: the model prefix stays a hard requirement here, because 方舟 hosts third-party
-  /// models that genuinely keep their own wire — only 百炼 was declared Responses-only. The host
-  /// fallback preserves custom profiles created before provider ids were persisted.
-  static func isArk(providerID: String, model: String, endpoint: URL?) -> Bool {
-    let raw: String? = OwlProviderCore.call("dialect", ["providerID": providerID, "model": model, "host": endpoint?.host ?? ""])
-    return raw == "ark"
-  }
-
-  static func isDeepSeek(providerID: String, model: String, endpoint: URL?) -> Bool {
-    dialect(providerID: providerID, model: model, endpoint: endpoint) == .deepseek
-  }
-
   /// The Responses dialect carrying this routing's WHOLE Owltype surface (plain generation and
   /// search alike), or nil when the provider stays on chat completions. Qwen / 豆包 / DeepSeek are
   /// the full-surface Responses providers; every non-streaming skill client and the plain stream
   /// ask this one question instead of re-deriving provider checks.
-  ///
-  /// 次序不是随手排的：百炼 是 Responses-only 且**不看 model**，所以一个托管在百炼上的
-  /// `deepseek-*` 必须先被 `isQwen` 认走 —— 它归百炼的 wire。只有打到 `api.deepseek.com`
-  /// 自家端点的才是 `.deepseek`。把 `isDeepSeek` 提到前面会把百炼的托管模型抢过来，用
-  /// DeepSeek 的方言去打百炼的端点。
   static func dialect(providerID: String, model: String, endpoint: URL?) -> OwlResponsesDialect? {
     let raw: String? = OwlProviderCore.call("dialect", ["providerID": providerID, "model": model, "host": endpoint?.host ?? ""])
     return raw.flatMap(OwlResponsesDialect.init(rawValue:))
@@ -147,15 +95,6 @@ enum OwlResponsesWire {
       jsonObject: jsonObject,
       temperature: temperature))
     return request
-  }
-
-  /// Parse a non-streaming Responses payload: final assistant text, token accounting, and any URL
-  /// sources returned by built-in web search. Source traversal is intentionally tolerant because
-  /// providers may put URLs in `web_search_call.action.sources` or output-text annotations.
-  static func parse(_ data: Data) throws -> OwlResponsesResult {
-    let result: OwlResponsesResult? = OwlProviderCore.call("responsesParse", ["bytes": Array(data)])
-    guard let result else { throw OwlResponsesWireError.malformedResponse }
-    return result
   }
 
 }

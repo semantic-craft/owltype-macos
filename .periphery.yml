@@ -1,8 +1,10 @@
 project: Owltype.xcodeproj
 schemes:
 - Owltype
-targets:
-- Owltype
+exclude_tests: true
 format: github-actions
 relative_results: true
 retain_objc_accessible: true
+retain_encodable_properties: true
+retain_assign_only_property_types:
+- IMKServer

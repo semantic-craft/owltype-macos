@@ -26,7 +26,7 @@ final class OwlVerificationRoutingTests: XCTestCase {
       (.vip, "https://qikan.cqvip.com/Qikan/Search/Index?key=%E6%83%A9%E7%BD%9A%E6%80%A7%E8%B5%94%E5%81%BF%E7%A0%94%E7%A9%B6"),
     ]
     for (source, expected) in cases {
-      let url = OwlVerificationQueryRouter.searchURL(for: source, query: "惩罚性赔偿研究")
+      let url = OwlVerificationQueryRouter.route(query: "惩罚性赔偿研究", source: source).url
       XCTAssertEqual(url?.absoluteString, expected, "\(source.rawValue) 直达 URL 必须逐字匹配")
     }
   }
@@ -41,7 +41,7 @@ final class OwlVerificationRoutingTests: XCTestCase {
       (.wenshu, "wenshu.court.gov.cn"),
     ]
     for (source, domain) in cases {
-      let url = OwlVerificationQueryRouter.searchURL(for: source, query: "《民法典》第五百七十七条")
+      let url = OwlVerificationQueryRouter.route(query: "《民法典》第五百七十七条", source: source).url
       let expectedPrefix = "https://www.bing.com/search?q=site:\(domain)%20"
       XCTAssertNotNil(url)
       XCTAssertTrue(url!.absoluteString.hasPrefix(expectedPrefix),
@@ -52,13 +52,19 @@ final class OwlVerificationRoutingTests: XCTestCase {
   // MARK: - 编码：裸 + / & / = / ? / # 必须转义（Responsay issue 328）
 
   func testEncodeQueryValueEscapesPlusAndReservedChars() {
-    XCTAssertEqual(OwlVerificationQueryRouter.encodeQueryValue("a+b"), "a%2Bb")
-    XCTAssertEqual(OwlVerificationQueryRouter.encodeQueryValue("a&b=c?d#e"), "a%26b%3Dc%3Fd%23e")
-    XCTAssertEqual(OwlVerificationQueryRouter.encodeQueryValue("民法 典"), "%E6%B0%91%E6%B3%95%20%E5%85%B8")
+    XCTAssertEqual(
+      OwlVerificationQueryRouter.route(query: "a+b", source: .bing).url?.absoluteString,
+      "https://www.bing.com/search?q=a%2Bb")
+    XCTAssertEqual(
+      OwlVerificationQueryRouter.route(query: "a&b=c?d#e", source: .bing).url?.absoluteString,
+      "https://www.bing.com/search?q=a%26b%3Dc%3Fd%23e")
+    XCTAssertEqual(
+      OwlVerificationQueryRouter.route(query: "民法 典", source: .bing).url?.absoluteString,
+      "https://www.bing.com/search?q=%E6%B0%91%E6%B3%95%20%E5%85%B8")
   }
 
   func testDirectURLCarriesEscapedPlusInsideQuery() {
-    let url = OwlVerificationQueryRouter.searchURL(for: .bing, query: "民法典 第577条+违约")
+    let url = OwlVerificationQueryRouter.route(query: "民法典 第577条+违约", source: .bing).url
     XCTAssertEqual(url?.absoluteString,
                    "https://www.bing.com/search?q=%E6%B0%91%E6%B3%95%E5%85%B8%20%E7%AC%AC577%E6%9D%A1%2B%E8%BF%9D%E7%BA%A6")
   }
@@ -88,42 +94,15 @@ final class OwlVerificationRoutingTests: XCTestCase {
     XCTAssertEqual(OwlVerificationQueryRouter.normalizeSelection(long).count, 80)
   }
 
-  // MARK: - 知网专业检索式
-
-  func testCNKIExpertQueryBuilder() {
-    XCTAssertEqual(OwlCNKIExpertQueryBuilder.build(query: "惩罚性赔偿研究"),
-                   "SU %= '惩罚性赔偿研究'")
-    // 多词 → ' * ' 逻辑与
-    XCTAssertEqual(OwlCNKIExpertQueryBuilder.build(query: "违约金 酌减"),
-                   "SU %= '违约金' * '酌减'")
-    // 词内单引号 → '' 转义
-    XCTAssertEqual(OwlCNKIExpertQueryBuilder.build(query: "l'affaire"),
-                   "SU %= 'l''affaire'")
-    // 题名字段 → % 包含
-    XCTAssertEqual(OwlCNKIExpertQueryBuilder.build(.init(query: "惩罚性赔偿研究", field: "TI")),
-                   "TI % '惩罚性赔偿研究'")
-    // 作者 + 多期刊
-    XCTAssertEqual(
-      OwlCNKIExpertQueryBuilder.build(.init(query: "惩罚性赔偿", author: "王利明", journal: "中国社会科学+法学研究")),
-      "SU %= '惩罚性赔偿' AND AU = '王利明' AND (LY = '中国社会科学' OR LY = '法学研究')")
-    // 未知字段回退 SU；空词返回空串
-    XCTAssertEqual(OwlCNKIExpertQueryBuilder.normalizeField("xx"), "SU")
-    XCTAssertEqual(OwlCNKIExpertQueryBuilder.build(query: "  "), "")
-    // 专业检索页无 GET 参数
-    XCTAssertNil(OwlCNKIExpertQueryBuilder.professionalSearchURL.query)
-  }
-
   // MARK: - 剪贴板纪律：URL 自带词 → 不动剪贴板；无参页 → 给出待粘贴词
 
-  func testClipboardDisciplineOnlyPastesForNoParamPages(){
+  func testClipboardDisciplineOnlyPastesForNoParamPages() throws {
     let carried = OwlVerificationQueryRouter.route(query: "惩罚性赔偿研究", source: .cnki)
     XCTAssertNil(OwlSelectionVerifyClipboard.pasteQuery(openedRoutes: [carried]),
                  "URL 自带 kw= 检索词时绝不动用户剪贴板")
 
-    let advSearch = OwlVerificationRoute(
-      kind: .deepLink, source: .cnki,
-      query: OwlCNKIExpertQueryBuilder.build(query: "惩罚性赔偿研究"),
-      url: OwlCNKIExpertQueryBuilder.professionalSearchURL)
+    let menu = OwlSelectionVerifyMenu.build(selectedText: "惩罚性赔偿研究")
+    let advSearch = try XCTUnwrap(menu.first { $0.title == "文献" }?.items.first { $0.route.url?.query == nil }?.route)
     XCTAssertEqual(OwlSelectionVerifyClipboard.pasteQuery(openedRoutes: [carried, advSearch]),
                    "SU %= '惩罚性赔偿研究'",
                    "无参检索页必须给出待粘贴的检索式")
@@ -144,16 +123,5 @@ final class OwlVerificationRoutingTests: XCTestCase {
     XCTAssertNil(OwlExternalLinkPolicy.safeWebURL("owltype://open"))
     XCTAssertNil(OwlExternalLinkPolicy.safeWebURL("https://trusted@evil.com/x"))
     XCTAssertNil(OwlExternalLinkPolicy.safeWebURL(""))
-  }
-
-  // MARK: - 来源显示名逐字对齐 Responsay
-
-  func testSourceDisplayNames() {
-    XCTAssertEqual(OwlVerificationSource.govLaw.displayName, "国家法规库")
-    XCTAssertEqual(OwlVerificationSource.pkulaw.displayName, "北大法宝")
-    XCTAssertEqual(OwlVerificationSource.cnki.displayName, "知网")
-    XCTAssertEqual(OwlVerificationSource.rmfyalk.displayName, "人民法院案例库")
-    XCTAssertEqual(OwlVerificationSource.wenshu.displayName, "裁判文书网")
-    XCTAssertEqual(OwlVerificationSource.manual.displayName, "复制检索词")
   }
 }

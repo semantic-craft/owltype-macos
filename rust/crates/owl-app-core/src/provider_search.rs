@@ -89,7 +89,7 @@ fn parse(root: &Value, doubao: bool) -> Value {
     }
     json!({"values":values})
 }
-fn numbered(results: &[Value]) -> String {
+pub(crate) fn numbered(results: &[Value]) -> String {
     results
         .iter()
         .enumerate()
@@ -127,7 +127,6 @@ fn cited(results: &[Value], answer: &str) -> Vec<Value> {
 pub fn rule(op: &str, a: &Value) -> Value {
     let results = a["results"].as_array().cloned().unwrap_or_default();
     match op {
-        "searchQuery" => json!(query(s(a, "text"))),
         "searchBody" => {
             let limit = a["limit"].as_i64().unwrap_or(1);
             if a["doubao"] == true {
@@ -149,7 +148,6 @@ pub fn rule(op: &str, a: &Value) -> Value {
             let root = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
             parse(&root, a["doubao"] == true)
         }
-        "numbered" => json!(numbered(&results)),
         "groundingPrompt" => {
             let header=format!("已为用户的最后一个问题联网检索（{}）。依据检索结果作答，涉及事实处用 [序号] 标注出处；优先采信一手官方来源；结果不足以回答时如实说明，不要凭记忆补来源或编造网址。",s(a,"day"));
             json!(if results.is_empty() {
@@ -158,7 +156,6 @@ pub fn rule(op: &str, a: &Value) -> Value {
                 header + "\n\n检索结果：\n" + &numbered(&results)
             })
         }
-        "cited" => json!(cited(&results, s(a, "answer"))),
         "footer" => {
             if results.is_empty() {
                 return json!("");

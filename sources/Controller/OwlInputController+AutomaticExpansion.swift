@@ -7,7 +7,6 @@ final class OwlAutomaticExpansionTarget {
   let start: Int
   let sessionID: UInt64
   let asciiMode: Bool
-  let revision: UInt64
   let replayKeycode: UInt32
   let replayModifiers: UInt32
   var markedText = ""
@@ -20,7 +19,6 @@ final class OwlAutomaticExpansionTarget {
     self.start = start
     self.sessionID = sessionID
     self.asciiMode = asciiMode
-    self.revision = revision
     self.replayKeycode = replayKeycode
     self.replayModifiers = replayModifiers
   }

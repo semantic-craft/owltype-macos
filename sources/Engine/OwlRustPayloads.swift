@@ -39,34 +39,11 @@ struct OwlRustSnapshotDTO: Decodable {
 struct OwlRustRerankModelStatusDTO: Decodable {
   let enabled: Bool?
   let state: String
-  let source: String?
-  let version: String?
-  let expectedSHA256: String?
-  let sha256: String?
-  let size: UInt64?
-  let license: String?
-  let attribution: String?
   let attached: Bool?
   let error: String?
-
-  enum CodingKeys: String, CodingKey {
-    case enabled
-    case state
-    case source
-    case version
-    case expectedSHA256 = "expected_sha256"
-    case sha256
-    case size
-    case license
-    case attribution
-    case attached
-    case error
-  }
 }
 
 struct OwlRustRerankStatusDTO: Decodable {
-  let ok: Bool
-  let error: String?
   let keyboard: OwlRustRerankModelStatusDTO?
   let settled: OwlRustRerankModelStatusDTO?
 }
@@ -121,4 +98,3 @@ struct OwlRerankConfiguration: Codable, Equatable {
     return String(data: data, encoding: .utf8)
   }
 }
-

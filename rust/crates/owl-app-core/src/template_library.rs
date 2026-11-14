@@ -331,23 +331,6 @@ pub fn validate(library: &Library) -> Result<()> {
     }
     automatic_validate(&library.entries)
 }
-pub fn conflicts(entries: &[Entry]) -> Vec<String> {
-    let mut codes: BTreeMap<String, (String, usize)> = BTreeMap::new();
-    for e in entries
-        .iter()
-        .filter(|e| e.invocation_mode != Invocation::SearchOnly)
-    {
-        for code in e.trigger.iter().chain(e.candidate_aliases.iter()) {
-            let v = codes.entry(nfc(code)).or_insert((code.clone(), 0));
-            v.1 += 1;
-        }
-    }
-    codes
-        .into_values()
-        .filter(|v| v.1 > 1)
-        .map(|v| v.0)
-        .collect()
-}
 pub fn encoded(library: &Library) -> Result<Vec<u8>> {
     serde_json::to_vec_pretty(library).map_err(|_| "invalid_payload".into())
 }
@@ -410,23 +393,6 @@ pub fn dispatch<H: Host>(host: &mut H, operation: &str, args: Value) -> Result<V
     let entries = || decode::<Vec<Entry>>(args["entries"].clone());
     let entry = || decode::<Entry>(args["entry"].clone());
     match operation {
-        "library_validate" => {
-            validate(&library()?)?;
-            Ok(json!(true))
-        }
-        "automatic_index" => Ok(json!(automatic_index(&entries()?)?)),
-        "automatic_validate" => {
-            automatic_validate(&entries()?)?;
-            Ok(json!(true))
-        }
-        "automatic_valid" => Ok(json!(automatic_valid(
-            args["text"].as_str().ok_or("invalid_payload")?
-        ))),
-        "library_duplicate" => {
-            let e = entry()?;
-            let copy = e.duplicated(uuid(host)?);
-            Ok(json!(copy))
-        }
         "library_sorted" => Ok(json!(sorted(host, &entries()?)?)),
         "library_filtered" => {
             let query = trim(args["query"].as_str().unwrap_or(""));
@@ -486,7 +452,6 @@ pub fn dispatch<H: Host>(host: &mut H, operation: &str, args: Value) -> Result<V
                 .collect::<Vec<_>>()))
         }
         "library_search_text" => Ok(json!(search_text(&entry()?))),
-        "library_candidate" => Ok(json!(entry()?.candidate())),
         "library_candidate_id" => {
             let text = args["text"].as_str().unwrap_or("");
             let id = text
@@ -505,7 +470,6 @@ pub fn dispatch<H: Host>(host: &mut H, operation: &str, args: Value) -> Result<V
             )
         }
         "library_projection" => Ok(json!(projection(host, &library()?)?)),
-        "library_encode" => Ok(json!(encoded(&library()?)?)),
         "library_mode" => Ok(tx::mode(host)),
         "library_load" => Ok(json!(tx::load(host)?)),
         "library_save" => {
@@ -518,8 +482,6 @@ pub fn dispatch<H: Host>(host: &mut H, operation: &str, args: Value) -> Result<V
             let expected: Library = decode(args["expected"].clone())?;
             Ok(json!(tx::delete(host, id, &expected)?))
         }
-        "library_conflicts" => Ok(json!(conflicts(&entries()?))),
-        "library_current" => Ok(json!(tx::current(host)?)),
         _ => Err("unknown_operation".into()),
     }
 }

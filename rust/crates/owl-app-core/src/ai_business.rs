@@ -107,6 +107,58 @@ fn admission(a: &Value) -> Value {
     };
     json!({"error":error,"count":n})
 }
+fn structured_messages(a: &Value) -> Value {
+    let mut messages = vec![
+        json!({"role":"system","content":a["systemPrompt"]}),
+        json!({"role":"user","content":protected(s(a,"draft"))}),
+    ];
+    if let Some(q) = a["clarifications"].as_array().filter(|q| !q.is_empty()) {
+        let text = q
+            .iter()
+            .map(|q| format!("问：{}\n答：{}", s(q, "question"), s(q, "answer")))
+            .collect::<Vec<_>>()
+            .join("\n\n");
+        messages.push(json!({"role":"user","content":format!("以下是我对澄清问题的补答，请据此产出终稿：\n\n{text}")}));
+    }
+    json!(messages)
+}
+fn polish_messages(a: &Value) -> Value {
+    json!([{"role":"system","content":a["systemPrompt"]},{"role":"user","content":json!({"text":a["text"]}).to_string()}])
+}
+fn should_failover(a: &Value) -> bool {
+    a["yielded"] != true
+        && (a["invalidEndpoint"] == true
+            || [401, 402, 403, 404].contains(&a["status"].as_i64().unwrap_or(0)))
+}
+fn merged_sources(first: &Value, second: &Value) -> Value {
+    let mut seen = std::collections::HashSet::new();
+    json!(first
+        .as_array()
+        .into_iter()
+        .flatten()
+        .chain(second.as_array().into_iter().flatten())
+        .filter(|v| seen.insert(crate::template_library::nfc(s(v, "url"))))
+        .collect::<Vec<_>>())
+}
+fn cited_sources(sources: &[Value], text: &str) -> Value {
+    let mut indices = vec![];
+    for c in Regex::new(r"\[(\d{1,2})\]").unwrap().captures_iter(text) {
+        if let Ok(n) = c[1].parse::<usize>() {
+            if n > 0 && n <= sources.len() && !indices.contains(&(n - 1)) {
+                indices.push(n - 1);
+            }
+        }
+    }
+    for i in 0..sources.len() {
+        if !indices.contains(&i) {
+            indices.push(i);
+        }
+    }
+    json!(indices
+        .iter()
+        .map(|i| sources[*i].clone())
+        .collect::<Vec<_>>())
+}
 pub fn rule(name: &str, a: Value) -> Value {
     match name {
         "composer" => {
@@ -115,122 +167,33 @@ pub fn rule(name: &str, a: Value) -> Value {
         }
         "limit" => json!(match s(&a, "id") {
             "selection" => 2000,
-            "history" => 10,
-            "clarifications" => 3,
             "query" => 80,
             "verificationResults" => 8,
             _ => 0,
         }),
-        "refusalStatuses" => json!([401, 402, 403, 404]),
         "firstRewrite" => json!({"text":a["values"].as_array().and_then(|v|v.first())}),
-        "previewStatus" => preview_status(
-            &a["files"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .filter_map(Value::as_str)
-                .map(str::to_string)
-                .collect::<Vec<_>>(),
-            a["success"] == true,
-        ),
         "profileRetry" => {
             json!({"index":a["ids"].as_array().and_then(|ids|ids.iter().position(|id|id==&a["id"]))})
         }
-        "credentialForm" => {
-            let action = s(&a, "action");
-            let doubao = a["doubao"] == true;
-            let text = s(&a, "text");
-            let key = trim(text);
-            let status = match action {
-                "read" => {
-                    if a["failure"] == true {
-                        "无法读取 Keychain"
-                    } else if a["present"] == true {
-                        "已配置 Keychain API Key"
-                    } else {
-                        "未配置 API Key"
-                    }
-                }
-                "save" => {
-                    if key.is_empty() {
-                        if doubao {
-                            "请输入豆包搜索的 API Key"
-                        } else {
-                            "请输入 API Key"
-                        }
-                    } else {
-                        ""
-                    }
-                }
-                "saved" => {
-                    if a["failure"] == true {
-                        "保存 Keychain 失败"
-                    } else if doubao {
-                        "已保存到 Keychain，来源核验将用豆包搜索取来源。"
-                    } else {
-                        "已保存到 Keychain"
-                    }
-                }
-                "deleted" => {
-                    if a["failure"] == true {
-                        "删除 Keychain 失败"
-                    } else if doubao {
-                        "已删除豆包搜索的 API Key，来源核验只保留跳库查询。"
-                    } else {
-                        "已删除 API Key"
-                    }
-                }
-                _ => "",
-            };
-            let clear = ["saved", "deleted"].contains(&action) && a["failure"] != true;
-            json!({"status":status,"input":if clear{""}else{text},"key":if action=="save"{key}else{""},"execute":action=="save"&&!key.is_empty()})
-        }
-        "verificationPrompt" => json!(verification_prompt()),
-        "verificationUser" => json!(verification_user(s(&a, "text"), &a["results"])),
         "prompt" => json!(prompt(s(&a, "id"))),
-        "context" => context(&a),
         "selectionSummary" => json!(selection(s(&a, "text")).replace('\n', " ")),
         "trim" => json!(trim(s(&a, "text"))),
-        "prefix" => json!(prefix(
-            s(&a, "text"),
-            a["limit"].as_u64().unwrap_or(0) as usize
-        )),
         "admission" => admission(&a),
-        "protectedDraft" => json!(protected(s(&a, "text"))),
         "structuredParse" => structured_parse(s(&a, "text")),
-        "clarification" => json!(CLARIFICATION),
-        "structuredMessages" => {
-            let mut messages = vec![
-                json!({"role":"system","content":a["systemPrompt"]}),
-                json!({"role":"user","content":protected(s(&a,"draft"))}),
-            ];
-            if let Some(q) = a["clarifications"].as_array().filter(|q| !q.is_empty()) {
-                let text = q
-                    .iter()
-                    .map(|q| format!("问：{}\n答：{}", s(q, "question"), s(q, "answer")))
-                    .collect::<Vec<_>>()
-                    .join("\n\n");
-                messages.push(json!({"role":"user","content":format!("以下是我对澄清问题的补答，请据此产出终稿：\n\n{text}")}));
-            }
-            json!(messages)
-        }
         "skillRequest" => {
             let kind = s(&a, "kind");
-            let messages = rule(
-                if kind == "polish" {
-                    "polishMessages"
-                } else {
-                    "structuredMessages"
-                },
-                a.clone(),
-            );
+            let messages = if kind == "polish" {
+                polish_messages(&a)
+            } else {
+                structured_messages(&a)
+            };
             let mut out = crate::provider_wire::rule("thinking", a.clone());
             out["model"] = a["model"].clone();
             out["messages"] = messages;
             out["stream"] = json!(false);
-            let temp = crate::provider_wire::rule(
-                "temperature",
-                json!({"model":a["model"],"value":a["temperature"]}),
+            let temp = crate::provider_wire::effective_temperature(
+                s(&a, "model"),
+                a["temperature"].clone(),
             );
             if !temp.is_null() {
                 out["temperature"] = temp;
@@ -240,18 +203,10 @@ pub fn rule(name: &str, a: Value) -> Value {
             }
             out
         }
-        "polishMessages" => {
-            json!([{"role":"system","content":a["systemPrompt"]},{"role":"user","content":json!({"text":a["text"]}).to_string()}])
-        }
         "polishVariant" => {
             let aligned = a["id"] == "v2-responsay-aligned";
             json!({"id":if aligned{"v2-responsay-aligned"}else{"v1-legacy"},"systemPrompt":prompt(if aligned{"polishAligned"}else{"polishLegacy"}),"temperature":if aligned{0.2}else{0.3}})
         }
-        "failover" => json!(
-            a["yielded"] != true
-                && (a["invalidEndpoint"] == true
-                    || [401, 402, 403, 404].contains(&a["status"].as_i64().unwrap_or(0)))
-        ),
         "searchCandidates" => {
             let mut p: Vec<Value> = a["profiles"]
                 .as_array()
@@ -271,39 +226,6 @@ pub fn rule(name: &str, a: Value) -> Value {
         } else {
             s(&a, "model")
         }),
-        "mergedSources" => {
-            let mut seen = std::collections::HashSet::new();
-            json!(a["first"]
-                .as_array()
-                .into_iter()
-                .flatten()
-                .chain(a["second"].as_array().into_iter().flatten())
-                .filter(|v| seen.insert(crate::template_library::nfc(s(v, "url"))))
-                .collect::<Vec<_>>())
-        }
-        "citedSources" => {
-            let sources = a["sources"].as_array().cloned().unwrap_or_default();
-            let mut indices = vec![];
-            for c in Regex::new(r"\[(\d{1,2})\]")
-                .unwrap()
-                .captures_iter(s(&a, "text"))
-            {
-                if let Ok(n) = c[1].parse::<usize>() {
-                    if n > 0 && n <= sources.len() && !indices.contains(&(n - 1)) {
-                        indices.push(n - 1);
-                    }
-                }
-            }
-            for i in 0..sources.len() {
-                if !indices.contains(&i) {
-                    indices.push(i);
-                }
-            }
-            json!(indices
-                .iter()
-                .map(|i| sources[*i].clone())
-                .collect::<Vec<_>>())
-        }
         _ => crate::ai_verification::rule(name, a),
     }
 }
@@ -377,7 +299,7 @@ impl Conversation {
                 self.state = json!({"kind":"streaming","text":""});
                 start = true;
             }
-            "stop" | "providerChanged" | "teardown" | "new" | "replace" => {
+            "stop" | "providerChanged" | "teardown" | "new" => {
                 self.generation += 1;
                 match event {
                     "stop" | "providerChanged" => {
@@ -391,7 +313,6 @@ impl Conversation {
                         }
                     }
                     "teardown" => self.closed = true,
-                    "replace" => self.state = a["state"].clone(),
                     "new" => {
                         self.question.clear();
                         self.display = Value::Null;
@@ -475,10 +396,9 @@ impl Attempts {
             }
             "failure" => {
                 if !self.terminal
-                    && rule(
-                        "failover",
-                        json!({"yielded":self.yielded,"status":a["status"],"invalidEndpoint":a["invalidEndpoint"]}),
-                    ) == true
+                    && should_failover(
+                        &json!({"yielded":self.yielded,"status":a["status"],"invalidEndpoint":a["invalidEndpoint"]}),
+                    )
                 {
                     self.index += 1;
                     self.yielded = false;
@@ -498,97 +418,6 @@ impl Attempts {
         }
         Ok(json!({"action":action,"index":self.index,"providerID":self.providers.get(self.index)}))
     }
-}
-
-pub struct Preview {
-    files: Vec<String>,
-    index: usize,
-    rollback: bool,
-    action: String,
-    status: Value,
-}
-impl Preview {
-    pub fn new(a: Value) -> Self {
-        let rollback = a["rollback"] == true;
-        let files = a["files"]
-            .as_array()
-            .into_iter()
-            .flatten()
-            .filter_map(Value::as_str)
-            .map(str::to_string)
-            .collect::<Vec<_>>();
-        let action = if a["confirmed"] != true {
-            "done"
-        } else if rollback {
-            "rollback"
-        } else if files.is_empty() {
-            "redeploy"
-        } else {
-            "apply"
-        };
-        Self {
-            files,
-            index: 0,
-            rollback,
-            action: action.into(),
-            status: Value::Null,
-        }
-    }
-    pub fn event(&mut self, event: &str, a: Value) -> Result<Value, String> {
-        match event {
-            "next" => {}
-            "success" => {
-                if self.action == "apply" {
-                    self.index += 1;
-                    self.action = if self.index < self.files.len() {
-                        "apply"
-                    } else {
-                        "redeploy"
-                    }
-                    .into();
-                } else if self.action == "rollback" {
-                    self.action = "redeploy".into();
-                }
-            }
-            "failure" => {
-                let status = if self.rollback {
-                    format!("回滚失败：{}。", s(&a, "message"))
-                } else if !a["protected"].is_null() {
-                    format!("已拒绝写入受保护文件：{}。", s(&a, "protected"))
-                } else {
-                    format!(
-                        "写入失败：{}。已写入：{}。",
-                        s(&a, "message"),
-                        self.files[..self.index].join("、")
-                    )
-                };
-                self.status = json!(status);
-                self.action = "done".into();
-            }
-            "redeployed" => {
-                self.status = if self.rollback {
-                    json!(if a["success"] == true {
-                        "已按 manifest 回滚最近一次写入并应用配置改动。"
-                    } else {
-                        "已按 manifest 回滚最近一次写入；应用配置失败，请查看诊断日志。"
-                    })
-                } else {
-                    preview_status(&self.files, a["success"] == true)
-                };
-                self.action = "done".into();
-            }
-            _ => return Err("invalid_event".into()),
-        }
-        Ok(json!({"action":self.action,"index":self.index,"status":self.status}))
-    }
-}
-fn preview_status(files: &[String], success: bool) -> Value {
-    let files = files.join("、");
-    json!(if success {
-        format!("已写入并应用配置 {files}（备份+manifest 已记录，可回滚）。")
-    } else {
-        format!("已写入 {files}，但应用配置失败；备份+manifest 已记录，可回滚，请查看诊断日志。")
-    })
 }
 
 /// Explicit verification job; credentials and transport remain in the host and are never stored.
@@ -635,10 +464,7 @@ impl Verification {
                 .into();
             }
             "searched" => {
-                self.results = rule(
-                    "mergedSources",
-                    json!({"first":a["deepResults"],"second":a["doubaoResults"]}),
-                );
+                self.results = merged_sources(&a["deepResults"], &a["doubaoResults"]);
                 let results = self.results.as_array().unwrap();
                 if results.is_empty() {
                     self.error = if a["routeCount"] == 0 && a["doubaoFailed"] == true {
@@ -665,7 +491,7 @@ impl Verification {
             }
             "judgeFailed" => {
                 self.action = if self.action == "judgeSearch"
-                    && rule("failover", json!({"status":a["status"]})) == true
+                    && should_failover(&json!({"status":a["status"]}))
                 {
                     "authorize"
                 } else {
@@ -684,10 +510,8 @@ impl Verification {
             }
             "judged" => {
                 self.content = trim(s(&a, "content")).into();
-                self.sources = rule(
-                    "citedSources",
-                    json!({"sources":self.sources,"text":self.content}),
-                );
+                let sources = self.sources.as_array().map(Vec::as_slice).unwrap_or(&[]);
+                self.sources = cited_sources(sources, &self.content);
                 self.action = "done".into();
             }
             _ => return Err("invalid_event".into()),
@@ -706,6 +530,6 @@ fn verification_prompt() -> &'static str {
     "你是来源核验助手。只依据给出的检索结果核验选中文本，不要凭常识补来源；检索结果不足以判断时，直接说明需要人工确认。来源按权威优先：优先引用一手官方来源（发布机关、法院、政府官网或法规公报、标准原文页）；确无一手来源时才用权威媒体或数据库转载，并注明系转载。引用时用 [序号] 标注对应的检索结果。"
 }
 fn verification_user(text: &str, results: &Value) -> String {
-    let numbered = crate::provider_wire::rule("numbered", json!({"results":results}));
-    format!("请核验以下选中文本，给出判断、支持判断的来源序号和关键信息。\n\n选中文本：\n{text}\n\n检索结果：\n{}",numbered.as_str().unwrap_or(""))
+    let numbered = crate::provider_search::numbered(results.as_array().map(Vec::as_slice).unwrap_or(&[]));
+    format!("请核验以下选中文本，给出判断、支持判断的来源序号和关键信息。\n\n选中文本：\n{text}\n\n检索结果：\n{numbered}")
 }

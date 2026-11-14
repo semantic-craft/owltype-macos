@@ -515,9 +515,7 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
     engine.setup(
       OwlEngineTraits(
         sharedDataDir: shared,
-        userDataDir: root,
-        logDir: root,
-        appName: OwlEngineIdentity.appName
+        userDataDir: root
       )
     )
     defer { engine.cleanupAllSessions(); _ = engine.finalize() }

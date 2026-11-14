@@ -29,9 +29,6 @@ enum OwlAskWebSearchSettings {
     set { OwlDefaults.standard.set(newValue, forKey: key) }
   }
 
-  static func resetForTesting() {
-    OwlDefaults.standard.removeObject(forKey: key)
-  }
 }
 
 // MARK: - Resolved route
@@ -44,8 +41,6 @@ struct OwlAskSearchRoute: Equatable {
   let apiKey: String
 
   var providerID: String { routing.providerID }
-  /// 面向用户的品牌名（DeepSeek），供 AI 窗署名 chip 使用。
-  var displayName: String? { OwlProviderCapabilities.searchDisplayName(providerID: providerID) }
   /// WHICH transport carries this route's search — the 任意提问 module picks its client from this rather
   /// than re-deriving it from the provider id.
   var transport: OwlSearchControl.Transport {
@@ -79,13 +74,6 @@ struct OwlAskSearchResolver {
     self.profilesProvider = profilesProvider
     self.defaultProfileProvider = defaultProfileProvider
     self.secretProvider = secretProvider
-  }
-
-  /// The 联网搜索 route for this question, or nil → caller falls back to plain chat.
-  /// nil covers all three "no search this time" cases: toggle off, no DeepSeek profile, or every
-  /// such profile still missing its key.
-  func resolve() -> OwlAskSearchRoute? {
-    resolveAll().first
   }
 
   /// EVERY usable 联网搜索 route, in `candidateProfiles()` order — the input to the runtime
@@ -144,16 +132,6 @@ struct OwlAskSearchResolver {
 ///   - 报错：其余状态、未知业务码、5xx 与 `URLError`。未知即顺位会把同一问题额外发送给其他供应商，
 ///     所以这里采取封闭列表；只有可以确认是配置拒绝的错误才允许在首个 delta 前换家。
 enum OwlAskSearchFailover {
-  /// 这些状态能确认是当前候选的固定配置问题，而不是这次请求的内容/网络问题。
-
-  /// 该换下一条联网尝试吗？首个 delta 是不可逆边界：一旦已有输出，即使随后收到明确的
-  /// 401/404，也必须原样上报，不能把两家答案拼在一起。
-  static func shouldTryNextAttempt(after error: Error, hasYieldedDelta: Bool) -> Bool {
-    var args = facts(error)
-    args["yielded"] = hasYieldedDelta
-    return OwlAIBusinessCore.call("failover", args)
-  }
-
   static func facts(_ error: Error) -> [String: Any] {
     var status = 0
     var invalidEndpoint = false
@@ -165,10 +143,5 @@ enum OwlAskSearchFailover {
       }
     }
     return ["status": status, "invalidEndpoint": invalidEndpoint]
-  }
-
-  /// 明确的配置拒绝。451、422 等语义可能与问题内容有关，不能据此跨供应商追加请求。
-  static func isConfigurationRefusal(status: Int) -> Bool {
-    OwlAIBusinessCore.call("failover", ["status": status])
   }
 }

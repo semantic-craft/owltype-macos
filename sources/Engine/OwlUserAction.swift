@@ -52,7 +52,7 @@ struct OwlKeyEvent: Equatable {
     default: type = .other
     }
     self.type = type
-    self.keyCode = event.keyCode
+    self.keyCode = type == .other ? 0 : event.keyCode
     // NSEvent.characters / charactersIgnoringModifiers raise NSInternalInconsistencyException for
     // non-key events (a modifier press is a flagsChanged, not keyDown). Reading them eagerly here
     // threw for EVERY modifier event → IMK swallowed the exception → handle() aborted before the
@@ -67,17 +67,6 @@ struct OwlKeyEvent: Equatable {
       self.charactersIgnoringModifiers = nil
     }
     self.modifierFlags = event.modifierFlags
-    self.lastModifiers = lastModifiers
-  }
-
-  /// Direct value init (tests / non-AppKit callers).
-  init(type: EventType, keyCode: UInt16, characters: String?, charactersIgnoringModifiers: String?,
-       modifierFlags: NSEvent.ModifierFlags, lastModifiers: NSEvent.ModifierFlags) {
-    self.type = type
-    self.keyCode = keyCode
-    self.characters = characters
-    self.charactersIgnoringModifiers = charactersIgnoringModifiers
-    self.modifierFlags = modifierFlags
     self.lastModifiers = lastModifiers
   }
 }
@@ -139,21 +128,6 @@ enum OwlUserAction: Equatable {
 /// The pure classifier. Lifted verbatim from `OwlInputController.handle()`; reuses the existing
 /// `OwlKeycode` helpers in `MacOSKeyCodes.swift` (never reimplements key translation).
 enum OwlUserActionClassifier {
-
-  /// Resolve the character to translate for a `keyDown` — the `keyChars`/`capitalModifiers` logic
-  /// that was inline at `OwlInputController.swift:152-157`. Pure; cited bugs preserved:
-  ///   - non-letter under shift/caps, or non-ASCII otherwise → fall back to `characters`.
-  static func resolveKeyChars(charactersIgnoringModifiers: String?,
-                              characters: String?,
-                              modifiers: NSEvent.ModifierFlags) -> String? {
-    var keyChars = charactersIgnoringModifiers
-    let capitalModifiers = modifiers.isSubset(of: [.shift, .capsLock])
-    if let code = keyChars?.first,
-       (capitalModifiers && !code.isLetter) || (!capitalModifiers && !code.isASCII) {
-      keyChars = characters
-    }
-    return keyChars
-  }
 
   /// Classify a de-platformed key event. PURE: no engine, no IMK, no `NSScreen`.
   static func classify(_ event: OwlKeyEvent) -> OwlUserAction {

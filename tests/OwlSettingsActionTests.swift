@@ -110,14 +110,14 @@ final class OwlSettingsActionTests: XCTestCase {
     assertSet(6, \.candidatePageSize, state, { OwlKeyboardPreferences.pageSize }) { OwlKeyboardPreferences.pageSize = $0 }
     panelSettings.edit(.skin(.wuda), state: state, onChange: {})
     XCTAssertEqual(panelSettings.snapshot().skin, .wuda)
-    assertSet(OwlCloudPreferences.reasonerDeepSeekModel, \.cloudModel, state, { OwlCloudPreferences.deepSeekModel }) { OwlCloudPreferences.deepSeekModel = $0 }
+    assertSet("deepseek-v4-pro", \.cloudModel, state, { OwlCloudPreferences.deepSeekModel }) { OwlCloudPreferences.deepSeekModel = $0 }
     // 默认状态·中英文 / 全半角 下拉（同 `OwlSettingsActions.set` 写穿；简繁体复用 traditionalOutput）。
     assertSet(true, \.keyboardDefaultAsciiMode, state, { OwlKeyboardPreferences.defaultAsciiMode }) { OwlKeyboardPreferences.defaultAsciiMode = $0 }
     assertSet(true, \.keyboardDefaultFullShape, state, { OwlKeyboardPreferences.defaultFullShape }) { OwlKeyboardPreferences.defaultFullShape = $0 }
 
-    assertToggle(\.keyboardWubiCodeHint, state, { OwlKeyboardPreferences.wubiCodeHint }) { OwlKeyboardPreferences.wubiCodeHint = $0 }
-    assertToggle(\.keyboardWubiAutoClear, state, { OwlKeyboardPreferences.wubiAutoClear }) { OwlKeyboardPreferences.wubiAutoClear = $0 }
-    assertToggle(\.keyboardWubiUserDictLearning, state, { OwlKeyboardPreferences.wubiUserDictLearning }) { OwlKeyboardPreferences.wubiUserDictLearning = $0 }
+    assertToggle(\.keyboardWubiCodeHint, state, { OwlKeyboardSettingsCatalog.live.load(.wubiCodeHint) }) { OwlKeyboardSettingsCatalog.live.set(.wubiCodeHint, $0) }
+    assertToggle(\.keyboardWubiAutoClear, state, { OwlKeyboardSettingsCatalog.live.load(.wubiAutoClear) }) { OwlKeyboardSettingsCatalog.live.set(.wubiAutoClear, $0) }
+    assertToggle(\.keyboardWubiUserDictLearning, state, { OwlKeyboardSettingsCatalog.live.load(.wubiUserDictLearning) }) { OwlKeyboardSettingsCatalog.live.set(.wubiUserDictLearning, $0) }
     assertToggle(\.keyboardShiftSwitchCJK, state, { OwlKeyboardPreferences.shiftSwitchCJK }) { OwlKeyboardPreferences.shiftSwitchCJK = $0 }
     assertToggle(\.keyboardCJKPunctToggle, state, { OwlKeyboardPreferences.cjkPunctToggle }) { OwlKeyboardPreferences.cjkPunctToggle = $0 }
     assertToggle(\.keyboardPageMinusEquals, state, { OwlKeyboardPreferences.pageMinusEquals }) { OwlKeyboardPreferences.pageMinusEquals = $0 }
@@ -289,47 +289,6 @@ final class OwlSettingsActionTests: XCTestCase {
     XCTAssertTrue(cleared.entries.isEmpty)
     XCTAssertEqual(cleared.status, "已清空本地剪贴板记录。")
     XCTAssertTrue(OwlClipboardStore.load(root: dir).isEmpty)
-  }
-
-  func testLearnAndKeychainButtonActionsReachStoresAndStatuses() throws {
-    XCTAssertEqual(OwlSettingsActions.deepSeekAPIKeyStatus { nil }, "未配置 API Key")
-    XCTAssertEqual(OwlSettingsActions.deepSeekAPIKeyStatus { "sk-test" }, "已配置 Keychain API Key")
-    XCTAssertEqual(OwlSettingsActions.deepSeekAPIKeyStatus { throw NSError(domain: "test", code: 1) }, "无法读取 Keychain")
-
-    var savedKey = ""
-    let emptyKey = OwlSettingsActions.saveDeepSeekAPIKey(" ") {
-      savedKey = $0
-    }
-    XCTAssertEqual(emptyKey.input, " ")
-    XCTAssertEqual(emptyKey.status, "请输入 API Key")
-    XCTAssertEqual(savedKey, "")
-
-    let saved = OwlSettingsActions.saveDeepSeekAPIKey(" sk-test ") {
-      savedKey = $0
-    }
-    XCTAssertEqual(saved.input, "")
-    XCTAssertEqual(saved.status, "已保存到 Keychain")
-    XCTAssertEqual(savedKey, "sk-test")
-
-    let saveFailure = OwlSettingsActions.saveDeepSeekAPIKey("sk-fail") { _ in
-      throw NSError(domain: "test", code: 2)
-    }
-    XCTAssertEqual(saveFailure.input, "sk-fail")
-    XCTAssertEqual(saveFailure.status, "保存 Keychain 失败")
-
-    var didDelete = false
-    let deletedKey = OwlSettingsActions.deleteDeepSeekAPIKey(input: "sk-test") {
-      didDelete = true
-    }
-    XCTAssertTrue(didDelete)
-    XCTAssertEqual(deletedKey.input, "")
-    XCTAssertEqual(deletedKey.status, "已删除 API Key")
-
-    let deleteFailure = OwlSettingsActions.deleteDeepSeekAPIKey(input: "sk-test") {
-      throw NSError(domain: "test", code: 3)
-    }
-    XCTAssertEqual(deleteFailure.input, "sk-test")
-    XCTAssertEqual(deleteFailure.status, "删除 Keychain 失败")
   }
 
   func testPreviewSchemaAndWritePreviewActionsAreClickableWithoutLiveSideEffects() {

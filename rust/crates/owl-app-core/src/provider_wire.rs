@@ -232,6 +232,14 @@ fn refusal_message(kind: &str) -> &'static str {
         _ => "云端 AI 请求失败",
     }
 }
+pub(crate) fn effective_temperature(model: &str, value: Value) -> Value {
+    if model.to_lowercase() == "gemini-3.8-flash" {
+        Value::Null
+    } else {
+        value
+    }
+}
+
 pub fn rule(op: &str, a: Value) -> Value {
     match op {
         "curatedModels" => {
@@ -360,7 +368,7 @@ pub fn rule(op: &str, a: Value) -> Value {
                 if d {
                     json!({"model":model,"completionTokens":n("outputTokens"),"promptTokens":n("inputTokens"),"promptCacheHitTokens":n("cachedTokens"),"promptCacheMissTokens":(n("inputTokens")-n("cachedTokens")).max(0),"totalTokens":n("totalTokens")})
                 } else {
-                    json!({"model":model,"completionTokens":n("completion_tokens"),"promptTokens":n("prompt_tokens"),"promptCacheHitTokens":n("prompt_cache_hit_tokens"),"promptCacheMissTokens":n("prompt_cache_miss_tokens"),"totalTokens":n("total_tokens")})
+                    json!({"model":model,"completionTokens":n("completion_tokens"),"promptTokens":n("prompt_tokens"),"promptCacheHitTokens":u["prompt_cache_hit_tokens"].as_i64(),"promptCacheMissTokens":u["prompt_cache_miss_tokens"].as_i64(),"totalTokens":n("total_tokens")})
                 }
             } else {
                 Value::Null
@@ -374,13 +382,6 @@ pub fn rule(op: &str, a: Value) -> Value {
         }
         "secretName" => json!(crate::provider_store::secret_name(s(&a, "id"))),
         "isHTTPS" => json!(s(&a, "scheme").to_lowercase() == "https"),
-        "vendorKey" => json!(
-            if s(&a, "providerID").is_empty() || s(&a, "providerID") == "custom" {
-                format!("host:{}", s(&a, "host"))
-            } else {
-                format!("id:{}", s(&a, "providerID"))
-            }
-        ),
         "numberedRewrite" => {
             let text = trim(s(&a, "text"));
             let root: Value = serde_json::from_str(text).unwrap_or(Value::Null);
@@ -429,7 +430,6 @@ pub fn rule(op: &str, a: Value) -> Value {
             json!(out)
         }
         "searchPath" => json!("/v1/tools/search"),
-        "jsonMode" => json!(a["hasSplit"] != true),
         "formProvider" => {
             let id = crate::provider_store::inferred(&a["profile"]);
             json!(if crate::provider_store::known(&id) {
@@ -439,17 +439,9 @@ pub fn rule(op: &str, a: Value) -> Value {
             })
         }
         "trim" => json!(trim(s(&a, "text"))),
-        "known" => json!(crate::provider_store::known(s(&a, "id"))),
         "inferred" => json!(crate::provider_store::inferred(&a["profile"])),
         "dialect" => json!(dialect(s(&a, "providerID"), s(&a, "model"), s(&a, "host"))),
         "thinking" => thinking(s(&a, "providerID"), s(&a, "model")),
-        "temperature" => {
-            if s(&a, "model").to_lowercase() == "gemini-3.8-flash" {
-                Value::Null
-            } else {
-                a["value"].clone()
-            }
-        }
         "searchChannel" => json!(if s(&a, "providerID").to_lowercase() == "deepseek"
             || s(&a, "host").to_lowercase().contains("deepseek")
         {
@@ -474,13 +466,6 @@ pub fn rule(op: &str, a: Value) -> Value {
                     }
                 )
             })
-        }
-        "responsesParse" => {
-            let bytes: Vec<u8> = serde_json::from_value(a["bytes"].clone()).unwrap_or_default();
-            let root = serde_json::from_slice::<Value>(&bytes)
-                .ok()
-                .filter(Value::is_object);
-            root.as_ref().map(responses).unwrap_or(Value::Null)
         }
         "errorDetail" => {
             let bytes: Vec<u8> = serde_json::from_value(a["bytes"].clone()).unwrap_or_default();
@@ -681,5 +666,75 @@ impl Stream {
             }
             _ => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn completion_parse_decodes_bailian_and_deepseek_cache_tokens() {
+        let bailian = serde_json::json!({
+            "choices": [{
+                "message": {
+                    "role": "assistant",
+                    "content": "{\"status\":\"ready\",\"result\":\"改写后的提示词\"}"
+                }
+            }],
+            "usage": {
+                "prompt_tokens": 383,
+                "completion_tokens": 2953,
+                "total_tokens": 3336,
+                "completion_tokens_details": {"reasoning_tokens": 2629, "text_tokens": 2953},
+                "prompt_tokens_details": {"text_tokens": 383}
+            },
+            "model": "qwen3.6-flash",
+            "id": "chatcmpl-x"
+        });
+        let bailian_bytes: Vec<u8> = serde_json::to_vec(&bailian).unwrap();
+        let parsed_bailian = rule(
+            "completionParse",
+            json!({"bytes": bailian_bytes, "dashscope": false, "model": "qwen3.6-flash"}),
+        );
+        assert_eq!(
+            parsed_bailian["text"].as_str(),
+            Some("{\"status\":\"ready\",\"result\":\"改写后的提示词\"}")
+        );
+        assert_eq!(parsed_bailian["usage"]["model"].as_str(), Some("qwen3.6-flash"));
+        assert_eq!(parsed_bailian["usage"]["promptTokens"].as_i64(), Some(383));
+        assert_eq!(parsed_bailian["usage"]["completionTokens"].as_i64(), Some(2953));
+        assert_eq!(parsed_bailian["usage"]["totalTokens"].as_i64(), Some(3336));
+        assert_eq!(parsed_bailian["usage"]["promptCacheHitTokens"], Value::Null);
+        assert_eq!(parsed_bailian["usage"]["promptCacheMissTokens"], Value::Null);
+
+        let deepseek = serde_json::json!({
+            "choices": [{
+                "message": {
+                    "role": "assistant",
+                    "content": "hi"
+                }
+            }],
+            "usage": {
+                "prompt_tokens": 10,
+                "completion_tokens": 5,
+                "total_tokens": 15,
+                "prompt_cache_hit_tokens": 7,
+                "prompt_cache_miss_tokens": 3
+            },
+            "model": "deepseek-v4-flash"
+        });
+        let deepseek_bytes: Vec<u8> = serde_json::to_vec(&deepseek).unwrap();
+        let parsed_deepseek = rule(
+            "completionParse",
+            json!({"bytes": deepseek_bytes, "dashscope": false, "model": "deepseek-v4-flash"}),
+        );
+        assert_eq!(parsed_deepseek["text"].as_str(), Some("hi"));
+        assert_eq!(parsed_deepseek["usage"]["model"].as_str(), Some("deepseek-v4-flash"));
+        assert_eq!(parsed_deepseek["usage"]["promptTokens"].as_i64(), Some(10));
+        assert_eq!(parsed_deepseek["usage"]["completionTokens"].as_i64(), Some(5));
+        assert_eq!(parsed_deepseek["usage"]["totalTokens"].as_i64(), Some(15));
+        assert_eq!(parsed_deepseek["usage"]["promptCacheHitTokens"].as_i64(), Some(7));
+        assert_eq!(parsed_deepseek["usage"]["promptCacheMissTokens"].as_i64(), Some(3));
     }
 }

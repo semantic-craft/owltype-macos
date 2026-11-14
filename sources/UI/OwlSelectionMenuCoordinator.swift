@@ -115,11 +115,6 @@ enum OwlSelectionReplacementFlow {
 /// 事件（经 invalidate()）、其他修饰键出现、或超时都会把状态清零——⌥+字母组合键、⌥+点击、
 /// 长按 ⌥ 都绝不误触发。触发即回到 idle，第三击从头数。
 struct OwlOptionDoubleTapDetector {
-  /// 单击最长按住时长：超过就是「按住 ⌥ 用组合键/拖选」，不是轻击。
-  static let tapMaxHold: TimeInterval = 0.5
-  /// 两击最大间隔（第一击松开 → 第二击按下）。
-  static let tapMaxGap: TimeInterval = 0.45
-
   private let core = try! OwlAppSession("selectionGesture")
   mutating func invalidate() { let _: Bool = core.call("invalidate") }
   mutating func processFlagsChanged(_ flags: NSEvent.ModifierFlags, at now: Date) -> Bool {
@@ -422,18 +417,10 @@ final class OwlSelectionMenuCoordinator {
 }
 
 enum OwlSelectionSkillPrompts {
-  static let sourceVerificationQuestion: String = OwlAIBusinessCore.call("prompt", ["id": "sourceVerificationQuestion"])
-
-  static let researchAssistQuestion: String = OwlAIBusinessCore.call("prompt", ["id": "researchAssistQuestion"])
-
   /// 规范排版的「段落重排」系统提示。AI 只做一件事——把被硬换行拆断的行拼回完整段落；引号 / 全半角 /
   /// 空格等规范化全交给确定性规则（OwlChineseTypesetting.finalize），故这里严令「一字不改、连标点都别动」。
   /// 内容不变式由指纹护栏兜底（见 OwlSelectionPublishFormatter）。
   static let publishReflowSystemPrompt: String = OwlAIBusinessCore.call("prompt", ["id": "publishReflowSystemPrompt"])
-
-  // 划词翻译：改造自 GitHub andrewyng/translation-agent（反思式翻译 translate→reflect→improve），
-  // 折叠为单次调用、只输出意译；反思四维（准确/流畅/风格文化/术语惯用）照搬其原文。目标语言自动中↔英。
-  static let translationQuestion: String = OwlAIBusinessCore.call("prompt", ["id": "translationQuestion"])
 
   /// 提示词优化的澄清脚手架（issue #138）。作为任务卡的隐藏 scaffold（问题另在卡上逐条显示；
   /// 这里仍串进 scaffold，让模型能把用户补答对回问题）；脚手架自带优化指令，让用户补答后经
@@ -458,12 +445,6 @@ enum OwlSelectionSkillPrompts {
 /// `contentFingerprint` 把这条不变式变成可机械断言的护栏（见 OwlSelectionPublishFormatter）。
 enum OwlChineseTypesetting {
   static func preClean(_ text: String) -> String { OwlAIBusinessCore.call("preClean", ["text": text]) }
-  static func finalize(_ text: String) -> String { OwlAIBusinessCore.call("typeset", ["text": text]) }
-  static func contentFingerprint(_ text: String) -> String { OwlAIBusinessCore.call("fingerprint", ["text": text]) }
-  static func normalizeEllipsisAndDash(_ text: String) -> String { OwlAIBusinessCore.call("ellipsis", ["text": text]) }
-  static func normalizeQuotes(_ text: String) -> String { OwlAIBusinessCore.call("quotes", ["text": text]) }
-  static func normalizePunctuationWidth(_ text: String) -> String { OwlAIBusinessCore.call("punctuationWidth", ["text": text]) }
-  static func normalizeSpaces(_ text: String) -> String { OwlAIBusinessCore.call("spaces", ["text": text]) }
 }
 
 enum OwlSelectionPublishFormattingError: Error {

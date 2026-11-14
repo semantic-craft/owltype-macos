@@ -28,7 +28,7 @@ final class OwlTemplateStoreTests: XCTestCase {
     var delivered: [String] = []
     let invocation = OwlTemplateInvocation(content: .template(selected), broker: OwlPanelInsertionBroker(), deliver: { delivered.append($0.text); return .confirmed })
     XCTAssertTrue(invocation.variables.isEmpty)
-    XCTAssertEqual(Array(invocation.preview(values: ["clipboard": "不得替换"]).text.utf8), Array(body.utf8))
+    XCTAssertEqual(Array(invocation.evaluate(values: ["clipboard": "不得替换"]).previewText.utf8), Array(body.utf8))
     invocation.start { _ in XCTFail("ordinary braces must not open a parameter sheet") }
     invocation.confirm(values: [:])
     XCTAssertEqual(delivered.count, 1)
@@ -37,9 +37,9 @@ final class OwlTemplateStoreTests: XCTestCase {
     XCTAssertFalse(OwlTemplateStore.renderCandidateProjection(reopened).contains(original.id.uuidString))
   }
 
-  func testEditingOnlyUnicodeNormalizationStillPersistsExactNewBytes() throws {
+  func testEditingOnlyUnicodeNormalizationStillPersistsExactNewBytes() async throws {
     let editor = OwlTemplateEditorModel(dataDir: root)
-    editor.reload()
+    await editor.loadLibraryForEditing()
     editor.draft = OwlTemplateEntry(title: "Accent", body: "é")
     XCTAssertTrue(editor.save())
     editor.draft.body = "e\u{301}"
@@ -47,17 +47,19 @@ final class OwlTemplateStoreTests: XCTestCase {
     XCTAssertEqual(Array(try OwlTemplateStore.load(dataDir: root).entries[0].body.utf8), Array("e\u{301}".utf8))
   }
 
-  func testLegacyMaximumLengthAliasAndSwitchToSearchOnly() throws {
+  func testLegacyMaximumLengthAliasAndSwitchToSearchOnly() async throws {
     var item = entry()
     item.trigger = String(repeating: "a", count: 32)
     item.candidateAliases = ["v" + item.trigger!]
     item.invocationMode = .candidate
     let library = OwlTemplateLibrary(entries: [item])
     try OwlTemplateStore.save(library, dataDir: root)
-    XCTAssertEqual(OwlTemplateStore.resolveCandidate(code: item.candidateAliases[0], text: OwlTemplateStore.candidateText(item),
+    let projectedText = try XCTUnwrap(OwlTemplateStore.renderCandidateProjection(library)
+      .split(separator: "\n").first { $0.hasPrefix(OwlTemplateStore.candidatePrefix) }?.split(separator: "\t").first.map(String.init))
+    XCTAssertEqual(OwlTemplateStore.resolveCandidate(code: item.candidateAliases[0], text: projectedText,
                                                     loadLibrary: { library }), item)
     let editor = OwlTemplateEditorModel(dataDir: root)
-    editor.reload(); editor.draft = item
+    await editor.loadLibraryForEditing(); editor.draft = item
     editor.setInvocationMode(.searchOnly)
     XCTAssertTrue(editor.save())
     XCTAssertTrue(editor.draft.candidateAliases.isEmpty)
@@ -66,22 +68,23 @@ final class OwlTemplateStoreTests: XCTestCase {
 
   func testInlineCandidatePreviewHidesInternalIdentity() {
     let item = entry()
+    let candidateText = "\(OwlTemplateStore.candidatePrefix)\(item.id.uuidString)]\(item.title)"
     let composition = EngineComposition(preedit: "mail", selStart: 0, selEnd: 4, cursorPos: 4,
-                                      commitTextPreview: OwlTemplateStore.candidateText(item), candidates: [], labels: [],
-                                      pageNo: 0, pageSize: 5, isLastPage: true, highlightedIndex: 0, numCandidates: 0)
+                                      commitTextPreview: candidateText, candidates: [], labels: [],
+                                      pageNo: 0, pageSize: 5, isLastPage: true, highlightedIndex: 0)
     let rendered = EngineCompositionRenderer.markedText(composition: composition, inlinePreedit: true, inlineCandidate: true)
     XCTAssertEqual(rendered.preedit, "📝邮件")
     XCTAssertEqual(rendered.caretPos, "📝邮件".utf16.count)
   }
 
-  func testRenameRetainsIdentityMetadataAndCopyGetsNewIdentity() throws {
+  func testRenameRetainsIdentityMetadataAndCopyGetsNewIdentity() async throws {
     var original = entry()
     original.tags = ["写作", "常用"]
     original.isPinned = true
     let initial = OwlTemplateLibrary(entries: [original])
     try OwlTemplateStore.save(initial, dataDir: root)
     let editor = OwlTemplateEditorModel(dataDir: root)
-    editor.reload()
+    await editor.loadLibraryForEditing()
     editor.draft = original
     editor.draft.title = "新的标题"
     editor.draft.trigger = ";;mail"
@@ -98,13 +101,13 @@ final class OwlTemplateStoreTests: XCTestCase {
     XCTAssertEqual(copy.tags, original.tags)
   }
 
-  func testEditorFailureKeepsDraftAndSavedLibrary() throws {
+  func testEditorFailureKeepsDraftAndSavedLibrary() async throws {
     let original = entry()
     let library = OwlTemplateLibrary(entries: [original])
     try OwlTemplateStore.save(library, dataDir: root)
     let before = try read(OwlTemplateStore.fileName)
     let editor = OwlTemplateEditorModel(dataDir: root, write: { _, _ in throw CocoaError(.fileWriteNoPermission) })
-    editor.reload()
+    await editor.loadLibraryForEditing()
     editor.draft = original
     editor.draft.body = "\n新草稿\t"
     XCTAssertFalse(editor.save())
@@ -152,11 +155,11 @@ final class OwlTemplateStoreTests: XCTestCase {
     XCTAssertEqual(finished.wait(timeout: .now() + 2), .success)
   }
 
-  func testConcurrentEditorDoesNotOverwriteSavedChanges() throws {
+  func testConcurrentEditorDoesNotOverwriteSavedChanges() async throws {
     try OwlTemplateStore.save(OwlTemplateLibrary(entries: [entry()]), dataDir: root)
     let first = OwlTemplateEditorModel(dataDir: root)
     let second = OwlTemplateEditorModel(dataDir: root)
-    first.reload(); second.reload()
+    await first.loadLibraryForEditing(); await second.loadLibraryForEditing()
     first.draft = OwlTemplateEntry(title: "第一窗口", body: "A")
     second.draft = OwlTemplateEntry(title: "第二窗口", body: "B")
     XCTAssertTrue(first.save())
@@ -167,8 +170,8 @@ final class OwlTemplateStoreTests: XCTestCase {
 
   func testFoundationWhitespaceIsPreservedAcrossLibraryBoundaries() throws {
     let whitespace = "\u{200B}"
-    XCTAssertThrowsError(try OwlTemplateStore.validate(.init(entries: [.init(title: whitespace, body: "body")])))
-    XCTAssertThrowsError(try OwlTemplateStore.validate(.init(entries: [.init(title: "title", body: whitespace)])))
+    XCTAssertThrowsError(try OwlTemplateStore.save(.init(entries: [.init(title: whitespace, body: "body")]), dataDir: root))
+    XCTAssertThrowsError(try OwlTemplateStore.save(.init(entries: [.init(title: "title", body: whitespace)]), dataDir: root))
     let entries = [OwlTemplateEntry(title: "Title", body: "Body")]
     XCTAssertEqual(OwlTemplateStore.filtered(entries, query: whitespace).count, 1)
     XCTAssertEqual(OwlPickerPanelModel(rows: entries.map(OwlPickerRow.template), query: whitespace).visible.count, 1)
@@ -198,7 +201,7 @@ final class OwlTemplateStoreTests: XCTestCase {
   func testUnknownVersionIsNotEmptyLibrary() throws {
     var library = OwlTemplateLibrary(entries: [entry()])
     library.formatVersion = 2
-    XCTAssertThrowsError(try OwlTemplateStore.validate(library))
+    XCTAssertThrowsError(try OwlTemplateStore.save(library, dataDir: root))
     try JSONEncoder().encode(library).write(to: root.appendingPathComponent(OwlTemplateStore.fileName))
     guard case .unavailable = OwlTemplateStore.mode(dataDir: root) else { return XCTFail("must require recovery") }
     XCTAssertThrowsError(try OwlTemplateStore.save(OwlTemplateLibrary(), dataDir: root))
@@ -212,20 +215,22 @@ final class OwlTemplateStoreTests: XCTestCase {
     let library = OwlTemplateLibrary(entries: [candidate, OwlTemplateEntry(title: "仅搜索", body: "原文")])
     try OwlTemplateStore.save(library, dataDir: root)
     let table = OwlTemplateStore.renderCandidateProjection(library)
-    XCTAssertTrue(table.contains("\(OwlTemplateStore.candidateText(candidate))\tmail\t100000"))
+    let projectedText = try XCTUnwrap(table.split(separator: "\n").first { $0.hasPrefix(OwlTemplateStore.candidatePrefix) }?.split(separator: "\t").first.map(String.init))
+    XCTAssertTrue(table.contains("\(projectedText)\tmail\t100000"))
     XCTAssertTrue(table.contains("\tvmail\t100000"))
     XCTAssertFalse(table.contains("第二行"))
     XCTAssertFalse(table.contains("仅搜索"))
-    XCTAssertEqual(OwlTemplateStore.candidateDisplay(OwlTemplateStore.candidateText(candidate)), "📝邮件")
+    XCTAssertEqual(OwlTemplateStore.candidateDisplay(projectedText), "📝邮件")
     for code in ["mail", "vmail"] {
-      XCTAssertEqual(OwlTemplateStore.resolveCandidate(code: code, text: OwlTemplateStore.candidateText(candidate), loadLibrary: { library }), candidate)
+      XCTAssertEqual(OwlTemplateStore.resolveCandidate(code: code, text: projectedText, loadLibrary: { library }), candidate)
     }
   }
 
   func testStaleCandidatesAreRejectedAndOrdinaryCommitsDoNotLoad() throws {
     var item = entry()
     item.trigger = "mail"; item.invocationMode = .candidate
-    let text = OwlTemplateStore.candidateText(item)
+    let text = try XCTUnwrap(OwlTemplateStore.renderCandidateProjection(OwlTemplateLibrary(entries: [item]))
+      .split(separator: "\n").first { $0.hasPrefix(OwlTemplateStore.candidatePrefix) }?.split(separator: "\t").first.map(String.init))
     var reads = 0
     let load = { reads += 1; return OwlTemplateLibrary(entries: [item]) }
     XCTAssertNil(OwlTemplateStore.resolveCandidate(code: "mail", text: "普通输入", loadLibrary: load))
@@ -263,7 +268,7 @@ final class OwlTemplateStoreTests: XCTestCase {
     var results: [String] = []
     let invocation = OwlTemplateInvocation(content: .template(item), broker: OwlPanelInsertionBroker(), deliver: { results.append($0.text); return .confirmed })
     item.body = "new version"
-    XCTAssertEqual(invocation.preview(values: [:]).text, body)
+    XCTAssertEqual(invocation.evaluate(values: [:]).previewText, body)
     invocation.cancel()
     invocation.confirm(values: [:])
     XCTAssertTrue(results.isEmpty)

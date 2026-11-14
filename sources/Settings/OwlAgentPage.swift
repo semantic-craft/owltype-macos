@@ -11,9 +11,6 @@ import AppKit
 import SwiftUI
 
 enum OwlAgentSettings {
-  /// Grok waits this long for one tool call; `deliver_text` may wait up to 600 s for the user.
-  static let toolTimeoutSeconds = 610
-
   static func helperPath(bundle: Bundle = .main) -> String {
     bundle.bundleURL.appendingPathComponent("Contents/Helpers/owltype-mcp").path
   }
@@ -36,25 +33,6 @@ enum OwlAgentSettings {
       "rule": "cli_config",
       "args": ["helper_path": helperPath]
     ])
-  }
-
-  /// The `agy mcp add` command for Antigravity CLI, quoted for zsh.
-  static func agyCommand(helperPath: String) -> String {
-    cliConfig(helperPath: helperPath).agyCommand
-  }
-
-  /// The `grok mcp add` command, quoted for zsh.
-  static func grokCommand(helperPath: String) -> String {
-    cliConfig(helperPath: helperPath).grokCommand
-  }
-
-  /// The same server as a `~/.grok/config.toml` block, with the longer tool timeout.
-  static func grokConfig(helperPath: String) -> String {
-    cliConfig(helperPath: helperPath).grokConfig
-  }
-
-  static func shellQuoted(_ text: String) -> String {
-    "'" + text.replacingOccurrences(of: "'", with: "'\\''") + "'"
   }
 
   /// Templates the page lists: everything that can be exposed, pending imports excluded.

@@ -24,6 +24,28 @@ final class OwlAIVoiceTests: XCTestCase {
 
   // MARK: - Helper Methods
 
+  @discardableResult
+  private func seedProfile(_ profile: OwlProviderProfile, in store: OwlProviderProfileStore) throws -> OwlProviderProfile {
+    struct ProfilesFile: Encodable {
+      let schemaVersion = 1
+      let profiles: [OwlProviderProfile]
+    }
+    var items = store.profiles()
+    var next = profile
+    if items.isEmpty { next.isDefault = true }
+    if next.isDefault {
+      items = items.map { var item = $0; item.isDefault = false; return item }
+    }
+    items.append(next)
+    let encoder = JSONEncoder()
+    encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+    encoder.dateEncodingStrategy = .iso8601
+    try FileManager.default.createDirectory(
+      at: store.fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+    try encoder.encode(ProfilesFile(profiles: items)).write(to: store.fileURL)
+    return next
+  }
+
   private func makeKeyEvent(type: NSEvent.EventType, keyCode: UInt16, modifiers: NSEvent.ModifierFlags = []) throws -> NSEvent {
     let event = NSEvent.keyEvent(
       with: type,
@@ -709,13 +731,13 @@ final class OwlAIVoiceTests: XCTestCase {
     defer { try? FileManager.default.removeItem(at: tempDir) }
 
     let store = OwlProviderProfileStore(root: tempDir)
-    let geminiProfile = try store.add(OwlProviderProfile(
+    let geminiProfile = try seedProfile(OwlProviderProfile(
       displayName: "Google Gemini",
       endpoint: URL(string: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions")!,
       model: "gemini-3.8-flash",
       providerID: "gemini",
       isDefault: true
-    ))
+    ), in: store)
 
     final class InMemorySecrets: OwlSecretStoring {
       var values: [String: String] = [:]
@@ -774,13 +796,13 @@ final class OwlAIVoiceTests: XCTestCase {
     defer { try? FileManager.default.removeItem(at: tempDir) }
 
     let store = OwlProviderProfileStore(root: tempDir)
-    let deepseekProfile = try store.add(OwlProviderProfile(
+    let deepseekProfile = try seedProfile(OwlProviderProfile(
       displayName: "DeepSeek",
       endpoint: URL(string: "https://api.deepseek.com/chat/completions")!,
       model: "deepseek-flash",
       providerID: "deepseek",
       isDefault: true
-    ))
+    ), in: store)
 
     final class InMemorySecrets: OwlSecretStoring {
       var values: [String: String] = [:]
@@ -835,13 +857,13 @@ final class OwlAIVoiceTests: XCTestCase {
     defer { try? FileManager.default.removeItem(at: tempDir) }
 
     let store = OwlProviderProfileStore(root: tempDir)
-    let profile = try store.add(OwlProviderProfile(
+    let profile = try seedProfile(OwlProviderProfile(
       displayName: "DeepSeek",
       endpoint: URL(string: "https://api.deepseek.com/v1/chat/completions")!,
       model: "deepseek-chat",
       providerID: "deepseek",
       isDefault: true
-    ))
+    ), in: store)
 
     final class InMemorySecrets: OwlSecretStoring {
       var values: [String: String] = [:]
@@ -875,20 +897,20 @@ final class OwlAIVoiceTests: XCTestCase {
     defer { try? FileManager.default.removeItem(at: tempDir) }
 
     let store = OwlProviderProfileStore(root: tempDir)
-    let openAIProfile = try store.add(OwlProviderProfile(
+    let openAIProfile = try seedProfile(OwlProviderProfile(
       displayName: "OpenAI",
       endpoint: URL(string: "https://api.openai.com/v1/chat/completions")!,
       model: "gpt-4o",
       providerID: "openai",
       isDefault: true
-    ))
-    let geminiProfile = try store.add(OwlProviderProfile(
+    ), in: store)
+    let geminiProfile = try seedProfile(OwlProviderProfile(
       displayName: "Google Gemini",
       endpoint: URL(string: "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions")!,
       model: "gemini-3.8-flash",
       providerID: "gemini",
       isDefault: false
-    ))
+    ), in: store)
 
     final class InMemorySecrets: OwlSecretStoring {
       var values: [String: String] = [:]

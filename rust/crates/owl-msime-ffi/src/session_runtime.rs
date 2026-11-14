@@ -58,8 +58,6 @@ pub(crate) struct ActionPayload {
     #[serde(default)]
     pub(crate) count: Option<usize>,
     #[serde(default)]
-    pub(crate) pos: Option<usize>,
-    #[serde(default)]
     pub(crate) generation: Option<u64>,
     #[serde(default)]
     pub(crate) is_absolute: Option<bool>,

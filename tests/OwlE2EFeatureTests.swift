@@ -13,7 +13,6 @@
 
 import Foundation
 import XCTest
-@testable import Owltype
 
 @MainActor
 final class OwlE2EFeatureTests: XCTestCase {

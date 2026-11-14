@@ -62,20 +62,6 @@ struct OwlClientCapabilities: Equatable, Codable, Sendable {
   let contextMenu: OwlClientCapabilityDecision
   let delayedCandidatePositioning: OwlClientCapabilityDecision
   let privacyComposition: OwlClientCapabilityDecision
-
-  func decision(for capability: OwlClientCapability) -> OwlClientCapabilityDecision {
-    switch capability {
-    case .selectedRange: return selectedRange
-    case .replacementRange: return replacementRange
-    case .surroundingText: return surroundingText
-    case .caretAttributes: return caretAttributes
-    case .nonzeroCharacterIndexAttributes: return nonzeroCharacterIndexAttributes
-    case .inputModeSwitch: return inputModeSwitch
-    case .contextMenu: return contextMenu
-    case .delayedCandidatePositioning: return delayedCandidatePositioning
-    case .privacyComposition: return privacyComposition
-    }
-  }
 }
 
 struct OwlClientHostIdentity: Equatable, Codable, Sendable {

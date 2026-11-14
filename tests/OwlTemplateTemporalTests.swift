@@ -26,9 +26,13 @@ final class OwlTemplateTemporalTests: XCTestCase {
                              context: .init(temporal: snapshot ?? temporal()))
   }
 
+  private func quoteAttribute(_ raw: String) -> String {
+    "\"" + raw.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\""
+  }
+
   private func field(_ format: String = "yyyy-MM-dd HH:mm", offset: String? = nil, kind: String = "datetime") -> String {
-    "{" + kind + " format=" + OwlTemplateEngine.quoted(format)
-      + (offset.map { " offset=" + OwlTemplateEngine.quoted($0) } ?? "") + "}"
+    "{" + kind + " format=" + quoteAttribute(format)
+      + (offset.map { " offset=" + quoteAttribute($0) } ?? "") + "}"
   }
 
   private func invocation(_ template: OwlTemplateEntry,
@@ -240,7 +244,7 @@ final class OwlTemplateTemporalTests: XCTestCase {
       return .init(temporal: source)
     }, deliver: { delivered.append($0) })
     XCTAssertEqual(captures, 0)
-    let fill = OwlPromptFillModel(template: template, invocation: call)
+    let fill = OwlPromptFillModel(invocation: call)
     XCTAssertFalse(fill.canConfirm)
     fill.values["n:x"] = "目标"
     let preview = fill.filledBody
@@ -251,7 +255,7 @@ final class OwlTemplateTemporalTests: XCTestCase {
     XCTAssertEqual(delivered, [preview])
     XCTAssertEqual(captures, 1)
     let next = invocation(template, capture: { _ in captures += 1; return .init(temporal: source) })
-    XCTAssertNotEqual(next.preview(values: fill.values).text, preview)
+    XCTAssertNotEqual(next.evaluate(values: fill.values).previewText, preview)
     XCTAssertEqual(captures, 2)
   }
 
@@ -266,7 +270,7 @@ final class OwlTemplateTemporalTests: XCTestCase {
       return OwlTemplateContextCapture.capture(requirements, readClipboard: { clipboard }, now: { snapshot.date },
         timeZone: { snapshot.timeZone }, locale: { snapshot.locale }, calendar: { snapshot.calendar })
     }, deliver: { delivered.append($0) })
-    let fill = OwlPromptFillModel(template: template, invocation: call)
+    let fill = OwlPromptFillModel(invocation: call)
     XCTAssertTrue(fill.evaluation.needsEmptyClipboardDecision)
     clipboard = "B"
     snapshot = temporal("2030-06-15T09:00:00Z")
@@ -292,7 +296,7 @@ final class OwlTemplateTemporalTests: XCTestCase {
         readClipboard: { clipboardReads += 1; return clipboard }, now: { clockReads += 1; return snapshot.date },
         timeZone: { snapshot.timeZone }, locale: { snapshot.locale }, calendar: { snapshot.calendar })
     }, deliver: { delivered.append($0) })
-    let fill = OwlPromptFillModel(template: template, invocation: call)
+    let fill = OwlPromptFillModel(invocation: call)
     XCTAssertFalse(fill.evaluation.needsEmptyClipboardDecision)
     XCTAssertFalse(fill.canConfirm)
     clipboard = "合成 B"
@@ -339,8 +343,13 @@ final class OwlTemplateTemporalTests: XCTestCase {
       var picker = OwlPickerPanelModel(rows: library.entries.map(OwlPickerRow.template))
       picker.setQuery("yyyy")
       let picked = try XCTUnwrap(library.entries.first { $0.id.uuidString == picker.selectedRow?.id })
+      let projectedText = try XCTUnwrap(OwlTemplateStore.renderCandidateProjection(library)
+        .split(separator: "\n")
+        .first { $0.contains("\tvday\t") }?
+        .split(separator: "\t").first
+        .map(String.init))
       let candidate = try XCTUnwrap(OwlTemplateStore.resolveCandidate(code: "vday",
-        text: OwlTemplateStore.candidateText(template), loadLibrary: { library }))
+        text: projectedText, loadLibrary: { library }))
       for selected in [picked, candidate] {
         var delivered: [String] = []
         var captures = 0

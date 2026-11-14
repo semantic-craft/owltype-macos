@@ -314,7 +314,9 @@ final class OwlAskAnythingModuleTests: XCTestCase {
     _ responses: ScriptedResponsesClient,
     search: ScriptedSearchClient = ScriptedSearchClient()
   ) -> OwlAskAnythingTransportAdapter {
-    OwlAskAnythingTransportAdapter(chatClient: chat, responsesClient: responses, searchClient: search)
+    OwlAskAnythingTransportAdapter(
+      gateway: OwlLLMGateway(chatStreamer: chat, responsesStreamer: responses),
+      searchClient: search)
   }
 
   /// 搜索请求被拒（Key 欠费）同样在首个 delta 前换档案；作答依据编号结果，脚注只列被引用的网页。

@@ -75,7 +75,7 @@ final class OwlRaycastImportTests: XCTestCase {
     try OwlTemplateStore.save(library, dataDir: root)
     let before = try snapshot()
     let repeated = try importer.preview(data: source)
-    XCTAssertEqual(repeated.duplicateKind(at: 0), .alreadyImported)
+    XCTAssertEqual(repeated.assessment.duplicates[0], .alreadyImported)
     XCTAssertEqual(repeated.selectedCount, 0)
     _ = try importer.commit(repeated)
     XCTAssertEqual(try snapshot(), before)
@@ -86,7 +86,7 @@ final class OwlRaycastImportTests: XCTestCase {
       ["name": "同", "text": "一", "keyword": ""], ["name": "同", "text": "一"]
     ]))
     XCTAssertEqual(preview.selectedCount, 1)
-    XCTAssertEqual(preview.duplicateKind(at: 1), .identical)
+    XCTAssertEqual(preview.assessment.duplicates[1], .identical)
     preview.rows[0].selected = false
     preview.rows[1].selected = true
     XCTAssertEqual(preview.selectedCount, 1)
@@ -98,8 +98,8 @@ final class OwlRaycastImportTests: XCTestCase {
     entry.trigger = ";;arg"
     try OwlTemplateStore.save(.init(entries: [entry]), dataDir: root)
     let preview = try importer.preview(data: data([["name": "参数", "text": "{argument}", "keyword": ";;arg"]]))
-    XCTAssertNil(preview.duplicateKind(at: 0))
-    XCTAssertFalse(preview.conflicts(at: 0).isEmpty)
+    XCTAssertNil(preview.assessment.duplicates[0])
+    XCTAssertFalse((preview.assessment.conflicts[0] ?? []).isEmpty)
   }
   func testConflictSearchOnlyPreservesSourceSearchAndReimportIdentity() throws {
     var existing = OwlTemplateEntry(title: "旧", body: "旧正文")
@@ -107,7 +107,7 @@ final class OwlRaycastImportTests: XCTestCase {
     try OwlTemplateStore.save(.init(entries: [existing]), dataDir: root)
     let source = try data([["name": "新", "text": "新正文", "keyword": "vcode"]])
     var preview = try importer.preview(data: source)
-    XCTAssertFalse(preview.conflicts(at: 0).isEmpty)
+    XCTAssertFalse((preview.assessment.conflicts[0] ?? []).isEmpty)
     XCTAssertThrowsError(try importer.commit(preview))
     preview.makeSearchOnly(at: 0)
     _ = try importer.commit(preview)
@@ -132,7 +132,7 @@ final class OwlRaycastImportTests: XCTestCase {
     XCTAssertTrue(parsed.contextRequirements.isEmpty)
     XCTAssertNil(OwlTemplateEngine.render(parsed, values: [:]).readyText)
     XCTAssertFalse(OwlTemplateStore.renderCandidateProjection(.init(entries: [entry])).contains(entry.id.uuidString))
-    XCTAssertNil(OwlTemplateStore.resolveCandidate(code: "pending", text: OwlTemplateStore.candidateText(entry), loadLibrary: { .init(entries: [entry]) }))
+    XCTAssertNil(OwlTemplateStore.resolveCandidate(code: "pending", text: "\(OwlTemplateStore.candidatePrefix)\(entry.id.uuidString)]\(entry.title)", loadLibrary: { .init(entries: [entry]) }))
     var captures = 0
     var delivered: [String] = []
     let invocation = OwlTemplateInvocation(content: .template(entry), broker: OwlPanelInsertionBroker(), deliver: { delivered.append($0.text); return .confirmed }, captureContext: { _ in captures += 1; return .init() })
@@ -248,7 +248,8 @@ final class OwlRaycastImportTests: XCTestCase {
     XCTAssertEqual(try importer.preview(data: data([["name": "导入", "text": "正文"]])).selectedCount, 0)
   }
 
-  func testEditedPendingCanRenameParameterThenExplicitlyEnable() throws {
+  @MainActor
+  func testEditedPendingCanRenameParameterThenExplicitlyEnable() async throws {
     var preview = try importer.preview(data: data([["name": "待修正", "text": "{argument name=\"old\"} {unsupported}"]]))
     preview.rows[0].selected = true
     _ = try importer.commit(preview)
@@ -257,7 +258,7 @@ final class OwlRaycastImportTests: XCTestCase {
     defer { defaults.removePersistentDomain(forName: suite) }
     let model = OwlTemplateEditorModel(dataDir: root, defaults: defaults,
                                       automaticRuntime: OwlAutomaticExpansionRuntime())
-    model.reload(); model.draft = try XCTUnwrap(model.library.entries.first)
+    await model.loadLibraryForEditing(); model.draft = try XCTUnwrap(model.library.entries.first)
     model.setBody("{argument name=\"new\" default=\"新值\"}")
     XCTAssertTrue(model.draft.isPendingReview)
     XCTAssertTrue(model.save())
@@ -344,7 +345,8 @@ final class OwlRaycastImportTests: XCTestCase {
     let context = OwlTemplateEngine.FrozenContext(temporal: .init(date: date, timeZone: TimeZone(secondsFromGMT: 0)!,
       locale: Locale(identifier: "en_US_POSIX"), calendar: Calendar(identifier: .gregorian)))
     for (format, expected) in examples {
-      let preview = try importer.preview(data: data([["name": format, "text": "{date format=" + OwlTemplateEngine.quoted(format) + "}"]]))
+      let quoted = "\"" + format.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\""
+      let preview = try importer.preview(data: data([["name": format, "text": "{date format=" + quoted + "}"]]))
       let entry = try XCTUnwrap(preview.rows[0].entry)
       XCTAssertFalse(entry.isPendingReview, format)
       XCTAssertEqual(OwlTemplateEngine.render(OwlTemplateEngine.parse(entry), values: [:], context: context).readyText, expected, format)
@@ -360,6 +362,6 @@ final class OwlRaycastImportTests: XCTestCase {
     XCTAssertEqual(review.selectedIndices.count, 501)
     XCTAssertEqual(review.duplicates[500], .identical)
     XCTAssertEqual(Set(review.conflicts.keys), [1, 501])
-    XCTAssertNotNil(preview.validationMessage(for: review))
+    XCTAssertNotNil(preview.validationMessage)
   }
 }

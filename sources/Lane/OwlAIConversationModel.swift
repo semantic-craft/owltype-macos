@@ -43,7 +43,6 @@ final class OwlAIConversationModel {
   private var projection: Projection
   private var streamTask: Task<Void, Never>?
   private var providerObserver: NSObjectProtocol?
-  static let maxHistoryTurns: Int = OwlAIBusinessCore.call("limit", ["id": "history"])
   var onStateChange: ((OwlAIConversationState) -> Void)?
 
   private struct RenderState: Codable { let kind: String; var text: String? }
@@ -117,9 +116,6 @@ final class OwlAIConversationModel {
     providerObserver = nil
     onStateChange = nil
     transition("teardown")
-  }
-  func replaceState(_ next: OwlAIConversationState) {
-    cancelTask(); transition("replace", ["state": OwlAIBusinessCore.json(Self.render(next))])
   }
   func newConversation() { cancelTask(); transition("new") }
   private func cancelTask() { streamTask?.cancel(); streamTask = nil }

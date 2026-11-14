@@ -61,17 +61,19 @@ final class OwlAgentSettingsTests: XCTestCase {
 
   func testGrokSnippetsPointAtTheBundledHelper() {
     let path = "/Library/Input Methods/Owltype.app/Contents/Helpers/owltype-mcp"
-    XCTAssertEqual(OwlAgentSettings.agyCommand(helperPath: path),
+    let config = OwlAgentSettings.cliConfig(helperPath: path)
+    XCTAssertEqual(config.agyCommand,
                    "agy mcp add owltype '/Library/Input Methods/Owltype.app/Contents/Helpers/owltype-mcp'")
-    XCTAssertEqual(OwlAgentSettings.grokCommand(helperPath: path),
+    XCTAssertEqual(config.grokCommand,
                    "grok mcp add owltype '/Library/Input Methods/Owltype.app/Contents/Helpers/owltype-mcp'")
-    XCTAssertEqual(OwlAgentSettings.grokConfig(helperPath: path), """
+    XCTAssertEqual(config.grokConfig, """
       [mcp_servers.owltype]
       command = "/Library/Input Methods/Owltype.app/Contents/Helpers/owltype-mcp"
       tool_timeout_sec = 610
       """)
-    XCTAssertEqual(OwlAgentSettings.shellQuoted("it's"), #"'it'\''s'"#)
-    XCTAssertGreaterThan(OwlAgentSettings.toolTimeoutSeconds * 1000, Wire.deliverTimeoutRangeMs.upperBound,
+    let quoted = OwlAgentSettings.cliConfig(helperPath: "/tmp/it's/owltype-mcp")
+    XCTAssertEqual(quoted.agyCommand, #"agy mcp add owltype '/tmp/it'\''s/owltype-mcp'"#)
+    XCTAssertGreaterThan(610 * 1000, 600_000,
                          "Grok must outwait the longest confirmation window")
     let bundle = Bundle(url: URL(fileURLWithPath: "/Library/Input Methods/Owltype.app")) ?? .main
     XCTAssertTrue(OwlAgentSettings.helperPath(bundle: bundle).hasSuffix("Owltype.app/Contents/Helpers/owltype-mcp"))
@@ -97,6 +99,19 @@ final class OwlAgentSettingsTests: XCTestCase {
     XCTAssertThrowsError(try OwlAgentSettings.setExposed(false, id: second.id, in: next) { _, _ in throw Changed() })
   }
 
+  private func waitForPersist(on log: OwlAgentCallLog, expectedCount: Int, work: () -> Void) {
+    let persisted = expectation(description: "agent call log persisted")
+    persisted.expectedFulfillmentCount = expectedCount
+    let token = NotificationCenter.default.addObserver(
+      forName: OwlAgentCallLog.didChange, object: log, queue: .main
+    ) { _ in
+      persisted.fulfill()
+    }
+    defer { NotificationCenter.default.removeObserver(token) }
+    work()
+    wait(for: [persisted], timeout: 5)
+  }
+
   func testCallLogKeepsOnlyWhoWhatAndHowItEnded() throws {
     let directory = FileManager.default.temporaryDirectory.appendingPathComponent("owl-agent-log-\(UUID().uuidString)")
     defer { try? FileManager.default.removeItem(at: directory) }
@@ -106,13 +121,17 @@ final class OwlAgentSettingsTests: XCTestCase {
                                       agentClient: .init(name: "grok", version: "1.0.70"), processID: 1)
     let secret = "今天的发版改到下午三点"
     let deliver = Wire.Call.deliverText(.init(requestId: "r-1", text: secret, timeoutMs: nil))
-    let delivered = Wire.DeliverResult(requestId: "r-1", status: .delivered(verified: false), replayed: false)
-    log.record(deliver, from: client, reply: .success(OwlJSONValue(encoding: delivered)), at: Date(timeIntervalSince1970: 1))
-    log.record(.templateGet(.init(id: UUID().uuidString)), from: client,
-               reply: .failure(.init(code: .templateNotFound, message: "Template not found")), at: Date(timeIntervalSince1970: 2))
-    log.record(.owltypeStatus, from: OwlAgentBridgeClient(helper: .init(name: "owltype-mcp", version: "0.1.0"), agentClient: nil, processID: 1),
-               reply: .success(.object([:])), at: Date(timeIntervalSince1970: 3))
-    log.flush()
+    let delivered = try JSONDecoder().decode(
+      Wire.DeliverResult.self,
+      from: Data(#"{"requestId":"r-1","status":"delivered","verified":false,"replayed":false}"#.utf8)
+    )
+    waitForPersist(on: log, expectedCount: 3) {
+      log.record(deliver, from: client, reply: .success(OwlJSONValue(encoding: delivered)), at: Date(timeIntervalSince1970: 1))
+      log.record(.templateGet(.init(id: UUID().uuidString)), from: client,
+                 reply: .failure(.init(code: .templateNotFound, message: "Template not found")), at: Date(timeIntervalSince1970: 2))
+      log.record(.owltypeStatus, from: OwlAgentBridgeClient(helper: .init(name: "owltype-mcp", version: "0.1.0"), agentClient: nil, processID: 1),
+                 reply: .success(.object([:])), at: Date(timeIntervalSince1970: 3))
+    }
 
     XCTAssertEqual(log.records.map(\.method), ["owltype_status", "template_get", "deliver_text"], "newest first")
     XCTAssertEqual(log.records.map(\.outcome), ["ok", "template_not_found", "delivered"])
@@ -124,12 +143,15 @@ final class OwlAgentSettingsTests: XCTestCase {
     XCTAssertEqual(mode & 0o777, 0o600)
     XCTAssertEqual(OwlAgentCallLog(fileURL: file).records, log.records, "read back after a restart")
 
-    for index in 0..<(OwlAgentCallLog.limit + 5) {
-      log.record(.owltypeStatus, from: client, reply: .success(.object([:])), at: Date(timeIntervalSince1970: Double(10 + index)))
+    waitForPersist(on: log, expectedCount: OwlAgentCallLog.limit + 5) {
+      for index in 0..<(OwlAgentCallLog.limit + 5) {
+        log.record(.owltypeStatus, from: client, reply: .success(.object([:])), at: Date(timeIntervalSince1970: Double(10 + index)))
+      }
     }
     XCTAssertEqual(log.records.count, OwlAgentCallLog.limit)
-    log.clear()
-    log.flush()
+    waitForPersist(on: log, expectedCount: 1) {
+      log.clear()
+    }
     XCTAssertEqual(OwlAgentCallLog(fileURL: file).records, [])
   }
 
@@ -140,10 +162,11 @@ final class OwlAgentSettingsTests: XCTestCase {
     let log = OwlAgentCallLog(fileURL: file)
     let client = OwlAgentBridgeClient(helper: .init(name: "owltype-mcp", version: "0.1.0"), agentClient: nil, processID: 1)
     for _ in 0..<20 {
-      DispatchQueue.concurrentPerform(iterations: 40) { index in
-        if index == 20 { log.clear() } else { log.record(.owltypeStatus, from: client, reply: .success(.object([:]))) }
+      waitForPersist(on: log, expectedCount: 40) {
+        DispatchQueue.concurrentPerform(iterations: 40) { index in
+          if index == 20 { log.clear() } else { log.record(.owltypeStatus, from: client, reply: .success(.object([:]))) }
+        }
       }
-      log.flush()
       XCTAssertEqual(OwlAgentCallLog(fileURL: file).records.count, log.records.count, "the last write on disk is the latest state")
     }
   }

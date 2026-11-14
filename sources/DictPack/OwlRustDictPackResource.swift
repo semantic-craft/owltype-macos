@@ -39,23 +39,19 @@ struct OwlRustResourceGeneration: Equatable, Sendable {
 
 enum OwlRustCompatibleResources {
   struct Catalog: Decodable, Sendable {
-    let packageId: String
     let packageVersion: Int
     let configurationVersion: String
     let wubiDictionaryDigest: String
     let requiredFiles: [String]
-    let notices: [String]
     let models: [OwlRerankModelDescriptor]
   }
 
   static let catalog: Catalog = OwlAppCore.required(["operation": "resource_catalog"])
 
-  static var packageId: String { catalog.packageId }
   static var packageVersion: Int { catalog.packageVersion }
   static var configurationVersion: String { catalog.configurationVersion }
   static var wubiDictionaryDigest: String { catalog.wubiDictionaryDigest }
   static var requiredFiles: [String] { catalog.requiredFiles }
-  static var notices: [String] { catalog.notices }
   static var models: [OwlRerankModelDescriptor] { catalog.models }
   static var contentID: String {
     let digestHex = wubiDictionaryDigest.replacingOccurrences(of: "sha256:", with: "")
@@ -96,8 +92,6 @@ enum OwlRustCompatibleResources {
 }
 
 struct OwlRustResourceEnvironment: Sendable {
-  let userRoot: URL
-  let sharedSupportURL: URL?
   let store: OwlRustResourceStore
 
   static func production(
@@ -105,7 +99,7 @@ struct OwlRustResourceEnvironment: Sendable {
     sharedSupportURL: URL? = Bundle.main.sharedSupportURL
   ) -> Self {
     let store = OwlRustResourceStore(userRoot: userRoot, sharedSupportURL: sharedSupportURL)
-    return Self(userRoot: userRoot, sharedSupportURL: sharedSupportURL, store: store)
+    return Self(store: store)
   }
 
   func activeGeneration() throws -> OwlRustResourceGeneration {

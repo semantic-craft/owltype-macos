@@ -13,9 +13,11 @@ import XCTest
 final class OwlGoalBriefTests: XCTestCase {
 
   private func encodedRequestBody() throws -> String {
-    let request = OwlGoalBrief.chatRequest(
-      forDraft: "帮我把词库下载做稳",
-      model: "qwen-plus"
+    let request = OwlStructuredDrafting.chatRequest(
+      systemPrompt: OwlGoalBrief.systemPrompt,
+      draft: "帮我把词库下载做稳",
+      model: "qwen-plus",
+      temperature: OwlGoalBrief.structuredDraftingConfiguration.temperature
     )
     return try XCTUnwrap(String(data: JSONEncoder().encode(request), encoding: .utf8))
   }

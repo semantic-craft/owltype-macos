@@ -19,7 +19,6 @@ enum OwlRerankModelKind: String, CaseIterable, Codable, Hashable, Sendable {
 
 struct OwlRerankModelDescriptor: Codable, Equatable, Sendable {
   let kind: OwlRerankModelKind
-  let title: String
   let fileName: String
   let expectedSize: UInt64
   let expectedSHA256: String
@@ -27,8 +26,6 @@ struct OwlRerankModelDescriptor: Codable, Equatable, Sendable {
   let version: String
   let license: String
 
-  static var keyboard: Self { descriptor(for: .keyboard) }
-  static var settled: Self { descriptor(for: .settled) }
   static func descriptor(for kind: OwlRerankModelKind) -> Self {
     OwlRustCompatibleResources.models.first { $0.kind == kind }!
   }
@@ -45,9 +42,8 @@ struct OwlRerankModelDescriptor: Codable, Equatable, Sendable {
   }
 }
 
-struct OwlRerankRuntimeModelStatus: Codable, Equatable, Sendable {
+struct OwlRerankRuntimeModelStatus: Equatable, Sendable {
   let state: String
-  let error: String?
 }
 
 /// Thread-safe latest model state published by the input session that owns the FFI handle.
@@ -55,14 +51,14 @@ struct OwlRerankRuntimeModelStatus: Codable, Equatable, Sendable {
 final class OwlRerankRuntimeStatusRegistry: @unchecked Sendable {
   static let shared = OwlRerankRuntimeStatusRegistry()
 
-  private let lock = NSLock()
-  private var statuses: [OwlRerankModelKind: OwlRerankRuntimeModelStatus] = [:]
+  let lock = NSLock()
+  var statuses: [OwlRerankModelKind: OwlRerankRuntimeModelStatus] = [:]
 
   private init() {}
 
-  func update(kind: OwlRerankModelKind, state: String, error: String?) {
+  func update(kind: OwlRerankModelKind, state: String, error _: String?) {
     lock.lock()
-    statuses[kind] = OwlRerankRuntimeModelStatus(state: state, error: error)
+    statuses[kind] = OwlRerankRuntimeModelStatus(state: state)
     lock.unlock()
   }
 
@@ -71,20 +67,14 @@ final class OwlRerankRuntimeStatusRegistry: @unchecked Sendable {
     defer { lock.unlock() }
     return statuses
   }
-
-  func reset() {
-    lock.lock()
-    statuses.removeAll()
-    lock.unlock()
-  }
 }
 
 /// Single UserDefaults home for 实验性 toggles. Everything here is default-OFF: an experiment the
 /// user opts into and can flip back off at any time with a complete no-op on shipping behaviour.
 enum OwlExperimentalPreferences {
-  private static let selectionPolishPromptVariantKey = "OwlExperimentalSelectionPolishPromptVariant"
-  private static let keyboardRerankKey = "OwlExperimentalKeyboardRerankEnabled"
-  private static let settledRerankKey = "OwlExperimentalSettledRerankEnabled"
+  static let selectionPolishPromptVariantKey = "OwlExperimentalSelectionPolishPromptVariant"
+  static let keyboardRerankKey = "OwlExperimentalKeyboardRerankEnabled"
+  static let settledRerankKey = "OwlExperimentalSettledRerankEnabled"
 
   /// 润色提示词 A/B 变体 id (issue #136). Default `nil` — 未设置即 v1-legacy 出厂行为，与其他
   /// 实验开关同样的 default-OFF 纪律。This is a dumb raw-string accessor on purpose: resolution
@@ -137,13 +127,6 @@ enum OwlExperimentalPreferences {
     NotificationCenter.default.post(name: .owlRerankPreferencesDidChange, object: nil)
   }
 
-  /// Remove every experimental key — used by tests to restore the default-OFF baseline.
-  static func resetForTesting() {
-    OwlDefaults.standard.removeObject(forKey: selectionPolishPromptVariantKey)
-    OwlDefaults.standard.removeObject(forKey: keyboardRerankKey)
-    OwlDefaults.standard.removeObject(forKey: settledRerankKey)
-    OwlRerankRuntimeStatusRegistry.shared.reset()
-  }
 }
 
 extension Notification.Name {

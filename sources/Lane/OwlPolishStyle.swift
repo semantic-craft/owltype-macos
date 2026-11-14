@@ -11,21 +11,16 @@ import Foundation
 
 // MARK: - Polish Styles
 
-public enum OwlPolishStyle: String, CaseIterable, Identifiable, Codable, Sendable {
+enum OwlPolishStyle: String, CaseIterable, Identifiable, Codable, Sendable {
   case faithful = "原意保真"
   case conciseWritten = "精炼书面"
   case properBusiness = "得体商务"
   case spokenToWritten = "口语转书面"
 
-  // Backward-compatible & ergonomic aliases
-  public static let originalFidelity = OwlPolishStyle.faithful
-  public static let conciseFormal = OwlPolishStyle.conciseWritten
-  public static let professionalBusiness = OwlPolishStyle.properBusiness
+  var id: String { rawValue }
+  var title: String { rawValue }
 
-  public var id: String { rawValue }
-  public var title: String { rawValue }
-
-  public var subtitle: String {
+  var subtitle: String {
     switch self {
     case .faithful:
       return "纠正错字病句 · 严格保真原意"
@@ -38,7 +33,7 @@ public enum OwlPolishStyle: String, CaseIterable, Identifiable, Codable, Sendabl
     }
   }
 
-  public var iconName: String {
+  var iconName: String {
     switch self {
     case .faithful:
       return "checkmark.shield"
@@ -51,7 +46,7 @@ public enum OwlPolishStyle: String, CaseIterable, Identifiable, Codable, Sendabl
     }
   }
 
-  public var temperature: Double {
+  var temperature: Double {
     switch self {
     case .faithful:
       return 0.2
@@ -64,7 +59,7 @@ public enum OwlPolishStyle: String, CaseIterable, Identifiable, Codable, Sendabl
     }
   }
 
-  public var promptDescription: String {
+  var promptDescription: String {
     switch self {
     case .faithful:
       return """
@@ -96,31 +91,12 @@ public enum OwlPolishStyle: String, CaseIterable, Identifiable, Codable, Sendabl
       """
     }
   }
-
-  public init?(fuzzy: String) {
-    if let style = OwlPolishStyle(rawValue: fuzzy) {
-      self = style
-    } else {
-      switch fuzzy.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
-      case "faithful", "originalfidelity", "保真", "原意保真":
-        self = .faithful
-      case "concisewritten", "conciseformal", "精炼", "精炼书面":
-        self = .conciseWritten
-      case "properbusiness", "professionalbusiness", "商务", "得体商务":
-        self = .properBusiness
-      case "spokentowritten", "口语", "口语转书面":
-        self = .spokenToWritten
-      default:
-        return nil
-      }
-    }
-  }
 }
 
 // MARK: - Prompt Catalog
 
-public enum OwlDualPolishPromptCatalog {
-  public static func buildSystemPrompt(style: OwlPolishStyle) -> String {
+enum OwlDualPolishPromptCatalog {
+  static func buildSystemPrompt(style: OwlPolishStyle) -> String {
     """
     你是一名精通中文表达的高级文字编辑与润色专家。
     请针对用户给出的原文本，按照指定风格【\(style.rawValue)】生成恰好 2 个截然不同、各有千秋的高质量润色候选版本。
@@ -144,7 +120,7 @@ public enum OwlDualPolishPromptCatalog {
     """
   }
 
-  public static func buildUserPrompt(text: String) -> String {
+  static func buildUserPrompt(text: String) -> String {
     "请润色以下文本：\n\(text)"
   }
 }

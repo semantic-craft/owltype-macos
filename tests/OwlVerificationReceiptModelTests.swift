@@ -65,47 +65,54 @@ final class OwlVerificationReceiptModelTests: XCTestCase {
 
   // MARK: - 结果 → 行状态映射
 
-  func testResolvedStateMapsSourcesToSuccessWithHostProvider() {
-    let outcome = OwlSourceVerificationOutcome(
-      content: "已核验",
-      sources: [OwlVerifiedSource(title: "民法典", url: "https://flk.npc.gov.cn/detail2.html?x")])
-    let state = OwlVerificationReceiptModel.resolvedState(from: .success(outcome), at: Date(timeIntervalSince1970: 0))
-    guard case .success(let source) = state else { return XCTFail("有来源必须落绿卡，实际 \(state)") }
-    XCTAssertEqual(source.title, "民法典")
-    XCTAssertEqual(source.provider, "flk.npc.gov.cn")
-    XCTAssertEqual(source.snippet, "已核验")
-  }
+  func testVerifyMapsNoSourcesAndEmptyResponseToNotFound() async {
+    let (emptyModel, _) = makeModel(verifier: { _ in
+      OwlSourceVerificationOutcome(content: "只有摘要没有来源", sources: [])
+    })
+    let emptyLaw = emptyModel.anchors[0]
+    emptyModel.verify(emptyLaw)
+    try? await Task.sleep(nanoseconds: 200_000_000)
+    XCTAssertEqual(emptyModel.state(for: emptyLaw), .notFound)
 
-  func testResolvedStateMapsNoSourcesAndEmptyResponseToNotFound() {
-    let empty = OwlSourceVerificationOutcome(content: "只有摘要没有来源", sources: [])
-    XCTAssertEqual(OwlVerificationReceiptModel.resolvedState(from: .success(empty), at: .init()), .notFound)
+    let (missingModel, _) = makeModel(verifier: { _ in
+      throw OwlSourceVerificationError.emptyResponse
+    })
+    let missingLaw = missingModel.anchors[0]
+    missingModel.verify(missingLaw)
+    try? await Task.sleep(nanoseconds: 200_000_000)
     XCTAssertEqual(
-      OwlVerificationReceiptModel.resolvedState(
-        from: .failure(OwlSourceVerificationError.emptyResponse), at: .init()),
-      .notFound, "搜不到 ≠ 不存在：emptyResponse 落 notFound 而非 error")
+      missingModel.state(for: missingLaw), .notFound,
+      "搜不到 ≠ 不存在：emptyResponse 落 notFound 而非 error")
   }
 
-  func testResolvedStateMapsOtherErrorsToError() {
-    let state = OwlVerificationReceiptModel.resolvedState(
-      from: .failure(OwlSourceVerificationError.badHTTPStatus(503)), at: .init())
-    XCTAssertEqual(state, .error("来源核验请求失败（503）"))
+  func testVerifyMapsOtherErrorsToError() async {
+    let (model, _) = makeModel(verifier: { _ in
+      throw OwlSourceVerificationError.badHTTPStatus(503)
+    })
+    let law = model.anchors[0]
+    model.verify(law)
+    try? await Task.sleep(nanoseconds: 200_000_000)
+    XCTAssertEqual(model.state(for: law), .error("来源核验请求失败（503）"))
   }
 
   // MARK: - 状态机（真落盘）
 
   func testVerifyCommitsSuccessAndExpandsGreenCard() async {
-    let (model, _) = makeModel(verifier: { query in
+    let (model, _) = makeModel(verifier: { _ in
       OwlSourceVerificationOutcome(
-        content: "ok",
-        sources: [OwlVerifiedSource(title: query, url: "https://flk.npc.gov.cn/a")])
+        content: "已核验",
+        sources: [OwlVerifiedSource(title: "民法典", url: "https://flk.npc.gov.cn/detail2.html?x")])
     })
     let law = model.anchors[0]
     model.verify(law)
     XCTAssertEqual(model.state(for: law), .loading)
     try? await Task.sleep(nanoseconds: 200_000_000)
-    guard case .success = model.state(for: law) else {
+    guard case .success(let source) = model.state(for: law) else {
       return XCTFail("verifier 返回来源后状态必须真落 success，实际 \(model.state(for: law))")
     }
+    XCTAssertEqual(source.url, "https://flk.npc.gov.cn/detail2.html?x")
+    XCTAssertEqual(source.provider, "flk.npc.gov.cn")
+    XCTAssertEqual(source.snippet, "已核验")
     XCTAssertEqual(model.expanded[law.id], true, "绿卡默认展开")
     XCTAssertTrue(model.hasOutcome)
     XCTAssertEqual(model.verifiedCount, 1)
@@ -152,7 +159,7 @@ final class OwlVerificationReceiptModelTests: XCTestCase {
     let route = OwlVerificationRoute(
       kind: .deepLink, source: .cnki,
       query: "SU %= '惩罚性赔偿'",
-      url: OwlCNKIExpertQueryBuilder.professionalSearchURL)
+      url: URL(string: "https://kns.cnki.net/kns8s/AdvSearch")!)
     model.open(route)
     XCTAssertEqual(recorder.events, [
       .open("https://kns.cnki.net/kns8s/AdvSearch"),

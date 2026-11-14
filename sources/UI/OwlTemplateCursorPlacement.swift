@@ -52,11 +52,4 @@ enum OwlTemplateCursorPlacement {
     let range = NSRange(location: base, length: text.utf16.count)
     return valid(range) ? range : nil
   }
-
-  static func target(text: String, offset: Int, base: Int, selection: NSRange, readback: String) -> NSRange? {
-    guard isBoundary(offset, in: text), let inserted = insertedRange(text: text, base: base),
-          valid(selection), selection == NSRange(location: NSMaxRange(inserted), length: 0),
-          equalText(text, readback) else { return nil }
-    return NSRange(location: base + offset, length: 0)
-  }
 }

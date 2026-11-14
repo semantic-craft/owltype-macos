@@ -22,7 +22,6 @@ import Foundation
 final class OwlLaneTasks {
   enum Lane: Hashable {
     case cloud
-    case polish
   }
 
   /// One in-flight task per lane. A finished task is held (harmless) until the next `run` on the

@@ -289,7 +289,6 @@ final class FakeEngineSession: OwlRustSession {
   private(set) var selectedIndices: [Int] = []
   private(set) var pageChanges: [Bool] = []
   private(set) var selectedLiveSchemas: [String] = []
-  private(set) var caretMoves: [Int] = []
   private(set) var clearCompositionCount = 0
   private(set) var destroyed = false
   private(set) var takeCommitCount = 0
@@ -401,11 +400,6 @@ final class FakeEngineSession: OwlRustSession {
   override func input() -> String? { scriptedInput }
 
   override func caretPos() -> Int { scriptedCaretPos }
-
-  override func setCaretPos(_ pos: Int) {
-    caretMoves.append(pos)
-    scriptedCaretPos = pos
-  }
 
   override func clearComposition() { clearCompositionCount += 1 }
 

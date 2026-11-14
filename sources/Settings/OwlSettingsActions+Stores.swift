@@ -8,68 +8,6 @@
 import Foundation
 
 extension OwlSettingsActions {
-  static func deepSeekAPIKeyStatus(read: () throws -> String?) -> String {
-    do {
-      let key = try read()
-      return credentialForm("read", present: key?.isEmpty == false).status
-    } catch { return credentialForm("read", failure: true).status }
-  }
-
-  static func saveDeepSeekAPIKey(
-    _ input: String,
-    save: (String) throws -> Void
-  ) -> (input: String, status: String) {
-    let plan = credentialForm("save", text: input)
-    guard plan.execute else { return (plan.input, plan.status) }
-    do {
-      try save(plan.key)
-      let result = credentialForm("saved")
-      return (result.input, result.status)
-    } catch {
-      let result = credentialForm("saved", text: input, failure: true)
-      return (result.input, result.status)
-    }
-  }
-
-  static func deleteDeepSeekAPIKey(
-    input: String,
-    delete: () throws -> Void
-  ) -> (input: String, status: String) {
-    do {
-      try delete()
-      let result = credentialForm("deleted")
-      return (result.input, result.status)
-    } catch {
-      let result = credentialForm("deleted", text: input, failure: true)
-      return (result.input, result.status)
-    }
-  }
-
-  /// Save the 豆包搜索 key used by 来源核验. Stored apart from model keys: the search console
-  /// issues its own key, and an Ark model key is rejected (`700901`).
-  static func saveDoubaoSearchKey(
-    _ apiKey: String,
-    secrets: OwlSecretStoring
-  ) -> (input: String, status: String) {
-    let plan = credentialForm("save", text: apiKey, doubao: true)
-    guard plan.execute else { return (plan.input, plan.status) }
-    do {
-      try secrets.setSecret(plan.key, named: OwlDoubaoSearchKeyStore.secretName)
-      let result = credentialForm("saved", doubao: true)
-      return (result.input, result.status)
-    } catch {
-      let result = credentialForm("saved", text: apiKey, doubao: true, failure: true)
-      return (result.input, result.status)
-    }
-  }
-
-  static func clearDoubaoSearchKey(secrets: OwlSecretStoring) -> String {
-    do {
-      try secrets.deleteSecret(named: OwlDoubaoSearchKeyStore.secretName)
-      return credentialForm("deleted", doubao: true).status
-    } catch { return credentialForm("deleted", doubao: true, failure: true).status }
-  }
-
   struct VoiceASRSaveResult: Equatable {
     let input: String
     let endpoint: String
@@ -172,19 +110,6 @@ extension OwlSettingsActions {
     onSelectSchema(schema.id)
     return true
   }
-
-  private struct CredentialForm: Decodable {
-    let status: String
-    let input: String
-    let key: String
-    let execute: Bool
-  }
-  private static func credentialForm(_ action: String, text: String = "", doubao: Bool = false,
-                                     present: Bool = false, failure: Bool = false) -> CredentialForm {
-    OwlAIBusinessCore.call("credentialForm", ["action": action, "text": text, "doubao": doubao,
-      "present": present, "failure": failure])
-  }
-
 }
 
 // MARK: - Provider registry copy

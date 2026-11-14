@@ -73,11 +73,10 @@ final class OwlKeyboardSettingsCatalogTests: XCTestCase {
 
     let state = OwlSettingsState()
     catalog.seed(into: state)
-    let loaded = catalog.load()
     for toggle in OwlKeyboardSwitch.allCases {
       let expected = !toggle.defaultValue
       XCTAssertEqual(state[keyPath: toggle.row.mirror], expected, "\(toggle) seed")
-      XCTAssertEqual(loaded[toggle], expected, "\(toggle) load")
+      XCTAssertEqual(catalog.load(toggle), expected, "\(toggle) load")
       XCTAssertEqual(refreshed[toggle], expected, "\(toggle) cache refresh")
       XCTAssertEqual(defaults.object(forKey: toggle.key) as? Bool, expected, "\(toggle) stored form")
     }

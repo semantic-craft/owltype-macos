@@ -5,16 +5,10 @@ import Foundation
 /// and removal of retired contents after acceptance. Never falls back to two moves or copy.
 /// The caller must serialize installers and keep these directories protected from other writers.
 enum OwlBundleSwap {
-  struct Exchange {
-    let installedContents: URL
-    let retiredContents: URL
-  }
-
   /// Keeps the App directory itself (including its permissions and extended attributes).
   /// On success old files remain at .Contents.update; open descriptors still refer to old inodes.
   /// Calling again exchanges them back. On syscall failure neither directory is changed.
-  @discardableResult
-  static func exchangeContents(in app: URL) throws -> Exchange {
+  static func exchangeContents(in app: URL) throws {
     try requireCanonicalDirectory(app)
     let live = app.appendingPathComponent("Contents", isDirectory: true)
     let staged = app.appendingPathComponent(".Contents.update", isDirectory: true)
@@ -22,7 +16,6 @@ enum OwlBundleSwap {
     let stagedInfo = try directoryInfo(staged)
     guard liveInfo.st_dev == stagedInfo.st_dev else { throw failure(EXDEV, path: staged.path) }
     try rename(live, to: staged, flags: UInt32(RENAME_SWAP))
-    return Exchange(installedContents: live, retiredContents: staged)
   }
 
   /// First installation publishes a complete staged App without replacing an existing destination.

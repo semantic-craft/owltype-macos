@@ -361,7 +361,7 @@ final class OwlHotKeyEventTap: NSObject {
       suspensionBehavior: .deliverImmediately)
   }
 
-  @objc private func inputSourceChanged(_ notification: Notification) {
+  @objc private func inputSourceChanged(_: Notification) {
     Self.refreshCurrentInputSource()
   }
 

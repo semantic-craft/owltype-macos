@@ -44,12 +44,6 @@ protocol OwlDoubaoSearching: Sendable {
 enum OwlDoubaoSearchWire {
   static let endpoint = URL(string: "https://open.feedcoopapi.com/search_api/global_search")!
 
-  /// 文档上限：DocCount 最多 20 条。
-  static let maxDocCount = 20
-
-  /// 文档：Query 1~100 个字符，超长会被截断。按 Character 截，别把中文截成半个码点。
-  static let maxQueryLength = 100
-
   static func body(query: String, limit: Int) -> [String: Any] {
     OwlProviderCore.object("searchBody", ["query": query, "limit": limit, "doubao": true])
   }
