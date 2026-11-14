@@ -385,7 +385,7 @@
           "id": "deepseek-asr",
           "title": "DeepSeek 语音识别供应商",
           "status": "in_progress",
-          "summary": "ASR 新增 DeepSeek 预设，复用供应商密钥，按官方接口仅上传 WAV；设置隐藏模型选择并说明录完转写。现有问答、改写、起草、语音润色、联网搜索和来源核验已有 DeepSeek 接入。项目尚无独立 TTS、OCR 或网页正文读取功能。",
+          "summary": "ASR 新增 DeepSeek 预设，复用供应商密钥，按官方接口仅上传 WAV；设置隐藏模型选择并说明录完转写。现有问答、改写、起草、语音润色、联网搜索和来源核验已有 DeepSeek 接入。项目尚无独立 TTS、OCR 或网页正文读取功能。 已合并 PR #427，完整门禁通过；正在准备 2.5.3 签名发布与本机升级。",
           "evidence": [
             {
               "kind": "file",
@@ -403,7 +403,7 @@
               "note": "2026-11-14 经 live-test.sh 执行 testDeepSeekASRTranscribesSpokenAudio，通过真实 DeepSeek ASR，4.368 秒。"
             }
           ],
-          "next": "完成精确提交的完整合并门禁；正式安装与真实麦克风体验尚未验收。"
+          "next": "完成 2.5.3 发布、当前输入法升级和测试残留清理；真实麦克风体验待用户验收。"
         }
       ]
     },

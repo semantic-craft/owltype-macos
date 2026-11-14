@@ -1,3 +1,10 @@
+<a name="2.5.3"></a>
+## 2.5.3 (2026-11-14)
+
+- 语音识别新增 DeepSeek 供应商，自动复用已配置的 DeepSeek API Key；录音结束后上传识别，无需选择模型。
+- DeepSeek ASR 仅发送 WAV 文件，设置页说明自动识别语种、无热词提示及现有 60 秒录音上限。
+- Add DeepSeek ASR with shared provider credentials and file-only WAV uploads.
+
 <a name="2.5.2"></a>
 ## 2.5.2 (2026-11-13)
 
