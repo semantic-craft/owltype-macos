@@ -85,7 +85,7 @@ final class OwlSettingsE2EContractTests: XCTestCase {
     XCTAssertFalse(panelSettings.snapshot().animationsEnabled)
     XCTAssertEqual(panelSettings.snapshot().skin, .wuda)
     XCTAssertTrue(OwlCloudPreferences.isEnabled)
-    XCTAssertEqual(OwlCloudPreferences.deepSeekModel, OwlCloudPreferences.reasonerDeepSeekModel)
+    XCTAssertEqual(OwlCloudPreferences.deepSeekModel, "deepseek-v4-pro")
   }
 
   func testStoreBackedSettingsUseIsolatedLocalStorage() throws {
@@ -119,10 +119,6 @@ final class OwlSettingsE2EContractTests: XCTestCase {
     try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
     tempDirs.append(dir)
     return dir
-  }
-
-  private func read(_ fileName: String, in dir: URL) throws -> String {
-    try String(contentsOf: dir.appendingPathComponent(fileName), encoding: .utf8)
   }
 
   private func setKnownPreferenceBaseline() {

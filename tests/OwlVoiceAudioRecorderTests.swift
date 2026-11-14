@@ -273,8 +273,6 @@ public final class OwlMockAudioRecorder: OwlAudioRecordingProtocol, @unchecked S
   public var shouldThrowOnStart: Error? = nil
   public var shouldThrowOnStop: Error? = nil
 
-  public var duration: TimeInterval { simulatedDuration }
-
   public init() {}
 
   public func startRecording() throws {

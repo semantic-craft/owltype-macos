@@ -110,7 +110,7 @@ final class OwlSettingsActionTests: XCTestCase {
     assertSet(6, \.candidatePageSize, state, { OwlKeyboardPreferences.pageSize }) { OwlKeyboardPreferences.pageSize = $0 }
     panelSettings.edit(.skin(.wuda), state: state, onChange: {})
     XCTAssertEqual(panelSettings.snapshot().skin, .wuda)
-    assertSet(OwlCloudPreferences.reasonerDeepSeekModel, \.cloudModel, state, { OwlCloudPreferences.deepSeekModel }) { OwlCloudPreferences.deepSeekModel = $0 }
+    assertSet("deepseek-v4-pro", \.cloudModel, state, { OwlCloudPreferences.deepSeekModel }) { OwlCloudPreferences.deepSeekModel = $0 }
     // 默认状态·中英文 / 全半角 下拉（同 `OwlSettingsActions.set` 写穿；简繁体复用 traditionalOutput）。
     assertSet(true, \.keyboardDefaultAsciiMode, state, { OwlKeyboardPreferences.defaultAsciiMode }) { OwlKeyboardPreferences.defaultAsciiMode = $0 }
     assertSet(true, \.keyboardDefaultFullShape, state, { OwlKeyboardPreferences.defaultFullShape }) { OwlKeyboardPreferences.defaultFullShape = $0 }

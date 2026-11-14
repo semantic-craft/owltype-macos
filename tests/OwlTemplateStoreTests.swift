@@ -55,7 +55,7 @@ final class OwlTemplateStoreTests: XCTestCase {
     let library = OwlTemplateLibrary(entries: [item])
     try OwlTemplateStore.save(library, dataDir: root)
     let projectedText = try XCTUnwrap(OwlTemplateStore.renderCandidateProjection(library)
-      .split(separator: "\n").first?.split(separator: "\t").first.map(String.init))
+      .split(separator: "\n").first { $0.hasPrefix(OwlTemplateStore.candidatePrefix) }?.split(separator: "\t").first.map(String.init))
     XCTAssertEqual(OwlTemplateStore.resolveCandidate(code: item.candidateAliases[0], text: projectedText,
                                                     loadLibrary: { library }), item)
     let editor = OwlTemplateEditorModel(dataDir: root)
@@ -71,7 +71,7 @@ final class OwlTemplateStoreTests: XCTestCase {
     let candidateText = "\(OwlTemplateStore.candidatePrefix)\(item.id.uuidString)]\(item.title)"
     let composition = EngineComposition(preedit: "mail", selStart: 0, selEnd: 4, cursorPos: 4,
                                       commitTextPreview: candidateText, candidates: [], labels: [],
-                                      pageNo: 0, pageSize: 5, isLastPage: true, highlightedIndex: 0, numCandidates: 0)
+                                      pageNo: 0, pageSize: 5, isLastPage: true, highlightedIndex: 0)
     let rendered = EngineCompositionRenderer.markedText(composition: composition, inlinePreedit: true, inlineCandidate: true)
     XCTAssertEqual(rendered.preedit, "📝邮件")
     XCTAssertEqual(rendered.caretPos, "📝邮件".utf16.count)
@@ -215,7 +215,7 @@ final class OwlTemplateStoreTests: XCTestCase {
     let library = OwlTemplateLibrary(entries: [candidate, OwlTemplateEntry(title: "仅搜索", body: "原文")])
     try OwlTemplateStore.save(library, dataDir: root)
     let table = OwlTemplateStore.renderCandidateProjection(library)
-    let projectedText = try XCTUnwrap(table.split(separator: "\n").first?.split(separator: "\t").first.map(String.init))
+    let projectedText = try XCTUnwrap(table.split(separator: "\n").first { $0.hasPrefix(OwlTemplateStore.candidatePrefix) }?.split(separator: "\t").first.map(String.init))
     XCTAssertTrue(table.contains("\(projectedText)\tmail\t100000"))
     XCTAssertTrue(table.contains("\tvmail\t100000"))
     XCTAssertFalse(table.contains("第二行"))
@@ -230,7 +230,7 @@ final class OwlTemplateStoreTests: XCTestCase {
     var item = entry()
     item.trigger = "mail"; item.invocationMode = .candidate
     let text = try XCTUnwrap(OwlTemplateStore.renderCandidateProjection(OwlTemplateLibrary(entries: [item]))
-      .split(separator: "\n").first?.split(separator: "\t").first.map(String.init))
+      .split(separator: "\n").first { $0.hasPrefix(OwlTemplateStore.candidatePrefix) }?.split(separator: "\t").first.map(String.init))
     var reads = 0
     let load = { reads += 1; return OwlTemplateLibrary(entries: [item]) }
     XCTAssertNil(OwlTemplateStore.resolveCandidate(code: "mail", text: "普通输入", loadLibrary: load))

@@ -1,16 +1,16 @@
 import Foundation
 
-public struct OwlVoiceASRPreset: Identifiable, Equatable, Sendable {
-  public let id: String
-  public let displayName: String
-  public let endpoint: String
-  public let defaultModel: String
-  public let curatedModels: [String]
-  public let keyLabel: String
-  public let keyHint: String
-  public let sharesProviderProfileKey: Bool
+struct OwlVoiceASRPreset: Identifiable, Equatable, Sendable {
+  let id: String
+  let displayName: String
+  let endpoint: String
+  let defaultModel: String
+  let curatedModels: [String]
+  let keyLabel: String
+  let keyHint: String
+  let sharesProviderProfileKey: Bool
 
-  public init(
+  init(
     id: String,
     displayName: String,
     endpoint: String,
@@ -30,11 +30,11 @@ public struct OwlVoiceASRPreset: Identifiable, Equatable, Sendable {
     self.sharesProviderProfileKey = sharesProviderProfileKey
   }
 
-  public var requiresAPIKey: Bool { true }
+  var requiresAPIKey: Bool { true }
 }
 
-public enum OwlVoiceASRCatalog {
-  public static let openai = OwlVoiceASRPreset(
+enum OwlVoiceASRCatalog {
+  static let openai = OwlVoiceASRPreset(
     id: "openai",
     displayName: "OpenAI",
     endpoint: "https://api.openai.com/v1/audio/transcriptions",
@@ -49,7 +49,7 @@ public enum OwlVoiceASRCatalog {
     keyHint: "sk-..."
   )
 
-  public static let gemini = OwlVoiceASRPreset(
+  static let gemini = OwlVoiceASRPreset(
     id: "gemini",
     displayName: "Google Gemini",
     endpoint: "https://generativelanguage.googleapis.com/v1beta/models",
@@ -63,7 +63,7 @@ public enum OwlVoiceASRCatalog {
     keyHint: "AIza..."
   )
 
-  public static let deepseek = OwlVoiceASRPreset(
+  static let deepseek = OwlVoiceASRPreset(
     id: "deepseek",
     displayName: "DeepSeek",
     endpoint: "https://api.deepseek.com/v1/tools/asr",
@@ -73,9 +73,9 @@ public enum OwlVoiceASRCatalog {
     keyHint: "sk-..."
   )
 
-  public static let presets: [OwlVoiceASRPreset] = [openai, gemini, deepseek]
+  static let presets: [OwlVoiceASRPreset] = [openai, gemini, deepseek]
 
-  public static func preset(id: String) -> OwlVoiceASRPreset {
+  static func preset(id: String) -> OwlVoiceASRPreset {
     let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     return presets.first(where: { $0.id == trimmed }) ?? openai
   }

@@ -97,26 +97,26 @@ final class OwlCandidateAnchorTests: XCTestCase {
 
   func testResolveReturnsFreshWhenUsable() {
     let previous = CGRect(x: 999, y: 999, width: 1, height: 18)
-    let resolved = OwlCandidateAnchor.resolve(fresh: goodRect, previous: previous, screens: screens)
+    let resolved = OwlCandidateAnchor.resolve(candidates: [goodRect], previous: previous, screens: screens)
     XCTAssertEqual(resolved, goodRect, "a usable fresh anchor must be used unchanged")
   }
 
   func testResolveFallsBackToPreviousWhenFreshIsJunk() {
     let junk = CGRect.zero
     let previous = CGRect(x: 300, y: 400, width: 1, height: 18)
-    let resolved = OwlCandidateAnchor.resolve(fresh: junk, previous: previous, screens: screens)
+    let resolved = OwlCandidateAnchor.resolve(candidates: [junk], previous: previous, screens: screens)
     XCTAssertEqual(resolved, previous, "a junk fresh anchor must fall back to a usable previous")
   }
 
   func testResolveReturnsNilWhenNeitherUsable() {
     let junk = CGRect.zero
     let badPrevious = CGRect(x: 5000, y: 5000, width: 1, height: 18) // offscreen
-    let resolved = OwlCandidateAnchor.resolve(fresh: junk, previous: badPrevious, screens: screens)
+    let resolved = OwlCandidateAnchor.resolve(candidates: [junk], previous: badPrevious, screens: screens)
     XCTAssertNil(resolved, "no usable fresh and no usable previous → nil (caller supplies safe default)")
   }
 
   func testResolveReturnsNilWhenNoPreviousAndJunkFresh() {
-    let resolved = OwlCandidateAnchor.resolve(fresh: .zero, previous: nil, screens: screens)
+    let resolved = OwlCandidateAnchor.resolve(candidates: [.zero], previous: nil, screens: screens)
     XCTAssertNil(resolved)
   }
 

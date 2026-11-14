@@ -96,7 +96,7 @@ final class OwlVerificationReceiptModel: ObservableObject {
 
   // MARK: - 锚点准入（案号闸）
 
-  /// 抽取 + 案号准入闸：案例类锚点显示前必过 OwlCaseNumberVerifier（spec §1.7），
+  /// 抽取 + 案号准入闸：案例类锚点显示前必过案号校验（spec §1.7），
   /// 形状对但年份非法（疑似杜撰）或残缺的案号不进清单。其余 kind 直接放行。
   static func admittedAnchors(from text: String, currentYear: Int) -> [OwlVerificationAnchor] {
     OwlAIBusinessCore.call("admittedAnchors", ["text": text, "currentYear": currentYear])

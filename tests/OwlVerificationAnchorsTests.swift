@@ -48,14 +48,14 @@ final class OwlVerificationAnchorsTests: XCTestCase {
 
   func testAdmittedAnchorsGatesFabricatedAndPartialCaseNumbers() {
     let validAndInvalid = """
-      参考 (2021)京01民初1234号 与 入库编号2024-07-2-084-011，
+      参考 (2021)京01民初1234号 与 （2025）粤03民终8964号，
       另有虚构案号（2077）粤03民终8964号、（2024）某某某判字99号，
       以及残缺表达：参见粤03民终案件、本案应继续执行和解协议。
       """
     let anchors = OwlVerificationReceiptModel.admittedAnchors(from: validAndInvalid, currentYear: 2026)
     let labels = anchors.map(\.label)
     XCTAssertTrue(labels.contains("(2021)京01民初1234号"))
-    XCTAssertTrue(labels.contains("入库编号2024-07-2-084-011"))
+    XCTAssertTrue(labels.contains("（2025）粤03民终8964号"))
     XCTAssertFalse(labels.contains("（2077）粤03民终8964号"))
     XCTAssertFalse(labels.contains("（2024）某某某判字99号"))
     XCTAssertFalse(labels.contains { $0.contains("粤03民终案件") })

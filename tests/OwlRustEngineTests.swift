@@ -133,15 +133,15 @@ final class OwlRustEngineTests: XCTestCase {
       "steps": steps,
       "preferences": defaults.persistentDomain(forName: OwlDefaults.testSuiteName) ?? [:],
       "configuration": ["schema": schema, "page_size": OwlKeyboardPreferences.pageSize,
-                        "wubi_auto_commit_unique": OwlKeyboardPreferences.wubiAutoCommitUnique,
-                        "wubi_fifth_code_top_commit": OwlKeyboardPreferences.wubiFifthCodeTopCommit,
-                        "wubi_code_hint": OwlKeyboardPreferences.wubiCodeHint,
-                        "wubi_z_wildcard": OwlKeyboardPreferences.wubiZWildcard,
-                        "wubi_auto_clear": OwlKeyboardPreferences.wubiAutoClear,
+                        "wubi_auto_commit_unique": OwlKeyboardSettingsCatalog.live.load(.wubiAutoCommitUnique),
+                        "wubi_fifth_code_top_commit": OwlKeyboardSettingsCatalog.live.load(.wubiFifthCodeTopCommit),
+                        "wubi_code_hint": OwlKeyboardSettingsCatalog.live.load(.wubiCodeHint),
+                        "wubi_z_wildcard": OwlKeyboardSettingsCatalog.live.load(.wubiZWildcard),
+                        "wubi_auto_clear": OwlKeyboardSettingsCatalog.live.load(.wubiAutoClear),
                         "wubi_candidate_mode": OwlKeyboardPreferences.wubiCandidateMode.rawValue,
-                        "wubi_z_reverse_lookup": OwlKeyboardPreferences.wubiZReverseLookup,
+                        "wubi_z_reverse_lookup": OwlKeyboardSettingsCatalog.live.load(.wubiZReverseLookup),
                         "wubi_english_channel": OwlKeyboardPreferences.wubiEnglishChannel,
-                        "wubi_user_dict_learning": OwlKeyboardPreferences.wubiUserDictLearning,
+                        "wubi_user_dict_learning": OwlKeyboardSettingsCatalog.live.load(.wubiUserDictLearning),
                         "rerank": OwlRerankConfiguration.current(sharedSupportURL: resources).serialized() ?? ""]
     ]
     try JSONSerialization.data(withJSONObject: result, options: [.prettyPrinted, .sortedKeys])
@@ -337,8 +337,8 @@ final class OwlRustEngineTests: XCTestCase {
     let first = try XCTUnwrap(disabled.serialized())
     XCTAssertEqual(first, disabled.serialized())
     XCTAssertTrue(first.contains("\"expected_sha256\""))
-    XCTAssertTrue(first.contains(OwlRerankModelDescriptor.keyboard.expectedSHA256))
-    XCTAssertTrue(first.contains(OwlRerankModelDescriptor.settled.expectedSHA256))
+    XCTAssertTrue(first.contains(OwlRerankModelDescriptor.descriptor(for: .keyboard).expectedSHA256))
+    XCTAssertTrue(first.contains(OwlRerankModelDescriptor.descriptor(for: .settled).expectedSHA256))
 
     OwlExperimentalPreferences.keyboardRerankEnabled = true
     OwlExperimentalPreferences.settledRerankEnabled = true
@@ -569,7 +569,16 @@ final class OwlRustEngineTests: XCTestCase {
     let engine = try makeSharedSupportSeedEngine()
     let session = try XCTUnwrap(engine.createSession() as? OwlRustSession)
     defer { session.destroy() }
-    XCTAssertTrue(session.selectSchema(OwlDoublePinyin.shoudao.schemaId))
+    let savedInputMethod = OwlKeyboardPreferences.inputMethod
+    let savedDoublePinyin = OwlKeyboardPreferences.doublePinyin
+    defer {
+      OwlKeyboardPreferences.inputMethod = savedInputMethod
+      OwlKeyboardPreferences.doublePinyin = savedDoublePinyin
+    }
+    OwlKeyboardPreferences.inputMethod = .doublePinyin
+    OwlKeyboardPreferences.doublePinyin = .shoudao
+    XCTAssertEqual(OwlKeyboardPreferences.preferredSchemaID, "double_pinyin_shoudao")
+    XCTAssertTrue(session.selectSchema(OwlKeyboardPreferences.preferredSchemaID))
     typeText("nihd", into: session)
     XCTAssertTrue(session.composition()?.candidates.contains { $0.text == "你好" } == true)
     session.setOption(.linear, false)
@@ -1620,14 +1629,17 @@ final class OwlRustEngineTests: XCTestCase {
     let state = OwlSettingsState()
     state.keyboardInputMethod = .wubi
     OwlKeyboardPreferences.inputMethod = .wubi
+    OwlSettingsActions.selectWubiScheme(.pinyinMix, state: state) { schema in
+      XCTAssertEqual(schema, "wubi86_jidian_pinyin")
+    }
+    XCTAssertEqual(OwlKeyboardPreferences.preferredSchemaID, "wubi86_jidian_pinyin")
     OwlSettingsActions.selectWubiScheme(choice, state: state) { schema in
       XCTAssertTrue(session.selectSchema(schema))
     }
     XCTAssertEqual(state.keyboardWubiScheme, choice)
-    XCTAssertEqual(OwlKeyboardPreferences.preferredSchemaID, "wubi98")
-    XCTAssertEqual(choice.schemaId, "wubi98")
-    XCTAssertEqual(OwlWubiScheme(rawValue: "pinyinMix")?.schemaId, "wubi86_jidian_pinyin")
-    XCTAssertTrue(engine.selectSchema(choice.schemaId))
+    let choiceSchemaID = OwlKeyboardPreferences.preferredSchemaID
+    XCTAssertEqual(choiceSchemaID, "wubi98")
+    XCTAssertTrue(engine.selectSchema(choiceSchemaID))
     let restored = engine.createSession()
     defer { restored.destroy() }
     typeText("gu", into: restored)
@@ -1645,7 +1657,7 @@ final class OwlRustEngineTests: XCTestCase {
       }
     }
     keys.forEach { defaults.removeObject(forKey: $0) }
-    XCTAssertFalse(OwlKeyboardPreferences.wubiCodeHint, "Wubi code hints default off")
+    XCTAssertFalse(OwlKeyboardSettingsCatalog.live.load(.wubiCodeHint), "Wubi code hints default off")
     let engine = try makeSharedSupportSeedEngine()
     XCTAssertTrue(engine.selectSchema("wubi86_jidian"))
     let session = try XCTUnwrap(engine.createSession() as? OwlRustSession)
@@ -1734,7 +1746,7 @@ final class OwlRustEngineTests: XCTestCase {
       XCTAssertEqual(session.composition()?.candidates.first?.text, learning ? "五一" : "王")
       session.destroy()
       XCTAssertTrue(engine.finalize())
-      XCTAssertEqual(OwlKeyboardPreferences.wubiUserDictLearning, learning)
+      XCTAssertEqual(OwlKeyboardSettingsCatalog.live.load(.wubiUserDictLearning), learning)
     }
   }
 
@@ -1803,23 +1815,24 @@ final class OwlRustEngineTests: XCTestCase {
   }
 
   func testWubi86PureAndMixedSchemasZLookupAndPreferences() throws {
-    let origCodeHint = OwlKeyboardPreferences.wubiCodeHint
-    let origAutoClear = OwlKeyboardPreferences.wubiAutoClear
+    let catalog = OwlKeyboardSettingsCatalog.live
+    let origCodeHint = catalog.load(.wubiCodeHint)
+    let origAutoClear = catalog.load(.wubiAutoClear)
     let origCandMode = OwlKeyboardPreferences.wubiCandidateMode
-    let origZLookup = OwlKeyboardPreferences.wubiZReverseLookup
+    let origZLookup = catalog.load(.wubiZReverseLookup)
     let origEngChannel = OwlKeyboardPreferences.wubiEnglishChannel
     defer {
-      OwlKeyboardPreferences.wubiCodeHint = origCodeHint
-      OwlKeyboardPreferences.wubiAutoClear = origAutoClear
+      catalog.set(.wubiCodeHint, origCodeHint)
+      catalog.set(.wubiAutoClear, origAutoClear)
       OwlKeyboardPreferences.wubiCandidateMode = origCandMode
-      OwlKeyboardPreferences.wubiZReverseLookup = origZLookup
+      catalog.set(.wubiZReverseLookup, origZLookup)
       OwlKeyboardPreferences.wubiEnglishChannel = origEngChannel
     }
 
-    OwlKeyboardPreferences.wubiCodeHint = false
-    OwlKeyboardPreferences.wubiAutoClear = false
+    catalog.set(.wubiCodeHint, false)
+    catalog.set(.wubiAutoClear, false)
     OwlKeyboardPreferences.wubiCandidateMode = .normal
-    OwlKeyboardPreferences.wubiZReverseLookup = true
+    catalog.set(.wubiZReverseLookup, true)
     OwlKeyboardPreferences.wubiEnglishChannel = false
 
     let engine = try makeSharedSupportSeedEngine()
@@ -1852,22 +1865,22 @@ final class OwlRustEngineTests: XCTestCase {
     session.clearComposition()
 
     // Disabling wubiZReverseLookup stops z from triggering pinyin lookup
-    OwlKeyboardPreferences.wubiZReverseLookup = false
+    catalog.set(.wubiZReverseLookup, false)
     for scalar in "zhao".unicodeScalars {
       _ = session.process(keycode: scalar.value, modifiers: 0)
     }
     let zDisabledCandidates = session.composition()?.candidates.map(\.text) ?? []
     XCTAssertFalse(zDisabledCandidates.contains("找"))
     session.clearComposition()
-    OwlKeyboardPreferences.wubiZReverseLookup = true
+    catalog.set(.wubiZReverseLookup, true)
 
     // 3. wubiAutoClear on 4-code empty miss (`bbbx` miss -> auto-cleared)
-    OwlKeyboardPreferences.wubiAutoClear = true
+    catalog.set(.wubiAutoClear, true)
     for scalar in "bbbx".unicodeScalars {
       _ = session.process(keycode: scalar.value, modifiers: 0)
     }
     XCTAssertEqual(session.input(), "")
-    OwlKeyboardPreferences.wubiAutoClear = false
+    catalog.set(.wubiAutoClear, false)
 
     // 4. wubiEnglishChannel (`hello)
     OwlKeyboardPreferences.wubiEnglishChannel = true
@@ -1902,21 +1915,22 @@ final class OwlRustEngineTests: XCTestCase {
   }
 
   func testMixedWubiExactPinyinCodeRowsAndSelectionIdentity() throws {
+    let catalog = OwlKeyboardSettingsCatalog.live
     let origCandidateMode = OwlKeyboardPreferences.wubiCandidateMode
-    let origCodeHint = OwlKeyboardPreferences.wubiCodeHint
-    let origAutoClear = OwlKeyboardPreferences.wubiAutoClear
-    let origZLookup = OwlKeyboardPreferences.wubiZReverseLookup
+    let origCodeHint = catalog.load(.wubiCodeHint)
+    let origAutoClear = catalog.load(.wubiAutoClear)
+    let origZLookup = catalog.load(.wubiZReverseLookup)
     defer {
       OwlKeyboardPreferences.wubiCandidateMode = origCandidateMode
-      OwlKeyboardPreferences.wubiCodeHint = origCodeHint
-      OwlKeyboardPreferences.wubiAutoClear = origAutoClear
-      OwlKeyboardPreferences.wubiZReverseLookup = origZLookup
+      catalog.set(.wubiCodeHint, origCodeHint)
+      catalog.set(.wubiAutoClear, origAutoClear)
+      catalog.set(.wubiZReverseLookup, origZLookup)
     }
 
     OwlKeyboardPreferences.wubiCandidateMode = .normal
-    OwlKeyboardPreferences.wubiCodeHint = true
-    OwlKeyboardPreferences.wubiAutoClear = false
-    OwlKeyboardPreferences.wubiZReverseLookup = true
+    catalog.set(.wubiCodeHint, true)
+    catalog.set(.wubiAutoClear, false)
+    catalog.set(.wubiZReverseLookup, true)
 
     let engine = try makeSharedSupportSeedEngine()
     XCTAssertTrue(engine.selectSchema("wubi86_jidian_pinyin"))
@@ -2010,13 +2024,14 @@ final class OwlRustEngineTests: XCTestCase {
   }
 
   func testPureWubiAmbiguityFifthKeyBackspaceSpaceAndModeSwitch() throws {
-    let origAutoClear = OwlKeyboardPreferences.wubiAutoClear
+    let catalog = OwlKeyboardSettingsCatalog.live
+    let origAutoClear = catalog.load(.wubiAutoClear)
     let origCandidateMode = OwlKeyboardPreferences.wubiCandidateMode
     defer {
-      OwlKeyboardPreferences.wubiAutoClear = origAutoClear
+      catalog.set(.wubiAutoClear, origAutoClear)
       OwlKeyboardPreferences.wubiCandidateMode = origCandidateMode
     }
-    OwlKeyboardPreferences.wubiAutoClear = false
+    catalog.set(.wubiAutoClear, false)
     OwlKeyboardPreferences.wubiCandidateMode = .normal
 
     let engine = try makeSharedSupportSeedEngine()
@@ -2077,15 +2092,16 @@ final class OwlRustEngineTests: XCTestCase {
   }
 
   func testMixedWubiPartialPhraseSelectionContinuesInPinyinTail() throws {
+    let catalog = OwlKeyboardSettingsCatalog.live
     let origCandidateMode = OwlKeyboardPreferences.wubiCandidateMode
-    let origWildcard = OwlKeyboardPreferences.wubiZWildcard
+    let origWildcard = catalog.load(.wubiZWildcard)
     let origPageSize = OwlKeyboardPreferences.pageSize
     defer {
-      OwlKeyboardPreferences.wubiZWildcard = origWildcard
+      catalog.set(.wubiZWildcard, origWildcard)
       OwlKeyboardPreferences.wubiCandidateMode = origCandidateMode
       OwlKeyboardPreferences.pageSize = origPageSize
     }
-    OwlKeyboardPreferences.wubiZWildcard = false
+    catalog.set(.wubiZWildcard, false)
     OwlKeyboardPreferences.wubiCandidateMode = .normal
     OwlKeyboardPreferences.pageSize = 6
 
@@ -2117,7 +2133,7 @@ final class OwlRustEngineTests: XCTestCase {
 
     // A setting that rebuilds the native engine must wait: rawInput contains only
     // "wo", so replaying it cannot restore the selected "你好" phrase prefix.
-    OwlKeyboardPreferences.wubiZWildcard = true
+    catalog.set(.wubiZWildcard, true)
     XCTAssertTrue(engine.deployConfigFile("default.yaml", versionKey: "config_version"))
     XCTAssertEqual(session.input(), "wo")
     XCTAssertTrue(session.composition()?.preedit.contains("你好") == true)
@@ -2180,9 +2196,10 @@ final class OwlRustEngineTests: XCTestCase {
         if let value { defaults.set(value, forKey: key) } else { defaults.removeObject(forKey: key) }
       }
     }
-    OwlKeyboardPreferences.wubiZReverseLookup = true
-    OwlKeyboardPreferences.wubiZWildcard = false
-    OwlKeyboardPreferences.wubiUserDictLearning = true
+    let catalog = OwlKeyboardSettingsCatalog.live
+    catalog.set(.wubiZReverseLookup, true)
+    catalog.set(.wubiZWildcard, false)
+    catalog.set(.wubiUserDictLearning, true)
     let origPageSize = OwlKeyboardPreferences.pageSize
     OwlKeyboardPreferences.pageSize = 6
     defer { OwlKeyboardPreferences.pageSize = origPageSize }
@@ -2208,17 +2225,18 @@ final class OwlRustEngineTests: XCTestCase {
   }
 
   func testWubiZReverseLookupAcrossSchemasSwitchesDeletionAndSelection() throws {
-    let origZLookup = OwlKeyboardPreferences.wubiZReverseLookup
-    let origCodeHint = OwlKeyboardPreferences.wubiCodeHint
+    let catalog = OwlKeyboardSettingsCatalog.live
+    let origZLookup = catalog.load(.wubiZReverseLookup)
+    let origCodeHint = catalog.load(.wubiCodeHint)
     let origCandidateMode = OwlKeyboardPreferences.wubiCandidateMode
     defer {
-      OwlKeyboardPreferences.wubiZReverseLookup = origZLookup
-      OwlKeyboardPreferences.wubiCodeHint = origCodeHint
+      catalog.set(.wubiZReverseLookup, origZLookup)
+      catalog.set(.wubiCodeHint, origCodeHint)
       OwlKeyboardPreferences.wubiCandidateMode = origCandidateMode
     }
     OwlKeyboardPreferences.wubiCandidateMode = .normal
-    OwlKeyboardPreferences.wubiCodeHint = false
-    OwlKeyboardPreferences.wubiZReverseLookup = true
+    catalog.set(.wubiCodeHint, false)
+    catalog.set(.wubiZReverseLookup, true)
 
     let engine = try makeSharedSupportSeedEngine()
     XCTAssertTrue(engine.selectSchema("wubi86_jidian"))
@@ -2279,7 +2297,7 @@ final class OwlRustEngineTests: XCTestCase {
     session.clearComposition()
 
     // Turning the setting off disables the z-guided lookup in pure Wubi.
-    OwlKeyboardPreferences.wubiZReverseLookup = false
+    catalog.set(.wubiZReverseLookup, false)
     XCTAssertFalse(session.process(keycode: UInt32(Character("z").asciiValue!), modifiers: 0))
     XCTAssertEqual(session.input(), "")
 
@@ -2290,7 +2308,7 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertEqual(session.input(), "zhao")
     XCTAssertFalse(visibleAndPeekedCandidates(in: session).isEmpty)
     session.clearComposition()
-    OwlKeyboardPreferences.wubiZReverseLookup = true
+    catalog.set(.wubiZReverseLookup, true)
     typeText("zhao", into: session)
     XCTAssertEqual(session.input(), "zhao")
     XCTAssertFalse(visibleAndPeekedCandidates(in: session).isEmpty)
@@ -2556,7 +2574,7 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertTrue(session.process(keycode: UInt32(XK_space), modifiers: 0))
     XCTAssertEqual(session.takeCommit(), visible)
     XCTAssertNil(session.takeCommit())
-    let templateText = OwlTemplateStore.candidateText(entry)
+    let templateText = "\(OwlTemplateStore.candidatePrefix)\(entry.id.uuidString)]\(entry.title)"
     XCTAssertTrue(session.process(keycode: asciiKeycode("K"), modifiers: kShiftMask.rawValue))
     typeText("n", into: session)
     XCTAssertFalse(visibleAndPeekedCandidates(in: session).contains { $0.text == templateText })
@@ -2742,7 +2760,7 @@ final class OwlRustEngineTests: XCTestCase {
       OwlTemplateLibrary(entries: [entry]),
       dataDir: userDir
     )
-    let templateText = OwlTemplateStore.candidateText(entry)
+    let templateText = "\(OwlTemplateStore.candidatePrefix)\(entry.id.uuidString)]\(entry.title)"
     try writeHostPhrase(
       "自定义映射\towlmapping\t100000\n",
       fileName: "custom_phrase.txt",

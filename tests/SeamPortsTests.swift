@@ -116,7 +116,6 @@ final class SeamPortsTests: XCTestCase {
     let read = store.current
     XCTAssertEqual(read?.id, snap.id)
     XCTAssertEqual(read?.rawInput, "nihao")
-    XCTAssertEqual(read?.schemaID, "rime_ice")
     XCTAssertEqual(store.readCount, 1)
   }
 

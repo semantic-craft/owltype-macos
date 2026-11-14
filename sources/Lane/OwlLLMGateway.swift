@@ -209,13 +209,11 @@ enum OwlCloudRetry {
 /// Callers ask this value instead of re-deriving provider identity.
 struct OwlProviderCapabilities {
   let dialect: OwlResponsesDialect?
-  let thinkingOff: OwlThinkingControl.Fields
   let searchChannel: OwlSearchControl.Channel
   let model: String
 
   init(providerID: String, model: String, endpoint: URL? = nil) {
     self.dialect = OwlResponsesWire.dialect(providerID: providerID, model: model, endpoint: endpoint)
-    self.thinkingOff = OwlThinkingControl.offFields(providerID: providerID, model: model)
     self.searchChannel = Self.searchChannel(providerID: providerID, host: endpoint?.host ?? "")
     self.model = model
   }

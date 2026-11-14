@@ -40,7 +40,6 @@ pub enum Session {
     SelectionRewrite(crate::ai_selection::Rewrite),
     Verification(crate::ai_business::Verification),
     AskAttempts(crate::ai_business::Attempts),
-    WritePreview(crate::ai_business::Preview),
     Receipt(crate::ai_verification::Receipt),
     Conversation(crate::ai_business::Conversation),
     ProviderCall { remaining: usize, cancelled: bool },
@@ -68,7 +67,6 @@ impl Session {
                 args,
             ))),
             "askAttempts" => Ok(Self::AskAttempts(crate::ai_business::Attempts::new(args))),
-            "writePreview" => Ok(Self::WritePreview(crate::ai_business::Preview::new(args))),
             "verificationReceipt" => Ok(Self::Receipt(crate::ai_verification::Receipt::new(args))),
             "conversation" => Ok(Self::Conversation(crate::ai_business::Conversation::new(
                 args,
@@ -115,7 +113,6 @@ impl Session {
             Self::SelectionRewrite(state) => state.event(event, args),
             Self::Verification(state) => state.event(event, args),
             Self::AskAttempts(state) => state.event(event, args),
-            Self::WritePreview(state) => state.event(event, args),
             Self::Receipt(state) => state.event(event, args),
             Self::Conversation(state) => state.event(event, args),
             Self::ProviderCall {
@@ -152,7 +149,6 @@ impl Session {
                     let actions = coord.handle_event(delivery_event, now_secs);
                     serde_json::to_value(&actions).map_err(|e| e.to_string())
                 }
-                "is_waiting" => Ok(json!(coord.pending.is_some())),
                 _ => Err("invalid_event".into()),
             },
             Self::Focus(focus) => focus.event(event, args),

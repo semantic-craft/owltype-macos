@@ -134,7 +134,6 @@ fn spaces(t: &str) -> String {
 fn finalize(t: &str) -> String {
     spaces(&width(&quotes(&ellipsis(t))))
 }
-pub use crate::host_delivery::{sequence, sequence_for_mode, Inserter};
 fn rewrite_copy(action: &str) -> Value {
     let (noun, progress, inserted, copied) = match action {
         "promptOptimize" => (
@@ -168,12 +167,6 @@ pub fn rule(name: &str, a: Value) -> Value {
     let t = s(&a, "text");
     match name {
         "preClean" => json!(preclean(t)),
-        "typeset" => json!(finalize(t)),
-        "fingerprint" => json!(fingerprint(t)),
-        "ellipsis" => json!(ellipsis(t)),
-        "quotes" => json!(quotes(t)),
-        "punctuationWidth" => json!(width(t)),
-        "spaces" => json!(spaces(t)),
         "formatResult" => {
             let original = s(&a, "original");
             let reflow = s(&a, "reflow");
@@ -192,13 +185,6 @@ pub fn rule(name: &str, a: Value) -> Value {
             };
             json!({"text":output,"empty":trim(&output).is_empty()})
         }
-        "insertSequence" => json!(sequence(s(&a, "cached"))),
-        "hostDeliverySequence" => json!(sequence_for_mode(
-            s(&a, "mode"),
-            s(&a, "cached"),
-            a["hasIMK"] == true,
-            a["preferPaste"] == true,
-        )),
         "replacementAdmission" => json!(if trim(t).is_empty() {
             "未生成可替换文本。"
         } else if a["hasTarget"] != true {

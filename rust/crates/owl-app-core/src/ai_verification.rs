@@ -227,12 +227,6 @@ fn display(source: &str) -> &str {
 pub fn rule(name: &str, a: Value) -> Value {
     match name {
         "receiptPending" => json!(["idle", "notFound", "error"].contains(&s(&a, "kind"))),
-        "caseDisposition" => json!(match s(&a, "status") {
-            "complete" => "admit",
-            "partial" => "attemptCompleteElseDiscard",
-            _ => "discard",
-        }),
-        "receiptState" => resolved_state(&a),
         "admittedAnchors" => json!(anchors(s(&a, "text"))
             .as_array()
             .unwrap()
@@ -241,19 +235,13 @@ pub fn rule(name: &str, a: Value) -> Value {
                 || case_number(s(v, "label"), a["currentYear"].as_i64().unwrap_or(0))["status"]
                     == "complete")
             .collect::<Vec<_>>()),
-        "normalizeAnchor" => json!(normalize(s(&a, "text"))),
-        "stripLeadIn" => json!(strip(s(&a, "text"))),
-        "anchors" => anchors(s(&a, "text")),
-        "caseNumber" => case_number(s(&a, "text"), a["currentYear"].as_i64().unwrap_or(0)),
         "normalizeQuery" => json!(query(s(&a, "text"))),
         "defaultSource" => json!(match s(&a, "kind") {
             "caseLaw" => "pkulaw",
             "law" | "administrativeRule" | "standard" | "officialDocument" => "govLaw",
             _ => "baiduScholar",
         }),
-        "searchStyle" => style(s(&a, "source")),
         "route" => route(s(&a, "query"), s(&a, "source")),
-        "queryEncode" => json!(encode(s(&a, "text"))),
         "safeURL" => {
             let t = trim(s(&a, "text"));
             let safe = url::Url::parse(t).ok().filter(|u| {
@@ -276,8 +264,6 @@ pub fn rule(name: &str, a: Value) -> Value {
         "pasteQuery" => {
             json!({"query":a["routes"].as_array().into_iter().flatten().find(|r|r["url"].as_str().is_some_and(|s|url::Url::parse(s).is_ok_and(|u|u.query().is_none_or(str::is_empty)))).map(|r|&r["query"])})
         }
-        "cnki" => json!(cnki(&a["input"])),
-        "cnkiNormalize" => json!(normalize_field(s(&a, "text"))),
         "verifyMenu" => {
             let fallback = query(s(&a, "text"));
             let mut out = vec![];

@@ -63,16 +63,6 @@ bool owl_msime_config_has_map(
     const char *path
 );
 
-/*
- * Returns a deterministic JSON object containing the boolean direct children
- * of app_options/<bundle_id>. An absent section is `{}`. Free the result with
- * owl_msime_string_free.
- */
-char *owl_msime_config_app_options_json(
-    const OwlMsimeConfig *config,
-    const char *bundle_id
-);
-
 OwlMsimeSession *owl_msime_session_create(
     const char *pinyin_db_path,
     const char *english_db_path,

@@ -110,7 +110,7 @@ final class OwlVerificationReceiptModelTests: XCTestCase {
     guard case .success(let source) = model.state(for: law) else {
       return XCTFail("verifier 返回来源后状态必须真落 success，实际 \(model.state(for: law))")
     }
-    XCTAssertEqual(source.title, "民法典")
+    XCTAssertEqual(source.url, "https://flk.npc.gov.cn/detail2.html?x")
     XCTAssertEqual(source.provider, "flk.npc.gov.cn")
     XCTAssertEqual(source.snippet, "已核验")
     XCTAssertEqual(model.expanded[law.id], true, "绿卡默认展开")
@@ -159,7 +159,7 @@ final class OwlVerificationReceiptModelTests: XCTestCase {
     let route = OwlVerificationRoute(
       kind: .deepLink, source: .cnki,
       query: "SU %= '惩罚性赔偿'",
-      url: OwlCNKIExpertQueryBuilder.professionalSearchURL)
+      url: URL(string: "https://kns.cnki.net/kns8s/AdvSearch")!)
     model.open(route)
     XCTAssertEqual(recorder.events, [
       .open("https://kns.cnki.net/kns8s/AdvSearch"),

@@ -559,10 +559,6 @@ impl DeliveryMode {
     }
 }
 
-pub fn sequence(cached: &str) -> Vec<String> {
-    sequence_for_mode("selectionReplacement", cached, false, false)
-}
-
 pub fn sequence_for_mode(
     mode: &str,
     cached: &str,

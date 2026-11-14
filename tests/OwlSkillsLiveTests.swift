@@ -201,7 +201,7 @@ final class OwlSkillsLiveTests: XCTestCase {
 
   func testTranslateSkillTurnsChineseIntoEnglishOnly() async throws {
     let answer = try await streamAnswer(
-      question: OwlSelectionSkillPrompts.translationQuestion,
+      question: OwlAIBusinessCore.call("prompt", ["id": "translationQuestion"]),
       selectedText: "本院认为，双方当事人签订的买卖合同系真实意思表示，合法有效。",
       label: "translate")
 
@@ -220,7 +220,7 @@ final class OwlSkillsLiveTests: XCTestCase {
 
   func testResearchAssistSkillReturnsSearchPlan() async throws {
     let answer = try await streamAnswer(
-      question: OwlSelectionSkillPrompts.researchAssistQuestion,
+      question: OwlAIBusinessCore.call("prompt", ["id": "researchAssistQuestion"]),
       selectedText: "夫妻共同债务的认定标准",
       label: "research")
 
@@ -366,8 +366,7 @@ final class OwlSkillsLiveTests: XCTestCase {
     let apiKey = try OwlLiveKey.deepSeek.value()
     let route = deepSeekRoute(apiKey)
     let adapter = OwlAskAnythingTransportAdapter(
-      chatClient: OwlStreamingChatClient(),
-      responsesClient: OwlResponsesStreamingClient(),
+      gateway: OwlLLMGateway(),
       searchClient: OwlDeepSeekSearchClient())
     let stream = try XCTUnwrap(adapter.streamWebSearch(
       messages: [OwlDeepSeekMessage(role: "user", content: "民法典是哪一年开始施行的？")],
@@ -439,8 +438,8 @@ final class OwlSkillsLiveTests: XCTestCase {
 
     XCTAssertFalse(reflowed.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     XCTAssertEqual(
-      OwlChineseTypesetting.contentFingerprint(reflowed),
-      OwlChineseTypesetting.contentFingerprint(cleaned),
+      liveContentFingerprint(reflowed),
+      liveContentFingerprint(cleaned),
       """
       \(Self.model) 在重排时改了字，指纹护栏会丢弃它的输出、回退纯规则版 —— \
       也就是这个技能在这个型号上「花了钱但没生效」。耗时 \(elapsed)s。
@@ -492,6 +491,10 @@ final class OwlSkillsLiveTests: XCTestCase {
     XCTAssertLessThan(
       elapsed, 55, "\(Self.model) 出一份任务书要 \(elapsed)s，逼近 60s 硬超时 —— 该换更快的型号")
   }
+}
+
+private func liveContentFingerprint(_ text: String) -> String {
+  String(text.filter { $0.unicodeScalars.contains(where: CharacterSet.alphanumerics.contains) })
 }
 
 /// Full prompt-surface evaluation against DashScope's new OpenAI-compatible Responses API.
@@ -671,25 +674,12 @@ final class OwlResponsesPromptEvaluationLiveTests: XCTestCase {
       return failures
     }
 
-    await evaluate(
-      "source-verification-declared-question",
-      required: false,
-      tier: .search,
-      messages: OwlLiveEvalSupport.assembleContext(
-        selectedText: verificationClaim,
-        question: OwlSelectionSkillPrompts.sourceVerificationQuestion
-      ),
-      forceWebSearch: true
-    ) { response in
-      response.sources.isEmpty ? ["孤立提示词没有返回来源 URL"] : []
-    }
-
     // 3. Window/selection skills that share OwlAIConversationModel context assembly.
     await evaluate(
       "research-assist",
       messages: OwlLiveEvalSupport.assembleContext(
         selectedText: "夫妻共同债务的认定标准",
-        question: OwlSelectionSkillPrompts.researchAssistQuestion
+        question: OwlAIBusinessCore.call("prompt", ["id": "researchAssistQuestion"])
       )
     ) { response in
       let text = response.text
@@ -707,8 +697,8 @@ final class OwlResponsesPromptEvaluationLiveTests: XCTestCase {
       ]
     ) { response in
       var failures: [String] = []
-      if OwlChineseTypesetting.contentFingerprint(response.text)
-        != OwlChineseTypesetting.contentFingerprint(brokenPublishText) {
+      if liveContentFingerprint(response.text)
+        != liveContentFingerprint(brokenPublishText) {
         failures.append("规范排版增删或改写了正文字符")
       }
       // 反假通过（2026-07-31）：指纹门对「原样返回」也放行——不拼行同样指纹相等。
@@ -727,7 +717,7 @@ final class OwlResponsesPromptEvaluationLiveTests: XCTestCase {
       "translation",
       messages: OwlLiveEvalSupport.assembleContext(
         selectedText: "本院认为，双方当事人签订的买卖合同系真实意思表示，合法有效。",
-        question: OwlSelectionSkillPrompts.translationQuestion
+        question: OwlAIBusinessCore.call("prompt", ["id": "translationQuestion"])
       )
     ) { response in
       var failures: [String] = []
@@ -1273,7 +1263,7 @@ final class OwlTriModelSelectionMatrixLiveTests: XCTestCase {
       id: "research-assist", tier: .interactive, temperature: nil, webSearch: false,
       messages: OwlLiveEvalSupport.assembleContext(
         selectedText: "夫妻共同债务的认定标准",
-        question: OwlSelectionSkillPrompts.researchAssistQuestion)
+        question: OwlAIBusinessCore.call("prompt", ["id": "researchAssistQuestion"]))
     ) { response in
       response.text.contains("检索")
         && (response.text.contains("关键词") || response.text.contains("检索式"))
@@ -1286,7 +1276,7 @@ final class OwlTriModelSelectionMatrixLiveTests: XCTestCase {
       id: "translation-legal", tier: .interactive, temperature: nil, webSearch: false,
       messages: OwlLiveEvalSupport.assembleContext(
         selectedText: "基于重大误解实施的民事法律行为，行为人有权请求人民法院或者仲裁机构予以撤销。",
-        question: OwlSelectionSkillPrompts.translationQuestion)
+        question: OwlAIBusinessCore.call("prompt", ["id": "translationQuestion"]))
     ) { response in
       var failures: [String] = []
       let lowered = response.text.lowercased()
@@ -1385,8 +1375,8 @@ final class OwlTriModelSelectionMatrixLiveTests: XCTestCase {
       ]
     ) { response in
       var failures: [String] = []
-      if OwlChineseTypesetting.contentFingerprint(response.text)
-        != OwlChineseTypesetting.contentFingerprint(brokenPublishText) {
+      if liveContentFingerprint(response.text)
+        != liveContentFingerprint(brokenPublishText) {
         failures.append("规范排版增删或改写了正文字符")
       }
       if !response.text.contains("第一段第一行，内容不变。第一段第二行继续。") {

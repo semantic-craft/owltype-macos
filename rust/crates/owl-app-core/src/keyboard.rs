@@ -46,7 +46,6 @@ pub fn schema(id: &str) -> Value {
     } else {
         "wubi86"
     });
-    result["doublePinyinScheme"] = json!(double);
     result["pinyinScheme"] = json!(pinyin);
     result["traditional"] = json!(matches!(
         id,
@@ -68,12 +67,29 @@ fn build_catalog() -> Value {
         .iter()
         .map(|row| schema(row["id"].as_str().unwrap()))
         .collect();
-    value["exportTargets"] = source_catalog()["schemas"].as_array().unwrap().iter()
-      .filter(|row| row["id"].as_str().unwrap().starts_with("wubi86"))
-      .map(|row| json!({"schemaID":row["id"],"fileName":format!("{}.custom.yaml",row["id"].as_str().unwrap()),"displayName":row["name"]})).collect();
-    value["doublePinyinSchemas"] = json!({"flypy":"double_pinyin_flypy", "mspy":"double_pinyin_mspy", "shoudao":"double_pinyin_shoudao", "ziranma":"double_pinyin", "sogou":"double_pinyin_sogou", "abc":"double_pinyin_abc", "ziguang":"double_pinyin_ziguang", "jiajia":"double_pinyin_jiajia"});
-    value["wubiSchemas"] = json!({"jidian86":"wubi86_jidian", "pinyinMix":"wubi86_jidian_pinyin", "jidian98":"wubi98", "pinyinMix98":"wubi98_pinyin"});
     value
+}
+
+fn double_pinyin_schema_id(double: &str) -> &'static str {
+    match double {
+        "mspy" => "double_pinyin_mspy",
+        "shoudao" => "double_pinyin_shoudao",
+        "ziranma" => "double_pinyin",
+        "sogou" => "double_pinyin_sogou",
+        "abc" => "double_pinyin_abc",
+        "ziguang" => "double_pinyin_ziguang",
+        "jiajia" => "double_pinyin_jiajia",
+        _ => "double_pinyin_flypy",
+    }
+}
+
+fn wubi_schema_id(wubi: &str) -> &'static str {
+    match wubi {
+        "pinyinMix" => "wubi86_jidian_pinyin",
+        "jidian98" => "wubi98",
+        "pinyinMix98" => "wubi98_pinyin",
+        _ => "wubi86_jidian",
+    }
 }
 
 pub fn effective(raw: &Value) -> Value {
@@ -110,10 +126,9 @@ pub fn effective(raw: &Value) -> Value {
     } else {
         stored_page.clamp(3, 9)
     };
-    let catalog = catalog();
     let preferred = match input {
-        "doublePinyin" => catalog["doublePinyinSchemas"][double].as_str().unwrap(),
-        "wubi" => catalog["wubiSchemas"][wubi].as_str().unwrap(),
+        "doublePinyin" => double_pinyin_schema_id(double),
+        "wubi" => wubi_schema_id(wubi),
         _ => "rime_ice",
     };
     json!({"inputMethod":input,"wubiScheme":wubi,"doublePinyin":double,"candidateMode":candidate,"pageSize":page,"preferredSchemaID":preferred})

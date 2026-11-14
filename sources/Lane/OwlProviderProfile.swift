@@ -377,7 +377,7 @@ enum OwlProviderConnectivityCheck {
   /// do not carry that old field because their compatibility references do not list it as an
   /// accepted request field.
   ///
-  /// 一并合上 `OwlThinkingControl.offBody`：混合思考模型默认开着思考时，会在回第一个字前先烧几百
+  /// 一并合上 `OwlThinkingControl.offFields`：混合思考模型默认开着思考时，会在回第一个字前先烧几百
   /// 上千推理 token（同 任意提问 那条路的理由），验证个连通性没必要等那么久。Responses 方言的
   /// 关思考（qwen `reasoning.effort:none`、方舟 `thinking.type:disabled`）由
   /// `OwlResponsesWire.body` 统一带上。

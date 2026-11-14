@@ -439,28 +439,13 @@ pub fn dispatch<H: Host>(h: &mut H, op: &str, a: Value) -> Result<Value> {
         "resolvedWorkspace" => Ok(prepare_workspace(h, s(&a, "input"))
             .map(|v| json!(endpoint(&v)))
             .unwrap_or(Value::Null)),
-        "load" => Ok(read_file(h).unwrap_or(json!({"schemaVersion":1,"profiles":[]}))),
         "profiles" => Ok(json!(sorted(load(h)))),
-        "readable" => Ok(json!(read(h).ok().map(sorted))),
         "defaultProfile" => Ok(load(h)
             .into_iter()
             .find(|p| p["isDefault"] == true)
             .filter(|p| known(&inferred(p)))
             .unwrap_or(Value::Null)),
-        "profile" => Ok(load(h)
-            .into_iter()
-            .find(|p| p["id"] == a["id"])
-            .unwrap_or(Value::Null)),
-        "add" | "update" | "batch" | "delete" | "default" => Ok(json!(mutate(h, op, &a)?)),
         "workspace" => Ok(json!(workspace(h, s(&a, "input")))),
-        "prepareWorkspace" => Ok(json!(prepare_workspace(h, s(&a, "input")))),
-        "replacement" => Ok(json!(replacement(
-            h,
-            &a["profile"],
-            s(&a, "endpoint"),
-            a["keyEmpty"] == true
-        ))),
-        "vendor" => Ok(json!(vendor(h, s(&a, "providerID"), s(&a, "endpoint")))),
         "keyState" => {
             let name = &a["profile"]["secretName"];
             let state = match effect(h, "secret_read", json!({"name":name})) {

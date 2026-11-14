@@ -387,9 +387,9 @@ fn supports_tokens_peek_pinned_words_punctuation_and_caret() {
     assert_eq!(moved_home.caret_position, 0);
     assert_eq!(moved_home.preedit_caret_byte, 0);
 
-    let set_caret = call_action(session, r#"{"op":"set_caret","pos":5}"#);
-    assert_eq!(set_caret.caret_position, 5);
-    assert_eq!(set_caret.preedit_caret_byte, 6);
+    let moved_end = call_action(session, r#"{"op":"move_caret","target":"end"}"#);
+    assert_eq!(moved_end.caret_position, 5);
+    assert_eq!(moved_end.preedit_caret_byte, 6);
 
     // Stale generation token must be rejected without committing
     let stale_gen = snap.generation + 999;

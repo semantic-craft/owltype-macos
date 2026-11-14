@@ -171,7 +171,7 @@ final class OwlInputHabitsTests: XCTestCase {
                       text: String = "施行", selStart: Int = 0, caret: Int? = nil) -> OwlPinnedWord? {
     let composition = EngineComposition(preedit: preedit, selStart: selStart, selEnd: preedit.utf8.count,
       cursorPos: preedit.utf8.count, commitTextPreview: text, candidates: [EngineCandidate(text: text, comment: nil)],
-      labels: ["1"], pageNo: 0, pageSize: 8, isLastPage: false, highlightedIndex: 0, numCandidates: 1)
+      labels: ["1"], pageNo: 0, pageSize: 8, isLastPage: false, highlightedIndex: 0)
     return OwlPinnedWords.target(schema: schema, input: input, composition: composition,
       candidate: text, traditional: false, caret: caret ?? input.utf8.count)
   }

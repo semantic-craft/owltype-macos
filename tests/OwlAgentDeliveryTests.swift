@@ -344,7 +344,7 @@ final class OwlAgentDeliveryTests: XCTestCase {
     let reply = start(params("reentrant", text: "hello"))
     preview.decide?(true)
 
-    XCTAssertEqual(try result(reply()), .init(requestId: "reentrant", status: .delivered(verified: true), replayed: false))
+    try assertResult(reply(), requestId: "reentrant", status: .delivered(verified: true), replayed: false)
     XCTAssertEqual(host.target.writes, ["hello"])
   }
 
@@ -372,7 +372,7 @@ final class OwlAgentDeliveryTests: XCTestCase {
     XCTAssertEqual(preview.shown.count, 1)
     preview.decide?(true)
     XCTAssertEqual(try result(first()).replayed, false)
-    XCTAssertEqual(try result(retry()), .init(requestId: "r1", status: .delivered(verified: true), replayed: true))
+    try assertResult(retry(), requestId: "r1", status: .delivered(verified: true), replayed: true)
     XCTAssertEqual(host.target.writes.count, 1)
   }
 

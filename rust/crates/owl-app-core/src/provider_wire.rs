@@ -232,6 +232,14 @@ fn refusal_message(kind: &str) -> &'static str {
         _ => "云端 AI 请求失败",
     }
 }
+pub(crate) fn effective_temperature(model: &str, value: Value) -> Value {
+    if model.to_lowercase() == "gemini-3.8-flash" {
+        Value::Null
+    } else {
+        value
+    }
+}
+
 pub fn rule(op: &str, a: Value) -> Value {
     match op {
         "curatedModels" => {
@@ -374,13 +382,6 @@ pub fn rule(op: &str, a: Value) -> Value {
         }
         "secretName" => json!(crate::provider_store::secret_name(s(&a, "id"))),
         "isHTTPS" => json!(s(&a, "scheme").to_lowercase() == "https"),
-        "vendorKey" => json!(
-            if s(&a, "providerID").is_empty() || s(&a, "providerID") == "custom" {
-                format!("host:{}", s(&a, "host"))
-            } else {
-                format!("id:{}", s(&a, "providerID"))
-            }
-        ),
         "numberedRewrite" => {
             let text = trim(s(&a, "text"));
             let root: Value = serde_json::from_str(text).unwrap_or(Value::Null);
@@ -429,7 +430,6 @@ pub fn rule(op: &str, a: Value) -> Value {
             json!(out)
         }
         "searchPath" => json!("/v1/tools/search"),
-        "jsonMode" => json!(a["hasSplit"] != true),
         "formProvider" => {
             let id = crate::provider_store::inferred(&a["profile"]);
             json!(if crate::provider_store::known(&id) {
@@ -439,17 +439,9 @@ pub fn rule(op: &str, a: Value) -> Value {
             })
         }
         "trim" => json!(trim(s(&a, "text"))),
-        "known" => json!(crate::provider_store::known(s(&a, "id"))),
         "inferred" => json!(crate::provider_store::inferred(&a["profile"])),
         "dialect" => json!(dialect(s(&a, "providerID"), s(&a, "model"), s(&a, "host"))),
         "thinking" => thinking(s(&a, "providerID"), s(&a, "model")),
-        "temperature" => {
-            if s(&a, "model").to_lowercase() == "gemini-3.8-flash" {
-                Value::Null
-            } else {
-                a["value"].clone()
-            }
-        }
         "searchChannel" => json!(if s(&a, "providerID").to_lowercase() == "deepseek"
             || s(&a, "host").to_lowercase().contains("deepseek")
         {
@@ -474,13 +466,6 @@ pub fn rule(op: &str, a: Value) -> Value {
                     }
                 )
             })
-        }
-        "responsesParse" => {
-            let bytes: Vec<u8> = serde_json::from_value(a["bytes"].clone()).unwrap_or_default();
-            let root = serde_json::from_slice::<Value>(&bytes)
-                .ok()
-                .filter(Value::is_object);
-            root.as_ref().map(responses).unwrap_or(Value::Null)
         }
         "errorDetail" => {
             let bytes: Vec<u8> = serde_json::from_value(a["bytes"].clone()).unwrap_or_default();

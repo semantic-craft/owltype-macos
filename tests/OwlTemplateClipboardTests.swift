@@ -212,7 +212,8 @@ final class OwlTemplateClipboardTests: XCTestCase {
     picker.select(0)
     let row = try XCTUnwrap(picker.selectedRow)
     let picked = try XCTUnwrap(library.entries.first { $0.id.uuidString == row.id })
-    let candidateText = try XCTUnwrap(OwlTemplateStore.renderCandidateProjection(library).split(separator: "\t").first.map(String.init))
+    let candidateText = try XCTUnwrap(OwlTemplateStore.renderCandidateProjection(library)
+      .split(separator: "\n").first { $0.hasPrefix(OwlTemplateStore.candidatePrefix) }?.split(separator: "\t").first.map(String.init))
     let candidate = try XCTUnwrap(OwlTemplateStore.resolveCandidate(
       code: "vsample", text: candidateText, loadLibrary: { library }))
     for selected in [picked, candidate] {

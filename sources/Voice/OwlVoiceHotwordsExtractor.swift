@@ -8,7 +8,7 @@ import SQLite3
 
 // MARK: - Protocol Definition
 
-public protocol OwlVoiceHotwordsExtracting: Sendable {
+protocol OwlVoiceHotwordsExtracting: Sendable {
   /// Extracts sanitized, deduplicated hotwords ordered by priority (Pinned > Custom > Bigrams), filtered of noise.
   func extractHotwords(limit: Int) -> [String]
 
@@ -16,7 +16,7 @@ public protocol OwlVoiceHotwordsExtracting: Sendable {
   func buildPrompt(preContext: String?, hotwords: [String]?, maxBytes: Int) -> String
 }
 
-public extension OwlVoiceHotwordsExtracting {
+extension OwlVoiceHotwordsExtracting {
   func buildPrompt(preContext: String?, hotwords: [String]? = nil, maxBytes: Int = 800) -> String {
     buildPrompt(preContext: preContext, hotwords: hotwords, maxBytes: maxBytes)
   }

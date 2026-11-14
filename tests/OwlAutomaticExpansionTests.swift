@@ -534,7 +534,7 @@ final class OwlAutomaticExpansionTests: XCTestCase {
           deliver: { delivered.append($0.text); return .confirmed }, trailingText: step.trailingText,
           captureContext: { _ in XCTFail("Plain text must not read context"); return .init() })
         let expected = body + (mode == .delimiterKeep ? delimiter : "")
-        XCTAssertEqual(Array(invocation.preview(values: [:]).text.utf8), Array(expected.utf8))
+        XCTAssertEqual(Array(invocation.evaluate(values: [:]).previewText.utf8), Array(expected.utf8))
         invocation.start { _ in XCTFail("Plain text needs no input sheet") }
         XCTAssertFalse(invocation.confirm(values: [:]))
         XCTAssertEqual(delivered, [expected])

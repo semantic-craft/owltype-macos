@@ -1,5 +1,4 @@
 {
-  "packageId": "owltype-dictpack",
   "packageVersion": 5,
   "configurationVersion": "msime-macos-v0.59.1-native-input-v1",
   "wubiDictionaryDigest": "sha256:2e1ff8eaaa4a6dee7fc0947c17c4bf58f5bf5fc5c8a2f87c2ed7ccbf9926b146",
@@ -17,30 +16,6 @@
     "models/settled-model.bin",
     "models/LICENSE-Apache-2.0.txt",
     "models/NOTICE.txt"
-  ],
-  "notices": [
-    "rime-ice.LICENSE",
-    "wubi86-jidian.LICENSE",
-    "rime-kaomoji.LICENSE",
-    "OpenCC.LICENSE",
-    "python-pinyin.LICENSE",
-    "rime-ice-Credits.md",
-    "msime-others-NOTICE.txt",
-    "msime-resources-NOTICE.md",
-    "msime-upstream-licensing-NOTICE.md",
-    "licenses/LGPL-3.0-only.txt",
-    "licenses/rime-wanxiang-CC-BY-4.0.txt",
-    "licenses/msime-latex-symbols-MIT.txt",
-    "licenses/CC-BY-3.0.txt",
-    "licenses/chinese-ime-lm.LICENSE",
-    "licenses/Unicode-3.0.txt",
-    "licenses/MIT.txt",
-    "licenses/GPL-3.0-only.txt",
-    "licenses/CC-BY-SA-4.0.txt",
-    "licenses/BSD-3-Clause.txt",
-    "licenses/Apache-2.0.txt",
-    "licenses/Unlicense.txt",
-    "licenses/Administrative-divisions-of-China-WTFPL.txt"
   ],
   "models": [
     {

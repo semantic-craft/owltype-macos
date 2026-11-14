@@ -1,6 +1,5 @@
 #![allow(unsafe_code)]
 
-use std::collections::BTreeMap;
 use std::ffi::{c_char, CStr, CString};
 use std::fs;
 use std::panic::{catch_unwind, AssertUnwindSafe};
@@ -64,20 +63,6 @@ impl OwlMsimeConfig {
 
     fn has_map(&self, path: &str) -> bool {
         matches!(self.node(path), Some(Yaml::Hash(_)))
-    }
-
-    fn app_options_json(&self, bundle_id: &str) -> String {
-        let path = format!("app_options/{bundle_id}");
-        let mut options = BTreeMap::new();
-        if let Some(Yaml::Hash(values)) = self.node(&path) {
-            for (key, value) in values {
-                let (Yaml::String(key), Yaml::Boolean(value)) = (key, value) else {
-                    continue;
-                };
-                options.insert(key.clone(), *value);
-            }
-        }
-        serde_json::to_string(&options).expect("serializing a string-to-bool map cannot fail")
     }
 }
 
@@ -361,23 +346,6 @@ pub extern "C" fn owl_msime_config_has_map(
     .unwrap_or(false)
 }
 
-#[no_mangle]
-pub extern "C" fn owl_msime_config_app_options_json(
-    config: *const OwlMsimeConfig,
-    bundle_id: *const c_char,
-) -> *mut c_char {
-    catch_unwind(AssertUnwindSafe(|| {
-        let Some(config) = (unsafe { config.as_ref() }) else {
-            return ptr::null_mut();
-        };
-        let Some(bundle_id) = cstr_to_string(bundle_id) else {
-            return ptr::null_mut();
-        };
-        CString::new(config.app_options_json(&bundle_id)).map_or(ptr::null_mut(), CString::into_raw)
-    }))
-    .unwrap_or(ptr::null_mut())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -426,9 +394,6 @@ patch:
         );
         assert_eq!(config.get_bool("style/inline_preedit"), Some(true));
         assert_eq!(config.get_bool("style/inline_candidate"), Some(false));
-        let options: BTreeMap<String, bool> =
-            serde_json::from_str(&config.app_options_json("com.example.App")).unwrap();
-        assert_eq!(options.get("ascii_mode"), Some(&true));
     }
 
     #[test]

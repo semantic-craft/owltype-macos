@@ -547,7 +547,6 @@ final class OwlStreamingChatClientTests: XCTestCase {
 /// from the `@MainActor` tests (the stream is never consumed), so plain mutable state is enough.
 private final class RecordingChatClient: OwlChatStreaming, @unchecked Sendable {
   private(set) var callCount = 0
-  private(set) var lastMessages: [OwlDeepSeekMessage]?
 
   func stream(
     messages: [OwlDeepSeekMessage],
@@ -555,7 +554,6 @@ private final class RecordingChatClient: OwlChatStreaming, @unchecked Sendable {
     apiKey: String
   ) -> AsyncThrowingStream<String, Error> {
     callCount += 1
-    lastMessages = messages
     return AsyncThrowingStream { $0.finish() }
   }
 }

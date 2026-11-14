@@ -185,16 +185,16 @@ final class ProviderProfileStoreTests: XCTestCase {
       model: "old-model", providerID: OwlLLMProviderCatalog.customID, isDefault: true), in: store)
     let oldKey = UUID().uuidString
     let newKey = UUID().uuidString
-    try secrets.setSecret(oldKey, named: profile.secretName)
+    try secrets.setSecret(oldKey, named: seeded.secretName)
     let endpoint = "https://new.example.com/v1/chat/completions"
     let result = Actions.updateProviderProfile(
-      profile, endpoint: endpoint, model: "new-model", apiKey: newKey,
+      seeded, endpoint: endpoint, model: "new-model", apiKey: newKey,
       store: store, secrets: secrets)
     XCTAssertTrue(result.status.hasPrefix("已保存"))
     let saved = try XCTUnwrap(makeStore().defaultProfile)
     XCTAssertEqual(saved.endpoint.absoluteString, endpoint)
     XCTAssertTrue(try secrets.secret(named: saved.secretName) == newKey)
-    XCTAssertTrue(try secrets.secret(named: profile.secretName) == oldKey)
+    XCTAssertTrue(try secrets.secret(named: seeded.secretName) == oldKey)
     try assertNoOldKeyAtNewEndpoint(secrets: secrets, oldKey: oldKey, newEndpoint: endpoint)
   }
 

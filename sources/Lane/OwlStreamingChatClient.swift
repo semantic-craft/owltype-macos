@@ -205,7 +205,7 @@ struct OwlStreamingChatClient: OwlChatStreaming {
   /// Build the streaming POST. `routing.endpoint` / `routing.model` come from the active provider
   /// profile (or the legacy globals when none). No `response_format`.
   ///
-  /// `OwlProviderCapabilities.thinkingOffBody` — 强制关思考, applied to EVERY 任意提问 request (plain or 联网) —
+  /// `OwlThinkingControl.offFields` — 强制关思考, applied to EVERY 任意提问 request (plain or 联网) —
   /// is merged onto the encoded request. This is the choke point for the whole ask lane: the
   /// providers' own field names differ, so the dialect lives in one place instead of at each call
   /// site. A provider with no known thinking switch still gets a byte-identical plain-chat body.

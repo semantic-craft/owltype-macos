@@ -117,8 +117,6 @@ final class OwlSelectionPublishFormatterTests: XCTestCase {
     let mode: Mode
     init(_ mode: Mode) { self.mode = mode }
 
-    func readiness() -> OwlStreamingReadiness { .unconfigured }  // 未被 formatter 调用
-
     func stream(
       messages: [OwlDeepSeekMessage]
     ) -> Result<AsyncThrowingStream<String, Error>, OwlStreamingReadiness> {

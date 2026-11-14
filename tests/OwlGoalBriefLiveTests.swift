@@ -58,9 +58,10 @@ final class OwlGoalBriefLiveTests: XCTestCase {
       toFile: "/tmp/owl-live-goalbrief-\(label).json", atomically: true, encoding: .utf8)
     XCTAssertEqual(status, 200, "方舟返回非 200：\(body.prefix(400))")
 
-    let content = (try? OwlProviderCore.call("completionParse", [
+    let parsed: [String: String?]? = try? OwlProviderCore.call("completionParse", [
       "bytes": Array(data), "responses": true, "status": status, "model": model
-    ]) as [String: String?]?)?["text"] ?? nil ?? ""
+    ])
+    let content = parsed?["text"]?.flatMap { $0 } ?? ""
     try? content.write(
       toFile: "/tmp/owl-live-goalbrief-\(label)-content.txt", atomically: true, encoding: .utf8)
     return content

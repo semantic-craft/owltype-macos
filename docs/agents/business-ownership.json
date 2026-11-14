@@ -507,13 +507,6 @@
       "reason": "Raw profile/preference/key reads and route DTOs; Rust chooses candidate order, model and refusal policy"
     },
     {
-      "path": "sources/Lane/OwlCNKIExpertQueryBuilder.swift",
-      "role": "adapter",
-      "target": "Swift",
-      "issue": null,
-      "reason": "DTO adapter to Rust CNKI query rules"
-    },
-    {
       "path": "sources/Lane/OwlDeepSeekSearch.swift",
       "role": "adapter",
       "target": "Swift",

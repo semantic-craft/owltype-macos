@@ -106,8 +106,6 @@ extension OwlAppCore {
     let switches: [KeyboardSwitch]
     let fuzzy: [FuzzySwitch]
     let schemas: [SchemaConfiguration]
-    let doublePinyinSchemas: [String: String]
-    let wubiSchemas: [String: String]
   }
   static let keyboardCatalog: KeyboardCatalog = required(["operation": "keyboard_catalog"])
 

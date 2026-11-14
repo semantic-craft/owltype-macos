@@ -80,20 +80,6 @@ final class OwlDoubaoSearchWireTests: XCTestCase {
       OwlDoubaoSearchKeyStore.apiKey(secrets: secrets), "sk-search",
       "沿用旧独立搜索层的 account，存过 Key 的用户不用重填")
   }
-
-  func testSettingsActionsSaveTrimmedKeyAndClearIt() {
-    let secrets = OwlInMemorySecretStore()
-    let blank = OwlSettingsActions.saveDoubaoSearchKey("   ", secrets: secrets)
-    XCTAssertEqual(blank.status, "请输入豆包搜索的 API Key")
-    XCTAssertFalse(OwlDoubaoSearchKeyStore.isConfigured(secrets: secrets))
-
-    let saved = OwlSettingsActions.saveDoubaoSearchKey(" sk-search \n", secrets: secrets)
-    XCTAssertEqual(saved.input, "", "保存后清空输入框，Key 不留在界面上")
-    XCTAssertEqual(OwlDoubaoSearchKeyStore.apiKey(secrets: secrets), "sk-search")
-
-    _ = OwlSettingsActions.clearDoubaoSearchKey(secrets: secrets)
-    XCTAssertFalse(OwlDoubaoSearchKeyStore.isConfigured(secrets: secrets))
-  }
 }
 
 @MainActor

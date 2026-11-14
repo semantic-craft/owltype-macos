@@ -855,7 +855,6 @@ pub enum DeliveryAction {
         invocation_id: u64,
         target_id: u64,
         text: String,
-        target_pid: i32,
     },
     FinishInvocation {
         invocation_id: u64,
@@ -1137,7 +1136,6 @@ impl DeliveryCoordinatorCore {
                     invocation_id,
                     target_id: target.target_id,
                     text: pending.text.clone(),
-                    target_pid: target.process_id,
                 });
                 self.pending = Some(pending);
             }
@@ -1579,37 +1577,7 @@ pub fn rule(rule: &str, args: Value) -> Result<Value, String> {
             }
         }
 
-        "delivery_status_from_outcome" => {
-            let outcome = args["outcome"].as_str().unwrap_or("");
-            let target_quit = args["target_quit"].as_bool().unwrap_or(false);
-            let status = map_outcome_code(outcome, target_quit);
-
-            let status_json = match status {
-                DeliverStatus::Delivered { verified } => json!({
-                    "name": "delivered",
-                    "verified": verified,
-                    "reason": Value::Null
-                }),
-                DeliverStatus::Cancelled => json!({
-                    "name": "cancelled",
-                    "verified": Value::Null,
-                    "reason": Value::Null
-                }),
-                DeliverStatus::TargetChanged { reason } => json!({
-                    "name": "target_changed",
-                    "verified": Value::Null,
-                    "reason": reason
-                }),
-                DeliverStatus::Expired => json!({
-                    "name": "expired",
-                    "verified": Value::Null,
-                    "reason": Value::Null
-                }),
-            };
-            Ok(status_json)
-        }
-
-        "agent_call_log_append" | "call_log_append" => {
+        "agent_call_log_append" => {
             let limit = args["limit"].as_u64().unwrap_or(CALL_LOG_LIMIT as u64) as usize;
             let mut core = CallLogCore::new(limit);
             if let Some(records_val) = args.get("records").and_then(|v| v.as_array()) {
@@ -1642,18 +1610,6 @@ pub fn rule(rule: &str, args: Value) -> Result<Value, String> {
             Ok(json!({
                 "records": core.records,
                 "entry": entry,
-            }))
-        }
-
-        "delivery_constants" => {
-            Ok(json!({
-                "outcome_lifetime": OUTCOME_LIFETIME_SECS as f64,
-                "stored_outcome_limit": STORED_OUTCOME_LIMIT,
-                "bind_polls": BIND_POLLS,
-                "bind_poll_interval": BIND_POLL_INTERVAL_SECS,
-                "slow_bind_poll_interval": SLOW_BIND_POLL_INTERVAL_SECS,
-                "leave_settle": LEAVE_SETTLE_SECS,
-                "default_timeout_ms": DEFAULT_DELIVER_TIMEOUT_MS,
             }))
         }
 
@@ -2041,7 +1997,6 @@ mod tests {
             invocation_id: 1,
             target_id: 11,
             text: "Text to write".to_string(),
-            target_pid: 20,
         }));
 
         let complete_actions = coord.handle_event(
@@ -2428,7 +2383,6 @@ mod tests {
             invocation_id: 2,
             target_id: 20,
             text: "Second".to_string(),
-            target_pid: 20,
         }));
 
         assert!(coord
@@ -2539,11 +2493,6 @@ mod tests {
         // outcome_title
         let title = rule("outcome_title", json!({"outcome": "delivered"})).unwrap();
         assert_eq!(title["title"], "已写入");
-
-        // delivery_constants
-        let consts = rule("delivery_constants", json!({})).unwrap();
-        assert_eq!(consts["outcome_lifetime"], 600.0);
-        assert_eq!(consts["stored_outcome_limit"], 256);
 
         // check_access
         let acc_ok = rule("check_access", json!({"enabled": true})).unwrap();

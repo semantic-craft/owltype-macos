@@ -69,16 +69,8 @@ final class OwlGetAppOptionsRoundTripTests: XCTestCase {
     return config
   }
 
-  func testUserAddedAppOptionReadsBackFromOwltypeDomain() {
-    XCTAssertEqual(openConfig().getAppOptions(Self.testBundleID), ["ascii_mode": true])
-  }
-
   func testFactoryPresetAndStylePatchReadBackTogether() {
     let config = openConfig()
-    XCTAssertEqual(
-      config.getAppOptions("com.apple.Terminal"),
-      ["ascii_mode": true, "no_inline": true]
-    )
     XCTAssertTrue(config.has(section: "style"))
     XCTAssertEqual(config.getString("style/candidate_list_layout"), "stacked")
     XCTAssertEqual(config.getBool("style/inline_preedit"), false)

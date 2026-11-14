@@ -312,34 +312,6 @@ impl OwlMsimeSession {
                     Err(err) => error_response(err.to_string()),
                 }
             }
-            "set_caret" => {
-                let Some(pos) = payload.pos else {
-                    return error_response("set_caret requires pos");
-                };
-                let before = self.runtime.view();
-                let clamped = pos.min(before.editing_text.len());
-                self.sync_pinned_state_for_upcoming_input(
-                    before.editing_text.clone(),
-                    before.phrase_prefix.is_empty() && clamped == before.editing_text.len(),
-                );
-                if clamped == before.editing_text.len() {
-                    return match self.runtime.dispatch(Action::Command(Command::MoveEnd)) {
-                        Ok(transition) => {
-                            self.sync_pinned_state_from_view(&transition.view);
-                            self.build_snapshot(transition.view, true, transition.commit, false)
-                        }
-                        Err(err) => error_response(err.to_string()),
-                    };
-                }
-                match self.runtime.set_caret(Some(clamped)) {
-                    Ok(()) => {
-                        let view = self.runtime.view();
-                        self.sync_pinned_state_from_view(&view);
-                        self.build_snapshot(view, true, None, false)
-                    }
-                    Err(err) => error_response(err.to_string()),
-                }
-            }
             "commit_raw" => {
                 if self.punctuation_menu.is_some() {
                     let index = self

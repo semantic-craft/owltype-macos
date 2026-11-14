@@ -174,23 +174,6 @@ pub fn emoji_search(query: &str) -> Vec<Glyph> {
         .collect()
 }
 
-pub fn recents_seed() -> Vec<String> {
-    vec![
-        "😂".into(),
-        "❤️".into(),
-        "👍".into(),
-        "《》".into(),
-        "「」".into(),
-        "§".into(),
-        "—".into(),
-        "→".into(),
-        "🎉".into(),
-        "✓".into(),
-        "°".into(),
-        "…".into(),
-    ]
-}
-
 pub fn recents_push(recents: &[String], item: &str, cap: usize) -> Vec<String> {
     let mut list: Vec<String> = recents.iter().filter(|&x| x != item).cloned().collect();
     list.insert(0, item.to_string());
@@ -213,10 +196,10 @@ mod tests {
 
     #[test]
     fn test_recents_push() {
-        let seed = recents_seed();
+        let seed = vec!["😂".into(), "❤️".into(), "👍".into(), "《》".into(), "「」".into()];
         let updated = recents_push(&seed, "🔥", 14);
         assert_eq!(updated[0], "🔥");
-        assert_eq!(updated.len(), 13);
+        assert_eq!(updated.len(), 6);
 
         let capped = recents_push(&updated, "⭐", 5);
         assert_eq!(capped.len(), 5);

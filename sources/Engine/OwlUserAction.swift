@@ -52,7 +52,7 @@ struct OwlKeyEvent: Equatable {
     default: type = .other
     }
     self.type = type
-    self.keyCode = event.keyCode
+    self.keyCode = type == .other ? 0 : event.keyCode
     // NSEvent.characters / charactersIgnoringModifiers raise NSInternalInconsistencyException for
     // non-key events (a modifier press is a flagsChanged, not keyDown). Reading them eagerly here
     // threw for EVERY modifier event → IMK swallowed the exception → handle() aborted before the

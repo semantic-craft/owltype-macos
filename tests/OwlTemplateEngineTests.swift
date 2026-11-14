@@ -193,7 +193,8 @@ final class OwlTemplateEngineTests: XCTestCase {
     template.candidateAliases = ["vmail"]
     template.invocationMode = .candidate
     let library = OwlTemplateLibrary(entries: [template])
-    let candidateText = try XCTUnwrap(OwlTemplateStore.renderCandidateProjection(library).split(separator: "\t").first.map(String.init))
+    let candidateText = try XCTUnwrap(OwlTemplateStore.renderCandidateProjection(library)
+      .split(separator: "\n").first { $0.hasPrefix(OwlTemplateStore.candidatePrefix) }?.split(separator: "\t").first.map(String.init))
     for code in ["mail", "vmail"] {
       let resolved = OwlTemplateStore.resolveCandidate(code: code, text: candidateText, loadLibrary: { library })
       XCTAssertEqual(resolved, template)

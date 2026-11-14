@@ -286,7 +286,6 @@ pub fn preview<H: Host>(host: &mut H, bytes: &[u8]) -> Result<Preview> {
 }
 pub fn dispatch<H: Host>(host: &mut H, operation: &str, args: Value) -> Result<Value> {
     match operation {
-        "import_fingerprint" => Ok(json!(fingerprint(&decode(args["source"].clone())?))),
         "import_preview" => {
             let bytes: Vec<u8> = decode(args["bytes"].clone())?;
             Ok(json!(preview(host, &bytes)?))
@@ -294,10 +293,6 @@ pub fn dispatch<H: Host>(host: &mut H, operation: &str, args: Value) -> Result<V
         "import_assessment" => {
             let p: Preview = decode(args["preview"].clone())?;
             Ok(json!(p.assessment()))
-        }
-        "import_library" => {
-            let p: Preview = decode(args["preview"].clone())?;
-            Ok(json!(p.library(&p.assessment())))
         }
         "import_message" => {
             let p: Preview = decode(args["preview"].clone())?;
