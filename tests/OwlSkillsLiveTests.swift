@@ -120,7 +120,7 @@ final class OwlSkillsLiveTests: XCTestCase {
     try synthesizer.run()
     synthesizer.waitUntilExit()
     XCTAssertEqual(synthesizer.terminationStatus, 0)
-    let client = OwlVoiceGrokASRClient(providerID: "deepseek", apiKeyProvider: { key })
+    let client = OwlVoiceASRClient(providerID: "deepseek", apiKeyProvider: { key })
     let transcript = try await client.transcribe(audioWavData: Data(contentsOf: audio), prompt: nil)
     XCTAssertTrue(transcript.lowercased().contains("sunny"), "Unexpected transcript: \(transcript)")
   }
@@ -1035,7 +1035,7 @@ final class OwlResponsesPromptEvaluationLiveTests: XCTestCase {
     let packedWav = OwlWAVPacker.pack16kMono(pcmData: pcmData)
     XCTAssertGreaterThan(packedWav.count, 32000, "Synthesized 16kHz mono WAV must be > 1s")
 
-    let openAIClient = OwlVoiceGrokASRClient(
+    let openAIClient = OwlVoiceASRClient(
       providerID: OwlVoiceASRCatalog.openai.id,
       endpoint: URL(string: OwlVoiceASRCatalog.openai.endpoint)!,
       model: OwlVoiceASRCatalog.openai.defaultModel,
@@ -1045,7 +1045,7 @@ final class OwlResponsesPromptEvaluationLiveTests: XCTestCase {
     print("KOTONE_LIVE [OpenAI ASR \(OwlVoiceASRCatalog.openai.defaultModel)] -> \(openAITranscript)")
     XCTAssertTrue(openAITranscript.contains("法墨"), "OpenAI gpt-transcribe output: \(openAITranscript)")
 
-    let geminiClient = OwlVoiceGrokASRClient(
+    let geminiClient = OwlVoiceASRClient(
       providerID: OwlVoiceASRCatalog.gemini.id,
       endpoint: URL(string: OwlVoiceASRCatalog.gemini.endpoint)!,
       model: OwlVoiceASRCatalog.gemini.defaultModel,

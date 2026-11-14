@@ -44,6 +44,11 @@ enum AppRequest {
         #[serde(default)]
         args: Value,
     },
+    ProviderRule {
+        rule: String,
+        #[serde(default)]
+        args: Value,
+    },
     TemplateDuplicate {
         entry: Value,
         new_id: Option<String>,
@@ -148,68 +153,6 @@ fn app_error(code: &str) -> Value {
     json!({"ok": false, "error": code})
 }
 
-struct StatelessHost;
-impl owl_app_core::storage::Host for StatelessHost {
-    fn effect(&mut self, value: Value) -> Result<Value, String> {
-        let op = value["operation"].as_str().unwrap_or("");
-        match op {
-            "uuid" => {
-                use std::time::{SystemTime, UNIX_EPOCH};
-                let d = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .map(|d| d.as_nanos())
-                    .unwrap_or(0);
-                Ok(json!(format!(
-                    "{:08X}-{:04X}-4000-8000-{:012X}",
-                    (d & 0xFFFFFFFF) as u32,
-                    ((d >> 32) & 0xFFFF) as u16,
-                    (d >> 48) as u64 & 0xFFFFFFFFFFFF
-                )))
-            }
-            "case_contains" => {
-                let values = value["args"]["values"].as_array();
-                let target = value["args"]["value"].as_str().unwrap_or("");
-                let found = values.is_some_and(|arr| {
-                    arr.iter()
-                        .any(|v| v.as_str().unwrap_or("").eq_ignore_ascii_case(target))
-                });
-                Ok(json!(found))
-            }
-            "localized_contains" => {
-                let text = value["args"]["text"].as_str().unwrap_or("").to_lowercase();
-                let query = value["args"]["query"].as_str().unwrap_or("").to_lowercase();
-                Ok(json!(text.contains(&query)))
-            }
-            "title_ranks" => {
-                let titles = value["args"]["titles"].as_array();
-                if let Some(titles) = titles {
-                    let mut order: Vec<usize> = (0..titles.len()).collect();
-                    order.sort_by(|&a, &b| {
-                        let sa = titles[a].as_str().unwrap_or("");
-                        let sb = titles[b].as_str().unwrap_or("");
-                        sa.cmp(sb)
-                    });
-                    let mut ranks = vec![0; titles.len()];
-                    let mut rank = 0;
-                    for (pos, &idx) in order.iter().enumerate() {
-                        if pos > 0 {
-                            let prev_idx = order[pos - 1];
-                            if titles[prev_idx].as_str() != titles[idx].as_str() {
-                                rank += 1;
-                            }
-                        }
-                        ranks[idx] = rank;
-                    }
-                    Ok(json!(ranks))
-                } else {
-                    Ok(json!([]))
-                }
-            }
-            _ => Err("stateless_host_unsupported_effect".into()),
-        }
-    }
-}
-
 fn app_dispatch(bytes: &[u8]) -> Value {
     let request: AppRequest = match serde_json::from_slice(bytes) {
         Ok(request) => request,
@@ -253,6 +196,7 @@ fn app_dispatch(bytes: &[u8]) -> Value {
                 Err(code) => return app_error(&code),
             }
         }
+        AppRequest::ProviderRule { rule, args } => owl_app_core::provider_wire::rule(&rule, args),
         AppRequest::TemplateDuplicate { entry, new_id } => {
             let e = match owl_app_core::storage::decode::<owl_app_core::template_library::Entry>(
                 entry,
@@ -260,19 +204,7 @@ fn app_dispatch(bytes: &[u8]) -> Value {
                 Ok(e) => e,
                 Err(code) => return app_error(&code),
             };
-            let id = new_id.unwrap_or_else(|| {
-                use std::time::{SystemTime, UNIX_EPOCH};
-                let d = SystemTime::now()
-                    .duration_since(UNIX_EPOCH)
-                    .map(|d| d.as_nanos())
-                    .unwrap_or(0);
-                format!(
-                    "{:08X}-{:04X}-4000-8000-{:012X}",
-                    (d & 0xFFFFFFFF) as u32,
-                    ((d >> 32) & 0xFFFF) as u16,
-                    (d >> 48) as u64 & 0xFFFFFFFFFFFF
-                )
-            });
+            let id = new_id.unwrap_or_else(owl_app_core::storage::next_uuid_v4);
             let copy = e.duplicated(id);
             json!(copy)
         }
@@ -290,20 +222,14 @@ fn app_dispatch(bytes: &[u8]) -> Value {
             }
         }
         AppRequest::TemplateRule { rule, args } => {
-            let mut host = StatelessHost;
-            let result = if rule.starts_with("user_") {
-                owl_app_core::user_data::dispatch(&mut host, &rule, args)
-            } else if rule.starts_with("provider_") {
-                owl_app_core::provider_store::dispatch(&mut host, &rule, args)
-                    .map(|v| json!({"result": v}))
-            } else if rule.starts_with("picker_") {
-                owl_app_core::picker::dispatch(&mut host, &rule, args)
+            let result = if rule.starts_with("picker_") {
+                owl_app_core::picker::dispatch(&rule, args)
             } else if rule.starts_with("editor_") {
-                owl_app_core::template_editor::dispatch(&mut host, &rule, args)
+                owl_app_core::template_editor::dispatch(&rule, args)
             } else if rule.starts_with("import_") {
-                owl_app_core::template_import::dispatch(&mut host, &rule, args)
+                owl_app_core::template_import::dispatch_rule(&rule, args)
             } else {
-                owl_app_core::template_library::dispatch(&mut host, &rule, args)
+                owl_app_core::template_library::dispatch_rule(&rule, args)
             };
             match result {
                 Ok(value) => value,
@@ -457,31 +383,6 @@ pub extern "C" fn owl_app_keyboard_schema_idle_action(
 #[no_mangle]
 pub extern "C" fn owl_app_keyboard_refresh(pending: u8, composing: u8) -> u32 {
     owl_app_core::keyboard::refresh_decision(pending != 0, composing != 0)
-}
-
-#[no_mangle]
-pub unsafe extern "C" fn owl_app_marked_text_should_send(
-    prev_ptr: *const c_char,
-    prev_len: usize,
-    next_ptr: *const c_char,
-    next_len: usize,
-) -> bool {
-    if prev_len == 0 && next_len == 0 {
-        return false;
-    }
-    let prev_str = if prev_ptr.is_null() || prev_len == 0 {
-        ""
-    } else {
-        std::str::from_utf8(std::slice::from_raw_parts(prev_ptr as *const u8, prev_len))
-            .unwrap_or("")
-    };
-    let next_str = if next_ptr.is_null() || next_len == 0 {
-        ""
-    } else {
-        std::str::from_utf8(std::slice::from_raw_parts(next_ptr as *const u8, next_len))
-            .unwrap_or("")
-    };
-    owl_app_core::pure_rules::marked_text_resend::should_resend_marked_text(prev_str, next_str)
 }
 
 #[no_mangle]
@@ -823,5 +724,176 @@ mod app_ffi_tests {
         let loaded = call(1, &serde_json::to_vec(&load_req).unwrap());
         assert_eq!(loaded["ok"], true);
         assert_eq!(loaded["value"]["entries"][0]["title"], "测试");
+    }
+
+    fn entry_json(id: &str, title: &str, tags: &[&str]) -> Value {
+        json!({
+            "id": id,
+            "title": title,
+            "body": "正文",
+            "bodyType": "plainText",
+            "syntax": "standard",
+            "trigger": null,
+            "candidateAliases": [],
+            "invocationMode": "searchOnly",
+            "expansionMode": "delimiterDrop",
+            "tags": tags,
+            "isPinned": false,
+            "category": "general",
+            "parameters": []
+        })
+    }
+
+    #[test]
+    fn template_rule_uses_canonical_unicode_collation_and_containment() {
+        let entries = json!([
+            entry_json("11111111-1111-4111-8111-111111111111", "b", &["b", "cafe\u{0301}"]),
+            entry_json("22222222-2222-4222-8222-222222222222", "A", &["A"]),
+            entry_json("44444444-4444-4444-8444-444444444444", "a\u{0301}", &["a\u{0301}"]),
+            entry_json("33333333-3333-4333-8333-333333333333", "\u{00e1}", &["\u{00e1}", "cafe"]),
+        ]);
+
+        let sorted = call(
+            1,
+            &serde_json::to_vec(&json!({
+                "operation": "template_rule",
+                "rule": "library_sorted",
+                "args": {"entries": entries}
+            }))
+            .unwrap(),
+        );
+        assert_eq!(sorted["ok"], true);
+        let sorted_titles: Vec<&str> = sorted["value"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|e| e["title"].as_str().unwrap())
+            .collect();
+        assert_eq!(sorted_titles, vec!["A", "b", "\u{00e1}", "a\u{0301}"]);
+
+        let tag_filtered = call(
+            1,
+            &serde_json::to_vec(&json!({
+                "operation": "template_rule",
+                "rule": "library_filtered",
+                "args": {"entries": entries, "query": "", "tag": "CAF\u{00c9}", "promptOnly": false}
+            }))
+            .unwrap(),
+        );
+        assert_eq!(tag_filtered["ok"], true);
+        let tag_titles: Vec<&str> = tag_filtered["value"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|e| e["title"].as_str().unwrap())
+            .collect();
+        assert_eq!(tag_titles, vec!["b"]);
+
+        let query_filtered = call(
+            1,
+            &serde_json::to_vec(&json!({
+                "operation": "template_rule",
+                "rule": "library_filtered",
+                "args": {
+                    "entries": [
+                        entry_json("55555555-5555-4555-8555-555555555555", "A\u{0301}lpha", &[]),
+                        entry_json("66666666-6666-4666-8666-666666666666", "Beta", &[])
+                    ],
+                    "query": "\u{00e1}lp",
+                    "tag": null,
+                    "promptOnly": false
+                }
+            }))
+            .unwrap(),
+        );
+        assert_eq!(query_filtered["ok"], true);
+        assert_eq!(query_filtered["value"].as_array().unwrap().len(), 1);
+        assert_eq!(query_filtered["value"][0]["title"], "A\u{0301}lpha");
+
+        let tags = call(
+            1,
+            &serde_json::to_vec(&json!({
+                "operation": "template_rule",
+                "rule": "library_tags",
+                "args": {
+                    "entries": [
+                        entry_json("11111111-1111-4111-8111-111111111111", "1", &["b", "A"]),
+                        entry_json("22222222-2222-4222-8222-222222222222", "2", &["a\u{0301}", "\u{00e1}"])
+                    ]
+                }
+            }))
+            .unwrap(),
+        );
+        assert_eq!(tags["ok"], true);
+        assert_eq!(tags["value"], json!(["A", "b", "a\u{0301}"]));
+    }
+
+    #[test]
+    fn template_duplicate_generates_distinct_rfc4122_v4_uuids() {
+        let entry = entry_json("abcdefab-cdef-4abc-8def-abcdefabcdef", "模板", &[]);
+        let req = serde_json::to_vec(&json!({
+            "operation": "template_duplicate",
+            "entry": entry
+        }))
+        .unwrap();
+        let first = call(1, &req);
+        let second = call(1, &req);
+        let id1 = first["value"]["id"].as_str().unwrap();
+        let id2 = second["value"]["id"].as_str().unwrap();
+        assert_ne!(id1, id2);
+        for id in [id1, id2] {
+            assert!(owl_app_core::template_library::valid_id(id), "{id}");
+            assert_eq!(id.as_bytes()[14], b'4', "{id}");
+            assert!(
+                matches!(id.as_bytes()[19], b'8' | b'9' | b'A' | b'B'),
+                "{id}"
+            );
+        }
+    }
+
+    #[test]
+    fn provider_rule_evaluates_wire_and_workspace_rules_via_ffi() {
+        let host = "ws-abc123.cn-beijing.maas.aliyuncs.com";
+        let endpoint = "https://ws-abc123.cn-beijing.maas.aliyuncs.com/compatible-mode/v1/responses";
+        let default_endpoint = "https://dashscope.aliyuncs.com/compatible-mode/v1/responses";
+
+        let call_rule = |rule: &str, args: Value| {
+            call(
+                1,
+                &serde_json::to_vec(&json!({
+                    "operation": "provider_rule",
+                    "rule": rule,
+                    "args": args,
+                }))
+                .unwrap(),
+            )
+        };
+
+        let accepted = call_rule("httpAccepted", json!({"status": 200}));
+        assert_eq!(accepted["ok"], true);
+        assert_eq!(accepted["value"], json!(true));
+
+        let rejected_http = call_rule("httpAccepted", json!({"status": 401}));
+        assert_eq!(rejected_http["ok"], true);
+        assert_eq!(rejected_http["value"], json!(false));
+
+        let ws = call_rule("workspace", json!({"input": "ws-abc123"}));
+        assert_eq!(ws["ok"], true);
+        assert_eq!(ws["value"], json!(host));
+
+        let ws_ep = call_rule("workspaceEndpoint", json!({"input": host}));
+        assert_eq!(ws_ep["ok"], true);
+        assert_eq!(ws_ep["value"], json!(endpoint));
+
+        let resolved_blank = call_rule("resolvedWorkspace", json!({"input": ""}));
+        assert_eq!(resolved_blank["ok"], true);
+        assert_eq!(resolved_blank["value"], json!(default_endpoint));
+
+        let rejected_port = call_rule(
+            "workspaceEndpoint",
+            json!({"input": format!("https://{host}:443/compatible-mode/v1/responses")}),
+        );
+        assert_eq!(rejected_port["ok"], true);
+        assert_eq!(rejected_port["value"], Value::Null);
     }
 }

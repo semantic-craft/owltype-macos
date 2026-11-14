@@ -1,5 +1,6 @@
-//! Shared picker filtering/selection policy; native collation facts preserve Foundation search.
-use crate::storage::*;
+//! Shared picker filtering/selection policy.
+use crate::foundation_text::{localized_contains, trim_spaces};
+use crate::storage::{decode, Result};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 #[derive(Clone, Serialize, Deserialize)]
@@ -15,36 +16,29 @@ pub struct Model {
     pub query: String,
     pub selection: i64,
 }
-fn visible<H: Host>(host: &mut H, m: &Model) -> Result<Vec<Row>> {
-    let query = crate::foundation_text::trim_spaces(&m.query);
+fn visible(m: &Model) -> Vec<Row> {
+    let query = trim_spaces(&m.query);
     if query.is_empty() {
-        return Ok(m.rows.clone());
+        return m.rows.clone();
     }
-    let mut rows = vec![];
-    for row in &m.rows {
-        let found: bool = decode(effect(
-            host,
-            "localized_contains",
-            json!({"text":row.search_text,"query":query}),
-        )?)?;
-        if found {
-            rows.push(row.clone())
-        }
-    }
-    Ok(rows)
+    m.rows
+        .iter()
+        .filter(|row| localized_contains(&row.search_text, query))
+        .cloned()
+        .collect()
 }
-pub fn dispatch<H: Host>(host: &mut H, operation: &str, args: Value) -> Result<Value> {
+pub fn dispatch(operation: &str, args: Value) -> Result<Value> {
     let mut m: Model = decode(args["model"].clone())?;
     if operation == "picker_visible" {
-        return Ok(json!(visible(host, &m)?));
+        return Ok(json!(visible(&m)));
     }
     if operation == "picker_selected" {
-        let rows = visible(host, &m)?;
+        let rows = visible(&m);
         return Ok(json!({"row":usize::try_from(m.selection).ok().and_then(|i|rows.get(i))}));
     }
     if operation == "picker_number" {
         let number = args["number"].as_i64().unwrap_or(0);
-        let rows = visible(host, &m)?;
+        let rows = visible(&m);
         return Ok(
             json!({"row":if (1..=9).contains(&number){rows.get((number-1)as usize)}else{None}}),
         );
@@ -53,7 +47,7 @@ pub fn dispatch<H: Host>(host: &mut H, operation: &str, args: Value) -> Result<V
         Some("query") => m.query = args["query"].as_str().unwrap_or("").into(),
         Some("select") => {
             let index = args["index"].as_i64().unwrap_or(-1);
-            let count = visible(host, &m)?.len() as i64;
+            let count = visible(&m).len() as i64;
             if index >= 0 && index < count {
                 m.selection = index
             }
@@ -66,7 +60,7 @@ pub fn dispatch<H: Host>(host: &mut H, operation: &str, args: Value) -> Result<V
         }
         _ => return Err("unknown_picker_action".into()),
     }
-    let count = visible(host, &m)?.len() as i64;
+    let count = visible(&m).len() as i64;
     m.selection = if count > 0 {
         m.selection.clamp(0, count - 1)
     } else {

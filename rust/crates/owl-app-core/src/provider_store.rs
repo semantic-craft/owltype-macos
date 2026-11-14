@@ -2,7 +2,7 @@
 //! only per-call references and digest facts cross the effect boundary.
 use crate::{
     foundation_text::trim,
-    provider_wire::s,
+    provider_wire::{prepare_workspace, s, workspace_endpoint},
     storage::{self, Host, Result},
 };
 use serde_json::{json, Value};
@@ -280,56 +280,6 @@ fn vendor<H: Host>(h: &mut H, id: &str, url: &str) -> String {
         format!("id:{id}")
     }
 }
-fn workspace<H: Host>(h: &mut H, raw: &str) -> Option<String> {
-    let t = trim(raw).to_lowercase();
-    if t.is_empty() {
-        return None;
-    }
-    let suffix = ".cn-beijing.maas.aliyuncs.com";
-    let host = if t.contains("://") {
-        let f = facts(h, &t);
-        if s(&f, "scheme") != "https"
-            || f["hasUser"] == true
-            || f["hasPassword"] == true
-            || !f["port"].is_null()
-        {
-            return None;
-        }
-        s(&f, "host").to_owned()
-    } else {
-        if t.contains(['/', '@', ':']) {
-            return None;
-        }
-        if t.contains('.') {
-            t
-        } else {
-            t + suffix
-        }
-    };
-    if !host.starts_with("ws-") || !host.ends_with(suffix) {
-        return None;
-    }
-    let id = &host[..host.len() - suffix.len()];
-    (id.len() > 3
-        && id
-            .bytes()
-            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'-'))
-    .then_some(host)
-}
-fn prepare_workspace<H: Host>(h: &mut H, raw: &str) -> Option<String> {
-    if trim(raw).is_empty() {
-        Some(String::new())
-    } else {
-        workspace(h, raw)
-    }
-}
-fn endpoint(host: &str) -> String {
-    if host.is_empty() {
-        "https://dashscope.aliyuncs.com/compatible-mode/v1/responses".into()
-    } else {
-        format!("https://{host}/compatible-mode/v1/responses")
-    }
-}
 fn settle<H: Host>(h: &mut H, staged: &[String], replaced: &[Value], saved: &[Value]) {
     for name in staged {
         let _ = effect(h, "verification_clear", json!({"name":name}));
@@ -429,23 +379,12 @@ fn change<H: Host>(h: &mut H, outcome: &str, profile: Value) -> Value {
 pub fn dispatch<H: Host>(h: &mut H, op: &str, a: Value) -> Result<Value> {
     let op = op.strip_prefix("provider_").unwrap_or(op);
     match op {
-        "rule" => Ok(crate::provider_wire::rule(s(&a, "rule"), a["args"].clone())),
-        "workspaceEndpoint" => Ok(workspace(h, s(&a, "input"))
-            .map(|v| json!(endpoint(&v)))
-            .unwrap_or(Value::Null)),
-        "storedWorkspaceEndpoint" => Ok(json!(endpoint(
-            &workspace(h, s(&a, "input")).unwrap_or_default()
-        ))),
-        "resolvedWorkspace" => Ok(prepare_workspace(h, s(&a, "input"))
-            .map(|v| json!(endpoint(&v)))
-            .unwrap_or(Value::Null)),
         "profiles" => Ok(json!(sorted(load(h)))),
         "defaultProfile" => Ok(load(h)
             .into_iter()
             .find(|p| p["isDefault"] == true)
             .filter(|p| known(&inferred(p)))
             .unwrap_or(Value::Null)),
-        "workspace" => Ok(json!(workspace(h, s(&a, "input")))),
         "keyState" => {
             let name = &a["profile"]["secretName"];
             let state = match effect(h, "secret_read", json!({"name":name})) {
@@ -520,14 +459,14 @@ pub fn dispatch<H: Host>(h: &mut H, op: &str, a: Value) -> Result<Value> {
                 return Ok(change(h, "insecureEndpoint", Value::Null));
             }
             let ws = if s(form, "providerID") == "qwen" && form["qwenWorkspace"].is_string() {
-                match prepare_workspace(h, s(form, "qwenWorkspace")) {
+                match prepare_workspace(s(form, "qwenWorkspace")) {
                     Some(v) => Some(v),
                     None => return Ok(change(h, "invalidWorkspace", Value::Null)),
                 }
             } else {
                 None
             };
-            let id = storage::uuid(h)?;
+            let id = storage::next_uuid_v4();
             let p = json!({"id":id,"displayName":name,"kind":"openai_compatible","endpoint":facts(h,url)["absolute"],"model":trim(s(form,"model")),"providerID":if s(form,"providerID").is_empty(){Value::Null}else{form["providerID"].clone()},"secretName":secret_name(&id),"isDefault":a["makeDefault"],"createdAt":effect(h,"now",json!({}))?});
             let key_empty = a["keyEmpty"] == true;
             let v = vendor(h, s(form, "providerID"), url);
@@ -576,7 +515,7 @@ pub fn dispatch<H: Host>(h: &mut H, op: &str, a: Value) -> Result<Value> {
             }
             let ws = a["qwenWorkspace"]
                 .as_str()
-                .and_then(|raw| prepare_workspace(h, raw));
+                .and_then(prepare_workspace);
             let mut next = current.clone();
             if !known(&inferred(&current)) {
                 next["providerID"] = json!("custom");
@@ -585,7 +524,7 @@ pub fn dispatch<H: Host>(h: &mut H, op: &str, a: Value) -> Result<Value> {
             next["model"] = json!(trim(s(&a, "model")));
             let mut staged = vec![];
             if !empty {
-                next["secretName"] = json!(secret_name(&storage::uuid(h)?));
+                next["secretName"] = json!(secret_name(&storage::next_uuid_v4()));
                 staged.push(s(&next, "secretName").into());
             }
             let replaced = if empty { vec![] } else { vec![current] };
@@ -607,10 +546,10 @@ pub fn dispatch<H: Host>(h: &mut H, op: &str, a: Value) -> Result<Value> {
             }
         }
         "applyWorkspace" => {
-            let Some(ws) = prepare_workspace(h, s(&a, "input")) else {
+            let Some(ws) = prepare_workspace(s(&a, "input")) else {
                 return Ok(change(h, "invalidInput", Value::Null));
             };
-            let url = endpoint(&ws);
+            let url = workspace_endpoint(&ws);
             let Ok(all) = read(h) else {
                 return Ok(change(h, "failed", Value::Null));
             };
@@ -631,7 +570,7 @@ pub fn dispatch<H: Host>(h: &mut H, op: &str, a: Value) -> Result<Value> {
             for mut p in qwen {
                 p["endpoint"] = json!(url);
                 if changing.iter().any(|old| old["id"] == p["id"]) {
-                    p["secretName"] = json!(secret_name(&storage::uuid(h)?));
+                    p["secretName"] = json!(secret_name(&storage::next_uuid_v4()));
                     staging.push(s(&p, "secretName").into());
                 }
                 updated.push(p);

@@ -157,20 +157,6 @@
       "reason": "Native views, presentation state, geometry or explicit system context capture"
     },
     {
-      "path": "sources/Candidates/OwlSnapshotEmitter.swift",
-      "role": "native",
-      "target": "Swift",
-      "issue": null,
-      "reason": "Native views, presentation state, geometry or explicit system context capture"
-    },
-    {
-      "path": "sources/Candidates/OwlSnapshotRegistry.swift",
-      "role": "native",
-      "target": "Swift",
-      "issue": null,
-      "reason": "Native views, presentation state, geometry or explicit system context capture"
-    },
-    {
       "path": "sources/Controller/EngineRuntime.swift",
       "role": "adapter",
       "target": "Swift",
@@ -350,7 +336,7 @@
       "role": "adapter",
       "target": "Swift",
       "issue": null,
-      "reason": "App ABI transport and synchronous raw native filesystem, locking, collation and notification effects; Rust owns transaction ordering and recovery"
+      "reason": "App ABI transport and synchronous raw native filesystem, locking and notification effects; Rust owns transaction ordering and recovery"
     },
     {
       "path": "sources/Engine/OwlClientCapabilityPolicy.swift",
@@ -389,10 +375,10 @@
     },
     {
       "path": "sources/Engine/OwlMarkedTextResendPolicy.swift",
-      "role": "adapter",
+      "role": "native",
       "target": "Swift",
       "issue": null,
-      "reason": "Native IMK setMarkedText resend dispatch adapter; marked text change detection and resend policy are Rust-owned"
+      "reason": "Native IMK setMarkedText empty-to-empty IPC short-circuit"
     },
     {
       "path": "sources/Engine/OwlRustEngine+KeyRouting.swift",
@@ -1151,6 +1137,13 @@
       "reason": "Native AVFoundation microphone permission status query, authorization request, and system settings navigation"
     },
     {
+      "path": "sources/Voice/OwlVoiceASRClient.swift",
+      "role": "native",
+      "target": "Swift",
+      "issue": null,
+      "reason": "Cloud ASR client (OpenAI, DeepSeek file upload, and Gemini generateContent) with multipart form packaging and JSON transcript parsing"
+    },
+    {
       "path": "sources/Voice/OwlVoiceAudioRecorder.swift",
       "role": "native",
       "target": "Swift",
@@ -1165,13 +1158,6 @@
       "reason": "Non-activating floating NSPanel container for voice input HUD"
     },
     {
-      "path": "sources/Voice/OwlVoiceCapsuleState.swift",
-      "role": "native",
-      "target": "Swift",
-      "issue": null,
-      "reason": "Voice capsule HUD state models and state transition representation"
-    },
-    {
       "path": "sources/Voice/OwlVoiceCapsuleView.swift",
       "role": "native",
       "target": "Swift",
@@ -1184,13 +1170,6 @@
       "target": "Swift",
       "issue": null,
       "reason": "Typed error representation for cloud voice transcription, network errors, and auth failures"
-    },
-    {
-      "path": "sources/Voice/OwlVoiceGrokASRClient.swift",
-      "role": "native",
-      "target": "Swift",
-      "issue": null,
-      "reason": "Cloud ASR client (OpenAI, DeepSeek file upload, and Gemini generateContent) with multipart form packaging and JSON transcript parsing"
     },
     {
       "path": "sources/Voice/OwlVoiceHotwordsExtractor.swift",
@@ -1212,13 +1191,6 @@
       "target": "Swift",
       "issue": null,
       "reason": "Voice URLSession transport and redirect refusal at the native network boundary"
-    },
-    {
-      "path": "sources/Voice/OwlVoicePolishServiceProtocol.swift",
-      "role": "native",
-      "target": "Swift",
-      "issue": null,
-      "reason": "Protocol definition for voice transcription LLM post-processing and polishing"
     },
     {
       "path": "sources/Voice/OwlVoiceSettings.swift",

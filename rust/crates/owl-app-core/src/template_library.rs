@@ -1,16 +1,14 @@
 //! The shared template model, validation and indexes. All UI and Agent consumers cross
-//! this module. Foundation supplies comparison facts, never business ordering policy.
-use crate::foundation_text::{is_whitespace_and_newline, trim};
+//! this module; Unicode NFC collation and matching live in `foundation_text`.
+use crate::foundation_text::{
+    case_contains, is_whitespace_and_newline, localized_contains, title_ranks, trim,
+};
+pub use crate::foundation_text::nfc;
 use crate::{storage::*, template};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, BTreeSet};
 pub const FILE: &str = "owl_templates.json";
-pub fn nfc(s: &str) -> String {
-    icu_normalizer::ComposingNormalizer::new_nfc()
-        .normalize(s)
-        .into_owned()
-}
 pub fn valid_id(value: &str) -> bool {
     regex::Regex::new(r"^[a-fA-F0-9]{8}(-[a-fA-F0-9]{4}){3}-[a-fA-F0-9]{12}$")
         .unwrap()
@@ -337,16 +335,9 @@ pub fn encoded(library: &Library) -> Result<Vec<u8>> {
 pub fn same(a: &Library, b: &Library) -> bool {
     serde_json::to_value(a).ok() == serde_json::to_value(b).ok()
 }
-pub fn sorted<H: Host>(host: &mut H, entries: &[Entry]) -> Result<Vec<Entry>> {
-    // Native comparator supplies only title order. Rust applies pin priority and ID ties.
-    let ranks: Vec<usize> = decode(effect(
-        host,
-        "title_ranks",
-        json!({"titles":entries.iter().map(|e|&e.title).collect::<Vec<_>>()}),
-    )?)?;
-    if ranks.len() != entries.len() {
-        return Err("invalid_native_collation".into());
-    }
+pub fn sorted(entries: &[Entry]) -> Vec<Entry> {
+    let titles: Vec<String> = entries.iter().map(|e| e.title.clone()).collect();
+    let ranks = title_ranks(&titles);
     let mut order: Vec<_> = (0..entries.len()).collect();
     order.sort_by_key(|i| {
         (
@@ -355,13 +346,13 @@ pub fn sorted<H: Host>(host: &mut H, entries: &[Entry]) -> Result<Vec<Entry>> {
             entries[*i].id.to_uppercase(),
         )
     });
-    Ok(order.into_iter().map(|i| entries[i].clone()).collect())
+    order.into_iter().map(|i| entries[i].clone()).collect()
 }
-pub fn projection<H: Host>(host: &mut H, library: &Library) -> Result<String> {
+pub fn projection(library: &Library) -> String {
     let mut output =
         "# Rime table\n# coding: utf-8\n#@/db_name\towl_templates\n#@/db_type\ttabledb\n"
             .to_owned();
-    for e in sorted(host, &library.entries)?
+    for e in sorted(&library.entries)
         .iter()
         .filter(|e| e.invocation_mode == Invocation::Candidate && e.review_state.is_none())
     {
@@ -371,7 +362,7 @@ pub fn projection<H: Host>(host: &mut H, library: &Library) -> Result<String> {
             output.push_str(&format!("{}\t{code}\t100000\n", e.candidate()));
         }
     }
-    Ok(output)
+    output
 }
 pub fn search_text(e: &Entry) -> String {
     let mut parts = vec![
@@ -387,63 +378,35 @@ pub fn search_text(e: &Entry) -> String {
     parts.extend(e.candidate_aliases.clone());
     parts.join("\n")
 }
-pub fn dispatch<H: Host>(host: &mut H, operation: &str, args: Value) -> Result<Value> {
-    use crate::template_transaction as tx;
+pub fn dispatch_rule(operation: &str, args: Value) -> Result<Value> {
     let library = || decode::<Library>(args["library"].clone());
     let entries = || decode::<Vec<Entry>>(args["entries"].clone());
     let entry = || decode::<Entry>(args["entry"].clone());
     match operation {
-        "library_sorted" => Ok(json!(sorted(host, &entries()?)?)),
+        "library_sorted" => Ok(json!(sorted(&entries()?))),
         "library_filtered" => {
             let query = trim(args["query"].as_str().unwrap_or(""));
             let tag = args["tag"].as_str();
             let prompt = args["promptOnly"].as_bool().unwrap_or(false);
-            let mut output = vec![];
-            for e in sorted(host, &entries()?)? {
-                if prompt && e.category != Category::Prompt {
-                    continue;
-                }
-                if let Some(tag) = tag {
-                    let found: bool = decode(effect(
-                        host,
-                        "case_contains",
-                        json!({"values":e.tags,"value":tag}),
-                    )?)?;
-                    if !found {
-                        continue;
-                    }
-                }
-                if !query.is_empty() {
-                    let found: bool = decode(effect(
-                        host,
-                        "localized_contains",
-                        json!({"text":search_text(&e),"query":query}),
-                    )?)?;
-                    if !found {
-                        continue;
-                    }
-                }
-                output.push(e);
-            }
+            let output: Vec<_> = sorted(&entries()?)
+                .into_iter()
+                .filter(|e| {
+                    (!prompt || e.category == Category::Prompt)
+                        && tag.is_none_or(|t| case_contains(&e.tags, t))
+                        && (query.is_empty() || localized_contains(&search_text(e), query))
+                })
+                .collect();
             Ok(json!(output))
         }
         "library_tags" => {
             let entries = entries()?;
             let mut tags: Vec<String> = vec![];
             for tag in entries.iter().flat_map(|e| &e.tags) {
-                let equivalent: bool = decode(effect(
-                    host,
-                    "case_contains",
-                    json!({"values":tags,"value":tag}),
-                )?)?;
-                if !equivalent {
+                if !case_contains(&tags, tag) {
                     tags.push(tag.clone());
                 }
             }
-            let ranks: Vec<usize> = decode(effect(host, "title_ranks", json!({"titles":tags}))?)?;
-            if ranks.len() != tags.len() {
-                return Err("invalid_native_collation".into());
-            }
+            let ranks = title_ranks(&tags);
             let mut indices: Vec<_> = (0..tags.len()).collect();
             indices.sort_by_key(|i| ranks[*i]);
             Ok(json!(indices
@@ -469,7 +432,14 @@ pub fn dispatch<H: Host>(host: &mut H, operation: &str, args: Value) -> Result<V
                 json!({"entry":library()?.entries.into_iter().find(|e|e.review_state.is_none()&&e.invocation_mode==Invocation::Candidate&&(e.trigger.as_deref()==Some(code)||e.candidate_aliases.iter().any(|a|nfc(a)==nfc(code)))&&nfc(&e.candidate())==nfc(text))}),
             )
         }
-        "library_projection" => Ok(json!(projection(host, &library()?)?)),
+        "library_projection" => Ok(json!(projection(&library()?))),
+        _ => Err("unknown_operation".into()),
+    }
+}
+pub fn dispatch_storage<H: Host>(host: &mut H, operation: &str, args: Value) -> Result<Value> {
+    use crate::template_transaction as tx;
+    let library = || decode::<Library>(args["library"].clone());
+    match operation {
         "library_mode" => Ok(tx::mode(host)),
         "library_load" => Ok(json!(tx::load(host)?)),
         "library_save" => {

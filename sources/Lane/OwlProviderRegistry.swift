@@ -54,6 +54,10 @@ enum OwlProviderKeyVerification {
 
 // MARK: - Registry
 
+private final class OwlProviderProbeState {
+  var digest: String?
+}
+
 final class OwlProviderRegistry {
   let store: OwlProviderProfileStore
   let secrets: OwlSecretStoring
@@ -61,7 +65,7 @@ final class OwlProviderRegistry {
   private let defaults: UserDefaults
   /// Digest of the endpoint and key the last successful probe used. The next save that stores
   /// the same pair marks its key verified; the key itself is never held.
-  private let session = try! OwlAppSession("providerRegistry")
+  private let probeState = OwlProviderProbeState()
 
   init(
     store: OwlProviderProfileStore = .shared,
@@ -264,7 +268,9 @@ final class OwlProviderRegistry {
     OwlProviderCore.call("trim", ["text": key])
   }
   private func host(key: String = "") -> OwlProviderHost {
-    OwlProviderHost(store: store, secrets: secrets, defaults: defaults, session: session, key: key)
+    let host = OwlProviderHost(store: store, secrets: secrets, defaults: defaults, key: key)
+    host.probeState = probeState
+    return host
   }
   private func perform(_ operation: String, _ args: [String: Any], key: String = "") -> Reply {
     let native = host(key: Self.normalizedKey(key))
@@ -281,14 +287,14 @@ final class OwlProviderHost {
   let store: OwlProviderProfileStore?
   let secrets: OwlSecretStoring?
   let defaults: UserDefaults
-  let session: OwlAppSession?
+  fileprivate var probeState: OwlProviderProbeState?
   var keys: [String: String] = [:]
   private var errors: [String: Error] = [:]
   private var responseBuffer: UnsafeMutablePointer<CChar>?
   private var wroteProfiles = false
   init(store: OwlProviderProfileStore? = nil, secrets: OwlSecretStoring? = nil,
-       defaults: UserDefaults = OwlDefaults.standard, session: OwlAppSession? = nil, key: String = "") {
-    self.store = store; self.secrets = secrets; self.defaults = defaults; self.session = session
+       defaults: UserDefaults = OwlDefaults.standard, key: String = "") {
+    self.store = store; self.secrets = secrets; self.defaults = defaults
     keys["typed"] = key
   }
   deinit { free(responseBuffer) }
@@ -339,7 +345,7 @@ final class OwlProviderHost {
   private func effect(_ operation: String, _ args: [String: Any]) throws -> Any {
     switch operation {
     case "provider_read", "provider_write": return try fileEffect(operation, args)
-    case "date_parse", "date_format", "url_facts", "uuid", "now": return try factEffect(operation, args)
+    case "date_parse", "date_format", "url_facts", "now": return try factEffect(operation, args)
     case "secret_read", "secret_write", "secret_delete", "key_digest": return try keyEffect(operation, args)
     default: return try preferenceEffect(operation, args)
     }
@@ -374,7 +380,6 @@ final class OwlProviderHost {
       guard let url = URL(string: args["text"] as? String ?? "") else { return NSNull() }
       return ["absolute": url.absoluteString, "scheme": url.scheme ?? "", "host": url.host ?? "",
               "port": url.port as Any? ?? NSNull(), "hasUser": url.user != nil, "hasPassword": url.password != nil]
-    case "uuid": return UUID().uuidString
     case "now": return Date().timeIntervalSinceReferenceDate
     default: throw OwlAppCore.Failure(code: "unknown_provider_effect")
     }
@@ -407,12 +412,13 @@ final class OwlProviderHost {
       else { defaults.set(host, forKey: OwlQwenWorkspaceSettings.key) }
       return true
     case "probe_set":
-      let result: Bool = session?.call("set", ["digest": args["digest"] ?? NSNull()]) ?? false
-      return result
+      guard let probeState else { return false }
+      probeState.digest = args["digest"] as? String
+      return true
     case "probe_take":
-      struct Probe: Decodable { let digest: String? }
-      let value: Probe? = session?.call("take")
-      return value?.digest as Any? ?? NSNull()
+      let digest = probeState?.digest
+      probeState?.digest = nil
+      return digest as Any? ?? NSNull()
     default: throw OwlAppCore.Failure(code: "unknown_provider_effect")
     }
   }

@@ -5,7 +5,6 @@ pub mod forced_finalize;
 pub mod hotkey;
 pub mod input_source_diag;
 pub mod logout_prompt;
-pub mod marked_text_resend;
 pub mod onboarding_practice;
 pub mod user_action;
 
@@ -68,17 +67,17 @@ pub fn dispatch(rule: &str, args: Value) -> Result<Value, String> {
             let has_owl_commit = args["has_owl_commit"].as_bool().unwrap_or(false);
             let has_other_source = args["has_other_source"].as_bool().unwrap_or(false);
             let has_marked_text = args["has_marked_text"].as_bool().unwrap_or(false);
-            let is_complete = text == target && has_owl_commit && !has_other_source && !has_marked_text;
-            Ok(json!(is_complete))
+            Ok(json!(onboarding_practice::is_complete(
+                text,
+                target,
+                has_owl_commit,
+                has_other_source,
+                has_marked_text,
+            )))
         }
         "onboarding_practice_hint" => {
             let has_other_source = args["has_other_source"].as_bool().unwrap_or(false);
-            let hint = if has_other_source {
-                Some("包含其他输入法的内容，请清空后用法墨重新输入。")
-            } else {
-                None
-            };
-            Ok(json!(hint))
+            Ok(json!(onboarding_practice::hint(has_other_source)))
         }
 
         "emoji_category_items" => {
@@ -215,70 +214,24 @@ pub fn dispatch(rule: &str, args: Value) -> Result<Value, String> {
             let blocked_ticks = args["blocked_ticks"].as_u64().unwrap_or(0) as usize;
             let stale_ticks = args["stale_composition_ticks"].as_u64().unwrap_or(120) as usize;
             let idle_threshold = args["idle_threshold"].as_f64().unwrap_or(2.0);
-
-            if is_login {
-                return Ok(json!({
-                    "kind": "blocked",
-                    "block_reason": "login_window"
-                }));
-            }
-            if let Some(id) = snapshot_id {
-                if blocked_ticks >= stale_ticks {
-                    if let Some(idle) = idle_seconds {
-                        if idle < idle_threshold {
-                            return Ok(json!({
-                                "kind": "blocked",
-                                "block_reason": "input_busy",
-                                "idle_seconds": idle
-                            }));
-                        }
-                    }
-                    return Ok(json!({
-                        "kind": "safe",
-                        "stale_composition_override": true
-                    }));
-                } else {
-                    return Ok(json!({
-                        "kind": "blocked",
-                        "block_reason": "composing",
-                        "snapshot_id": id,
-                        "blocked_ticks": blocked_ticks
-                    }));
-                }
-            }
-            if let Some(idle) = idle_seconds {
-                if idle < idle_threshold {
-                    return Ok(json!({
-                        "kind": "blocked",
-                        "block_reason": "input_busy",
-                        "idle_seconds": idle
-                    }));
-                }
-            }
-            Ok(json!({
-                "kind": "safe",
-                "stale_composition_override": false
-            }))
+            Ok(logout_prompt::safe_verdict(
+                snapshot_id,
+                idle_seconds,
+                is_login,
+                blocked_ticks,
+                stale_ticks,
+                idle_threshold,
+            ))
         }
         "logout_prompt_activation_verdict" => {
             let is_active = args["is_active"].as_bool().unwrap_or(false);
             let awaiting_ticks = args["awaiting_ticks"].as_u64().unwrap_or(0) as usize;
             let confirm_ticks = args["activation_confirm_ticks"].as_u64().unwrap_or(60) as usize;
-            if is_active {
-                Ok(json!({
-                    "kind": "present",
-                    "forced_without_active_confirm": false
-                }))
-            } else if awaiting_ticks >= confirm_ticks {
-                Ok(json!({
-                    "kind": "present",
-                    "forced_without_active_confirm": true
-                }))
-            } else {
-                Ok(json!({
-                    "kind": "waitNextTick"
-                }))
-            }
+            Ok(logout_prompt::activation_verdict(
+                is_active,
+                awaiting_ticks,
+                confirm_ticks,
+            ))
         }
         "logout_prompt_classify" => {
             let error_num = args["error_number"].as_i64().map(|v| v as i32);

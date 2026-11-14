@@ -43,7 +43,6 @@ pub enum Session {
     Receipt(crate::ai_verification::Receipt),
     Conversation(crate::ai_business::Conversation),
     ProviderCall { remaining: usize, cancelled: bool },
-    ProviderRegistry { probe: Value },
     ProviderStream(crate::provider_wire::Stream),
     Delivery(crate::host_delivery::Delivery),
     Focus(crate::host_delivery::Focus),
@@ -77,7 +76,6 @@ impl Session {
                 ),
                 cancelled: false,
             }),
-            "providerRegistry" => Ok(Self::ProviderRegistry { probe: Value::Null }),
             "providerStream" => Ok(Self::ProviderStream(crate::provider_wire::Stream::new(
                 args["responses"] == true,
             ))),
@@ -130,14 +128,6 @@ impl Session {
                 }
                 Ok(json!(allowed))
             }
-            Self::ProviderRegistry { probe } => match event {
-                "set" => {
-                    *probe = args["digest"].clone();
-                    Ok(json!(true))
-                }
-                "take" => Ok(json!({"digest":std::mem::take(probe)})),
-                _ => Err("invalid_event".into()),
-            },
             Self::ProviderStream(stream) => stream.event(event, args),
             Self::Delivery(delivery) => delivery.event(event, args),
             Self::AgentDelivery(coord) => match event {

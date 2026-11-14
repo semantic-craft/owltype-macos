@@ -115,7 +115,7 @@ final class OwlAIVoiceTests: XCTestCase {
       return (Data(json.utf8), resp)
     }
 
-    let client = OwlVoiceGrokASRClient(
+    let client = OwlVoiceASRClient(
       transport: stubTransport,
       apiKeyProvider: { "xai-test-key-12345" }
     )
@@ -139,7 +139,7 @@ final class OwlAIVoiceTests: XCTestCase {
       return (Data("{\"error\": \"Unauthorized\"}".utf8), resp)
     }
 
-    let client = OwlVoiceGrokASRClient(
+    let client = OwlVoiceASRClient(
       transport: stubTransport,
       apiKeyProvider: { "invalid-key" }
     )
@@ -287,7 +287,7 @@ final class OwlAIVoiceTests: XCTestCase {
       let resp = HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
       return (Data(json.utf8), resp)
     }
-    let asrClient = OwlVoiceGrokASRClient(transport: stubTransport, apiKeyProvider: { "mock-key" })
+    let asrClient = OwlVoiceASRClient(transport: stubTransport, apiKeyProvider: { "mock-key" })
     coordinator.asrClient = asrClient
 
     let mockClient = MockVoiceTextInputClient()
@@ -341,7 +341,7 @@ final class OwlAIVoiceTests: XCTestCase {
       let resp = HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
       return (Data(json.utf8), resp)
     }
-    coordinator.asrClient = OwlVoiceGrokASRClient(transport: stubTransport, apiKeyProvider: { "mock-key" })
+    coordinator.asrClient = OwlVoiceASRClient(transport: stubTransport, apiKeyProvider: { "mock-key" })
 
     let mockClient = MockVoiceTextInputClient()
     coordinator.targetSnapshotProvider = {
@@ -484,7 +484,7 @@ final class OwlAIVoiceTests: XCTestCase {
       let resp = HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
       return (Data(json.utf8), resp)
     }
-    coordinator.asrClient = OwlVoiceGrokASRClient(transport: stubTransport, apiKeyProvider: { "mock-key" })
+    coordinator.asrClient = OwlVoiceASRClient(transport: stubTransport, apiKeyProvider: { "mock-key" })
 
     let mockClient = MockVoiceTextInputClient()
     coordinator.targetSnapshotProvider = {
@@ -711,7 +711,7 @@ final class OwlAIVoiceTests: XCTestCase {
       let resp = HTTPURLResponse(url: req.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
       return (Data("{\"text\": \"测试动态配置\"}".utf8), resp)
     }
-    let client = OwlVoiceGrokASRClient(transport: stubTransport, apiKeyProvider: { "sk-test" })
+    let client = OwlVoiceASRClient(transport: stubTransport, apiKeyProvider: { "sk-test" })
     let wav = OwlWAVPacker.pack16kMono(pcmData: Data([0x01, 0x02]))
     _ = try await client.transcribe(audioWavData: wav, prompt: nil)
 

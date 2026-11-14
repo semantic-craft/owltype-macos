@@ -200,7 +200,6 @@ char *owl_app_call(uint32_t abi_version, const uint8_t *request, size_t length);
 uint8_t owl_app_keyboard_can_apply(uint8_t requires_idle, uint8_t composing);
 uint32_t owl_app_keyboard_schema_idle_action(uint8_t current_matches, uint8_t failed_matches);
 uint32_t owl_app_keyboard_refresh(uint8_t pending, uint8_t composing);
-bool owl_app_marked_text_should_send(const char *prev_ptr, size_t prev_len, const char *next_ptr, size_t next_len);
 
 typedef const char *(*owl_msime_host_callback)(void *context, const char *request);
 char *owl_msime_host_effect_call(uint32_t abi_version, const uint8_t *request, size_t length,

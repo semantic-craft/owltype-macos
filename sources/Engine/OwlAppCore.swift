@@ -17,7 +17,7 @@ private struct OwlAppCoreResponse<Value: Decodable>: Decodable {
 
 /// Transport only. Business defaults, validation and decisions live in owl-app-core.
 enum OwlAppCore {
-  static let abiVersion: UInt32 = 1
+  static let abiVersion: UInt32 = owl_app_abi_version()
 
   struct Failure: Error, Equatable {
     let code: String
@@ -43,12 +43,7 @@ enum OwlAppCore {
         return nilType.nilValue as! Value
       }
     }
-    let code = decoded.error ?? "invalid_response"
-    let failure = OwlStorageHost.failure(code)
-    if case OwlTemplateError.invalid(let msg) = failure, msg == code {
-      throw Failure(code: code)
-    }
-    throw failure
+    throw Failure(code: decoded.error ?? "invalid_response")
   }
 
   static func initialASCIIMode(bundleID: String, englishBundleIDs: [String], defaultASCIIMode: Bool) -> Bool {
@@ -168,11 +163,21 @@ extension OwlAppCore {
 final class OwlStorageHost {
   private struct ItemsReply: Decodable { let removedItems: [String]? }
   let dataDir: URL
+  let checkpointItems: [String]
   let checkpoint: (String) throws -> Void
+  let onCommit: ((URL) -> Void)?
+  let mapError: (String) -> Error
   var errors: [String: Error] = [:]
-  init(dataDir: URL, checkpoint: @escaping (String) throws -> Void = { _ in }) {
+  init(dataDir: URL,
+       checkpointItems: [String] = [],
+       checkpoint: @escaping (String) throws -> Void = { _ in },
+       onCommit: ((URL) -> Void)? = nil,
+       mapError: @escaping (String) -> Error = { OwlAppCore.Failure(code: $0) }) {
     self.dataDir = dataDir
+    self.checkpointItems = checkpointItems
     self.checkpoint = checkpoint
+    self.onCommit = onCommit
+    self.mapError = mapError
   }
   private static let lock = NSRecursiveLock()
   static func exclusively<T>(_ action: () throws -> T) rethrows -> T {
@@ -181,21 +186,18 @@ final class OwlStorageHost {
   func call<Value: Decodable>(_ operation: String, _ args: [String: Any] = [:], decoder: JSONDecoder = JSONDecoder()) throws -> Value {
     try Self.exclusively {
       var failCheckpoint: String?
-      if ["library_save", "library_delete", "import_commit"].contains(operation) {
-        do { try checkpoint(OwlTemplateStore.fileName) }
+      let items: [String]
+      if operation == "user_reset" {
+        items = (try? OwlStorageHost(dataDir: dataDir).call("user_reset_items", [:]) as ItemsReply)?.removedItems ?? []
+      } else {
+        items = checkpointItems
+      }
+      for item in items {
+        do { try checkpoint(item) }
         catch {
-          failCheckpoint = OwlTemplateStore.fileName
+          failCheckpoint = item
           errors["checkpoint_failed"] = error
-        }
-      } else if operation == "user_reset" {
-        let items = (try? OwlStorageHost(dataDir: dataDir).call("user_reset_items", [:]) as ItemsReply)?.removedItems ?? []
-        for item in items {
-          do { try checkpoint(item) }
-          catch {
-            failCheckpoint = item
-            errors["checkpoint_failed"] = error
-            break
-          }
+          break
         }
       }
       var payload: [String: Any] = [
@@ -213,7 +215,7 @@ final class OwlStorageHost {
       defer { owl_msime_string_free(response) }
       let decoded = try decoder.decode(OwlAppCoreResponse<Value>.self, from: Data(bytes: response, count: strlen(response)))
       if decoded.committed == true {
-        OwlTemplateStore.notifyCommittedLibrary(dataDir: dataDir)
+        onCommit?(dataDir)
       }
       if decoded.isOK {
         if let value = decoded.value {
@@ -224,22 +226,9 @@ final class OwlStorageHost {
         }
       }
       let code = decoded.error ?? "invalid_response"
-      if let error = errors[code] { throw error }
-      throw Self.failure(code)
+      throw errors[code] ?? mapError(code)
     }
   }
-  static func failure(_ code: String) -> Error {
-    let fixed: [String: Error] = [
-      "changed_on_disk": OwlTemplateError.changedOnDisk,
-      "automatic_invalid": OwlAutomaticExpansionIndex.ValidationError.invalidTrigger,
-      "automatic_duplicate": OwlAutomaticExpansionIndex.ValidationError.duplicateTrigger,
-      "automatic_prefix": OwlAutomaticExpansionIndex.ValidationError.immediatePrefixConflict
-    ]
-    if let failure = fixed[code] { return failure }
-    if code.hasPrefix("automatic_template:") { return OwlAutomaticExpansionIndex.ValidationError.invalidTemplate(String(code.dropFirst(19))) }
-    return OwlTemplateError.invalid(code)
-  }
-
 }
 
 /// Owned Rust state; used only on the native owner thread, never across callbacks concurrently.
