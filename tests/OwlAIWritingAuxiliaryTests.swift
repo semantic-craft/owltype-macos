@@ -234,7 +234,7 @@ final class OwlAIWritingAuxiliaryTests: XCTestCase {
     <candidate_2>非常认同您的方案，建议按此推进。</candidate_2>
     <candidate_3>完全赞成，我这边全力配合后续工作。</candidate_3>
     """
-    let candidates = OwlDualPolishParser.parseReplies(raw: raw, contextText: "开会")
+    let candidates = OwlDualPolishParser.parseReplies(raw: raw)
     XCTAssertEqual(candidates.count, 3)
     XCTAssertEqual(candidates[0], "收到，赞同。")
     XCTAssertEqual(candidates[1], "非常认同您的方案，建议按此推进。")
@@ -249,7 +249,7 @@ final class OwlAIWritingAuxiliaryTests: XCTestCase {
     <reply_3>选项三</reply_3>
     ```
     """
-    let candidates = OwlXMLReplyParser.parse(raw)
+    let candidates = OwlDualPolishParser.parseReplies(raw: raw)
     XCTAssertEqual(candidates.count, 3)
     XCTAssertEqual(candidates[0], "选项一")
     XCTAssertEqual(candidates[1], "选项二")
@@ -262,7 +262,7 @@ final class OwlAIWritingAuxiliaryTests: XCTestCase {
     2、赞同您的提议，我们尽快落实。
     3、十分赞同，具体排期请随时同步。
     """
-    let candidates = OwlDualPolishParser.parseReplies(raw: raw, contextText: "提议")
+    let candidates = OwlDualPolishParser.parseReplies(raw: raw)
     XCTAssertEqual(candidates.count, 3)
     XCTAssertEqual(candidates[0], "收到回复，同意。")
     XCTAssertEqual(candidates[1], "赞同您的提议，我们尽快落实。")
@@ -271,7 +271,7 @@ final class OwlAIWritingAuxiliaryTests: XCTestCase {
 
   func testXMLReplyParserTier5GuaranteedThreeCandidates() {
     let raw = "<candidate_1>单条回复</candidate_1>"
-    let candidates = OwlDualPolishParser.parseReplies(raw: raw, contextText: "上下文")
+    let candidates = OwlDualPolishParser.parseReplies(raw: raw)
     XCTAssertEqual(candidates.count, 3, "Must guarantee exactly 3 distinct reply candidates")
     XCTAssertEqual(candidates[0], "单条回复")
     XCTAssertFalse(candidates[1].isEmpty)
@@ -360,13 +360,13 @@ final class OwlAIWritingAuxiliaryTests: XCTestCase {
 
     // Reply tag variants: <candidate1>, <candidate 1>, <candidate-1>, <reply1>, <reply_1>, <reply 1>
     let r1 = "<candidate1>答复一</candidate1><candidate2>答复二</candidate2><candidate3>答复三</candidate3>"
-    XCTAssertEqual(OwlXMLReplyParser.parse(r1), ["答复一", "答复二", "答复三"])
+    XCTAssertEqual(OwlDualPolishParser.parseReplies(raw: r1), ["答复一", "答复二", "答复三"])
 
     let r2 = "<reply_1>答复甲</reply_1><reply_2>答复乙</reply_2><reply_3>答复丙</reply_3>"
-    XCTAssertEqual(OwlXMLReplyParser.parse(r2), ["答复甲", "答复乙", "答复丙"])
+    XCTAssertEqual(OwlDualPolishParser.parseReplies(raw: r2), ["答复甲", "答复乙", "答复丙"])
 
     let r3 = "<reply1>回复A</reply1><reply2>回复B</reply2><reply3>回复C</reply3>"
-    XCTAssertEqual(OwlXMLReplyParser.parse(r3), ["回复A", "回复B", "回复C"])
+    XCTAssertEqual(OwlDualPolishParser.parseReplies(raw: r3), ["回复A", "回复B", "回复C"])
   }
 
   func testStress_NumberedLists() {
@@ -385,7 +385,7 @@ final class OwlAIWritingAuxiliaryTests: XCTestCase {
     2、赞同方案，明天开会推进。
     3、暂缓处理，待风险评估后定夺。
     """
-    let dunhaoRes = OwlDualPolishParser.parseReplies(raw: dunhaoList, contextText: "讨论")
+    let dunhaoRes = OwlDualPolishParser.parseReplies(raw: dunhaoList)
     XCTAssertEqual(dunhaoRes, ["收到回复，完全同意。", "赞同方案，明天开会推进。", "暂缓处理，待风险评估后定夺。"])
 
     // (1) / (2) / (3)
@@ -394,7 +394,7 @@ final class OwlAIWritingAuxiliaryTests: XCTestCase {
     (2) 第二种回复选择
     (3) 第三种回复选择
     """
-    let parenRes = OwlDualPolishParser.parseReplies(raw: parenList, contextText: "测试")
+    let parenRes = OwlDualPolishParser.parseReplies(raw: parenList)
     XCTAssertEqual(parenRes, ["第一种回复选择", "第二种回复选择", "第三种回复选择"])
 
     // 1) / 2) / 3)
@@ -414,7 +414,7 @@ final class OwlAIWritingAuxiliaryTests: XCTestCase {
     XCTAssertFalse(truncOpenRes[0].isEmpty)
     XCTAssertFalse(truncOpenRes[1].isEmpty)
 
-    let truncReplyRes = OwlDualPolishParser.parseReplies(raw: truncOpen, contextText: "上下文")
+    let truncReplyRes = OwlDualPolishParser.parseReplies(raw: truncOpen)
     XCTAssertEqual(truncReplyRes.count, 3)
     for c in truncReplyRes { XCTAssertFalse(c.isEmpty) }
 
@@ -436,7 +436,7 @@ final class OwlAIWritingAuxiliaryTests: XCTestCase {
     XCTAssertFalse(emptyPolishWithEmptyOrig[0].isEmpty)
     XCTAssertFalse(emptyPolishWithEmptyOrig[1].isEmpty)
 
-    let emptyReplies = OwlDualPolishParser.parseReplies(raw: "", contextText: "")
+    let emptyReplies = OwlDualPolishParser.parseReplies(raw: "")
     XCTAssertEqual(emptyReplies.count, 3)
     for r in emptyReplies { XCTAssertFalse(r.isEmpty) }
 
@@ -570,7 +570,7 @@ final class OwlAIWritingAuxiliaryTests: XCTestCase {
       XCTAssertFalse(polish[0].isEmpty, "Polish candidate 0 must not be empty for fuzz #\(index)")
       XCTAssertFalse(polish[1].isEmpty, "Polish candidate 1 must not be empty for fuzz #\(index)")
 
-      let reply = OwlDualPolishParser.parseReplies(raw: input, contextText: "上下文\(index)")
+      let reply = OwlDualPolishParser.parseReplies(raw: input)
       XCTAssertEqual(reply.count, 3, "Reply must return exactly 3 candidates for fuzz #\(index)")
       XCTAssertFalse(reply[0].isEmpty, "Reply candidate 0 must not be empty for fuzz #\(index)")
       XCTAssertFalse(reply[1].isEmpty, "Reply candidate 1 must not be empty for fuzz #\(index)")
@@ -580,15 +580,15 @@ final class OwlAIWritingAuxiliaryTests: XCTestCase {
 
   func testStress_ReplyTagVariants_WithSpacesAndHyphens() {
     let spaceRaw = "<candidate 1>空格答复一</candidate 1><candidate 2>空格答复二</candidate 2><candidate 3>空格答复三</candidate 3>"
-    let spaceRes = OwlXMLReplyParser.parse(spaceRaw)
+    let spaceRes = OwlDualPolishParser.parseReplies(raw: spaceRaw)
     XCTAssertEqual(spaceRes, ["空格答复一", "空格答复二", "空格答复三"])
 
     let replySpaceRaw = "<reply 1>回复空格1</reply 1><reply 2>回复空格2</reply 2><reply 3>回复空格3</reply 3>"
-    let replySpaceRes = OwlXMLReplyParser.parse(replySpaceRaw)
+    let replySpaceRes = OwlDualPolishParser.parseReplies(raw: replySpaceRaw)
     XCTAssertEqual(replySpaceRes, ["回复空格1", "回复空格2", "回复空格3"])
 
     let hyphenRaw = "<candidate-1>连字符一</candidate-1><candidate-2>连字符二</candidate-2><candidate-3>连字符三</candidate-3>"
-    let hyphenRes = OwlXMLReplyParser.parse(hyphenRaw)
+    let hyphenRes = OwlDualPolishParser.parseReplies(raw: hyphenRaw)
     XCTAssertEqual(hyphenRes, ["连字符一", "连字符二", "连字符三"])
   }
 

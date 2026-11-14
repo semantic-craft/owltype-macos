@@ -64,12 +64,6 @@ enum OwlResponsesWire {
     return raw == "ark"
   }
 
-  /// DeepSeek V4.1 Flash uses `deepseek-flash` on Responses as well as Chat.
-  /// Existing explicitly configured V4 Flash model names still reach the same wire.
-  static func supportsDeepSeekModel(_ model: String) -> Bool {
-    dialect(providerID: "deepseek", model: model, endpoint: nil) == .deepseek
-  }
-
   static func isDeepSeek(providerID: String, model: String, endpoint: URL?) -> Bool {
     dialect(providerID: providerID, model: model, endpoint: endpoint) == .deepseek
   }
@@ -96,24 +90,6 @@ enum OwlResponsesWire {
     components.query = nil
     components.fragment = nil
     return components.url
-  }
-
-  /// Qwen explicitly accepts the familiar Chat-format `{role, content}` message array as
-  /// Responses `input`. Ark requires every carried history item to be an `input_text` part
-  /// (otherwise it asks for output-item id/status fields), and OpenAI accepts that EasyInputMessage
-  /// shape as well. DeepSeek 两种都收（官方兼容表：content 支持字符串和 `input_text` 内容块），
-  /// 所以它跟着走这条 `input_text` 分支，方言之间少一种形状要维护。
-  static func inputMessage(
-    role: String,
-    text: String,
-    dialect: OwlResponsesDialect
-  ) -> [String: Any] {
-    OwlProviderCore.object("input", ["role": role, "text": text, "dialect": dialect.rawValue])
-  }
-
-  /// Compatibility overload for Ark/OpenAI callers that only need an input item.
-  static func inputMessage(role: String, text: String) -> [String: Any] {
-    inputMessage(role: role, text: text, dialect: .ark)
   }
 
   /// Build either a plain or web-search Responses request body.

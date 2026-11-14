@@ -105,7 +105,7 @@ public enum OwlDualPolishParser {
 
   // MARK: - Reply Parsing (Exactly 3 Candidates)
 
-  public static func parseReplies(raw: String, contextText: String) -> [String] {
+  public static func parseReplies(raw: String) -> [String] {
     let sanitized = stripMarkdownFences(raw)
     var candidates: [String] = []
 
@@ -242,17 +242,5 @@ public enum OwlDualPolishParser {
     // If fences do not wrap the entire envelope, or if raw text contains internal code blocks,
     // do not perform fence stripping that could dismantle internal code fences.
     return text
-  }
-}
-
-// MARK: - Compatibility Alias: OwlXMLReplyParser
-
-public enum OwlXMLReplyParser {
-  public static func parse(_ raw: String) -> [String] {
-    OwlDualPolishParser.parseReplies(raw: raw, contextText: "")
-  }
-
-  public static func parseDualCandidates(_ raw: String, originalText: String = "") -> [String] {
-    OwlDualPolishParser.parse(raw: raw, originalText: originalText)
   }
 }
