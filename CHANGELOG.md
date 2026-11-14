@@ -1,3 +1,9 @@
+<a name="2.5.4"></a>
+## 2.5.4 (2026-11-14)
+
+- 应用图标恢复为最早版酒红底墨滴，菜单栏同步恢复原版单色墨滴。
+- Restore the original ink-drop app and input-menu icons.
+
 <a name="2.5.3"></a>
 ## 2.5.3 (2026-11-14)
 

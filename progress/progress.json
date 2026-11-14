@@ -309,7 +309,7 @@
         "updated_at": "2026-11-13T08:53:17Z"
       }
     ],
-    "main": "958bad23d29d899ed1fc13801bd53d0c1e588d8b",
+    "main": "76b8c58e5df59f6f651defec9e68446cd367b01c",
     "open_pulls": [],
     "pulls": [
       {
@@ -367,7 +367,7 @@
     "docs/input-alignment.md",
     "progress/sync.py"
   ],
-  "observed_at": "2026-11-14T01:13:39.137751Z",
+  "observed_at": "2026-11-14T02:12:17.986017Z",
   "outputs": [
     "progress/index.html"
   ],
@@ -399,9 +399,9 @@
             }
           ],
           "id": "restore-ink-icons",
-          "next": "本次为资源恢复；正式签名发布及已安装输入法外观尚未验收。",
-          "status": "done",
-          "summary": "应用全部 10 档 PNG 和菜单栏 PDF 从最早公开提交 e966feb 原样恢复；菜单 SVG 与历史 PDF 的墨滴路径一致。AppKit 原生绘制通过，16×16 pt 菜单图标有 329 个不透明像素。",
+          "next": "完成 2.5.4 签名、公证、发布、公开资产回读和本机安装核对。",
+          "status": "in_progress",
+          "summary": "应用全部 10 档 PNG 和菜单栏 PDF 从最早公开提交 e966feb 原样恢复；菜单 SVG 与历史 PDF 的墨滴路径一致。AppKit 原生绘制通过，16×16 pt 菜单图标有 329 个不透明像素。 原稿恢复已合并 PR #429；正在准备 2.5.4 补丁发布与本机升级。",
           "title": "恢复最早版墨滴图标"
         }
       ],

@@ -3,14 +3,14 @@
 <title>法墨输入法 · 项目进度与剩余工作</title>
 <style>body{font:16px system-ui;max-width:960px;margin:3rem auto;padding:0 1rem;color:#202936;background:#f7f8fb}article,section{padding:1rem;margin:1rem 0;background:white;border-radius:12px}a{color:#1555ac}.badge{padding:.25rem .6rem;border-radius:20px;background:#e9edf5}small{color:#566}</style>
 <h1>法墨输入法 · 项目进度与剩余工作</h1>
-<p>Observed: 2026-11-14T01:13:39.137751Z</p>
-<p>Main: <code>main: 958bad23d29d899ed1fc13801bd53d0c1e588d8b</code></p>
+<p>Observed: 2026-11-14T02:12:17.986017Z</p>
+<p>Main: <code>main: 76b8c58e5df59f6f651defec9e68446cd367b01c</code></p>
 <section id="ink-icons"><h2>原版墨滴图标</h2>
-<article id="restore-ink-icons"><h3>恢复最早版墨滴图标</h3><span class="badge">done</span><p>应用全部 10 档 PNG 和菜单栏 PDF 从最早公开提交 e966feb 原样恢复；菜单 SVG 与历史 PDF 的墨滴路径一致。AppKit 原生绘制通过，16×16 pt 菜单图标有 329 个不透明像素。</p><ul>
+<article id="restore-ink-icons"><h3>恢复最早版墨滴图标</h3><span class="badge">in_progress</span><p>应用全部 10 档 PNG 和菜单栏 PDF 从最早公开提交 e966feb 原样恢复；菜单 SVG 与历史 PDF 的墨滴路径一致。AppKit 原生绘制通过，16×16 pt 菜单图标有 329 个不透明像素。 原稿恢复已合并 PR #429；正在准备 2.5.4 补丁发布与本机升级。</p><ul>
 <li><a href="https://github.com/semantic-craft/owltype-macos/commit/e966feb1a57fc6874260a7ef1cb25192531bc268">commit e966feb1a57fc6874260a7ef1cb25192531bc268: 原版图标的历史来源（2026-07-23）。</a></li>
 <li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/Assets.xcassets/Owltype.appiconset">file Assets.xcassets/Owltype.appiconset: 应用图标沿用当前资源名，图像字节与最早提交一致。</a></li>
 <li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/tests/ActivationPolicyTests.swift">file tests/ActivationPolicyTests.swift: PDF 非空、墨滴主体及透明边缘的 AppKit 测试通过；20261114T011339Z-swift-lf05gr68，source_unchanged=true。</a></li>
-</ul><p>Next: 本次为资源恢复；正式签名发布及已安装输入法外观尚未验收。</p></article>
+</ul><p>Next: 完成 2.5.4 签名、公证、发布、公开资产回读和本机安装核对。</p></article>
 </section>
 <section id="deepseek-services"><h2>DeepSeek 服务接入</h2>
 <article id="deepseek-asr"><h3>DeepSeek 语音识别供应商</h3><span class="badge">in_progress</span><p>ASR 新增 DeepSeek 预设，复用供应商密钥，按官方接口仅上传 WAV；设置隐藏模型选择并说明录完转写。现有问答、改写、起草、语音润色、联网搜索和来源核验已有 DeepSeek 接入。项目尚无独立 TTS、OCR 或网页正文读取功能。 已合并 PR #427，完整门禁通过；正在准备 2.5.3 签名发布与本机升级。</p><ul>
