@@ -299,6 +299,48 @@ final class OwlAgentAccessTests: XCTestCase {
     XCTAssertFalse(FileManager.default.fileExists(atPath: socket.path))
   }
 
+  func testCallingStartTwiceDoesNotDoubleObserveOrCrashAfterDeinit() {
+    let socket = directory.appendingPathComponent("AgentBridge/bridge.sock")
+    var firstFactoryCalls = 0
+    var secondFactoryCalls = 0
+    weak var weakAccess: OwlAgentAccess?
+
+    autoreleasepool {
+      let instance = access()
+      weakAccess = instance
+      instance.start {
+        firstFactoryCalls += 1
+        return OwlAgentBridge(socketURL: socket, verifier: SameUserVerifier(), service: $0)
+      }
+      instance.start {
+        secondFactoryCalls += 1
+        return OwlAgentBridge(socketURL: socket, verifier: SameUserVerifier(), service: $0)
+      }
+
+      OwlAgentAccessPreferences.setEnabled(true, defaults)
+      waitForMain()
+      XCTAssertEqual(firstFactoryCalls, 0)
+      XCTAssertEqual(secondFactoryCalls, 1)
+      XCTAssertNotNil(instance.bridge)
+
+      OwlAgentAccessPreferences.setEnabled(false, defaults)
+      waitForMain()
+      XCTAssertNil(instance.bridge)
+
+      OwlAgentAccessPreferences.setEnabled(true, defaults)
+      waitForMain()
+      XCTAssertEqual(secondFactoryCalls, 2)
+    }
+
+    waitForMain()
+    XCTAssertNil(weakAccess)
+    OwlAgentAccessPreferences.setEnabled(false, defaults)
+    OwlAgentAccessPreferences.setEnabled(true, defaults)
+    OwlAgentAccessPreferences.setEnabled(false, defaults)
+    waitForMain()
+    XCTAssertEqual(secondFactoryCalls, 2)
+  }
+
   private func answer(_ access: OwlAgentAccess, _ call: OwlAgentBridgeProtocol.Call) -> OwlAgentBridgeReply? {
     let done = expectation(description: "reply")
     var result: OwlAgentBridgeReply?

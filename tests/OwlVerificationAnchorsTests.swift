@@ -13,8 +13,6 @@ import XCTest
 @MainActor
 final class OwlVerificationAnchorsTests: XCTestCase {
 
-  // MARK: - 坐标抽取 & 案号准入闸
-
   func testExtractsLawAndCaseAnchorsFromComplaint() {
     let text = "根据《中华人民共和国民法典》第五百七十七条，被告应当承担违约责任；同类裁判可参见（2025）粤03民终8964号民事判决书。"
     let anchors = OwlVerificationReceiptModel.admittedAnchors(from: text, currentYear: 2026)
@@ -107,8 +105,6 @@ final class OwlVerificationAnchorsTests: XCTestCase {
     }, "无锚点时每组回退整段选区")
     XCTAssertTrue(OwlSelectionVerifyMenu.build(selectedText: "  \n ", anchors: []).isEmpty)
   }
-
-  // MARK: - 徽标
 
   func testKindBadges() {
     XCTAssertEqual(OwlVerificationKind.law.badgeLabel, "法条")

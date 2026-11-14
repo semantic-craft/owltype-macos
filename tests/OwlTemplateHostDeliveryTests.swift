@@ -106,4 +106,73 @@ final class OwlTemplateHostDeliveryTests: XCTestCase {
     XCTAssertFalse(client.text.hasMarkedText())
     XCTAssertEqual(client.text.string, "", "the raw code never reaches the document")
   }
+
+  func testLiveDeliveryEntrypointsRefuseUnverifiedHostWithoutWrites() throws {
+    let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    defer { controller.destroySession() }
+    let client = HabitsTextClient(); client.appID = "com.apple.TextEdit"
+    let delivery = OwlTemplateHostDelivery(controller: controller, client: client, boundApplication: .current)
+
+    let prepared = expectation(description: "prepareForPresentation")
+    delivery.prepareForPresentation { result in
+      XCTAssertEqual(result, .ready)
+      prepared.fulfill()
+    }
+    wait(for: [prepared], timeout: 2)
+
+    let first = expectation(description: "first deliver")
+    delivery.deliver(.init(text: "结果", cursorOffset: 1)) { outcome in
+      XCTAssertEqual(outcome, .notAttempted(.missingHost))
+      first.fulfill()
+    }
+    wait(for: [first], timeout: 2)
+
+    let second = expectation(description: "second deliver")
+    delivery.deliver(.init(text: "重复")) { outcome in
+      XCTAssertEqual(outcome, .notAttempted(.missingHost))
+      second.fulfill()
+    }
+    wait(for: [second], timeout: 2)
+    XCTAssertEqual(client.text.string, "")
+  }
+
+  func testLiveAutomaticPrepareForPresentationFailsSafelyWithoutHostField() throws {
+    let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    defer { controller.destroySession() }
+    let client = HabitsTextClient(); client.appID = "com.apple.TextEdit"
+    let source = OwlTemplateHostDelivery.AutomaticSource(
+      originalInput: ";;a",
+      markedRange: NSRange(location: 0, length: 3),
+      markedText: ";;a",
+      isValid: { true }
+    )
+    let delivery = OwlTemplateHostDelivery(
+      controller: controller,
+      client: client,
+      automaticSource: source,
+      boundApplication: .current
+    )
+
+    let prepared = expectation(description: "automatic prepare")
+    delivery.prepareForPresentation { result in
+      XCTAssertEqual(result, .originalNotAttempted(.originalNotPreserved))
+      prepared.fulfill()
+    }
+    wait(for: [prepared], timeout: 2)
+
+    delivery.hostWillDeactivate()
+    delivery.hostDidActivate()
+    delivery.applicationDidActivate(isOriginal: false, isPresentation: false)
+    delivery.applicationDidActivate(isOriginal: true, isPresentation: false)
+    delivery.invalidate()
+    XCTAssertFalse(delivery.isReadyForDelivery())
+
+    let delivered = expectation(description: "deliver after failed prepare")
+    delivery.deliver(.init(text: "正文", cursorOffset: 1)) { outcome in
+      XCTAssertEqual(outcome, .notAttempted(.targetChanged))
+      delivered.fulfill()
+    }
+    wait(for: [delivered], timeout: 2)
+    XCTAssertEqual(client.text.string, "")
+  }
 }

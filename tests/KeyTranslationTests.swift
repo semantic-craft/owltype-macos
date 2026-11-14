@@ -2,8 +2,6 @@
 //  KeyTranslationTests.swift
 //  OwltypeTests — pure input pipeline (task 06-22-pure-input-pipeline-refactor)
 //
-//  Tests lock the behaviour of `OwlUserActionClassifier`, `OwlKeycode.slashSwitchesToEnglish`,
-//  and `OwlClientAction` using real `NSEvent`/`CGEvent` inputs through `OwlKeyEvent(event:lastModifiers:)`:
 //    • Parsec #825 — flagsChanged with keyCode 0 (kVK_ANSI_A) must NOT ghost-type 'a'; the real
 //      modifier keycode is inferred from the changed flags.
 //    • #715 — flagsChanged keyCode availability / modifier-keycode validation.

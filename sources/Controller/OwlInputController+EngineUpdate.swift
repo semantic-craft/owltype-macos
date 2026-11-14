@@ -121,9 +121,6 @@ extension OwlInputController {
     }
 
     if let composition = engineSession.composition() {
-      // Byte→UTF-16 index math + inline-preview assembly now live in the pure
-      // EngineCompositionRenderer (C3): it returns the marked-text to show, plus the
-      // raw-preedit caret (UTF-16) that the composition Snapshot records.
       let marked = EngineCompositionRenderer.markedText(
         composition: composition, inlinePreedit: inlinePreedit, inlineCandidate: inlineCandidate)
       show(preedit: marked.preedit + (pendingPairedClosing ?? ""), selRange: marked.selRange, caretPos: marked.caretPos)

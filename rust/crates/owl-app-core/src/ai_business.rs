@@ -167,7 +167,6 @@ pub fn rule(name: &str, a: Value) -> Value {
         }
         "limit" => json!(match s(&a, "id") {
             "selection" => 2000,
-            "history" => 10,
             "query" => 80,
             "verificationResults" => 8,
             _ => 0,

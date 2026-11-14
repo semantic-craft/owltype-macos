@@ -78,6 +78,10 @@ final class OwlAgentAccess: NSObject, OwlAgentBridgeService {
   /// Follows the switch from now on; `bridgeFactory` replaces the production socket in tests.
   func start(bridgeFactory: ((OwlAgentAccess) -> OwlAgentBridge)? = nil) {
     if let bridgeFactory { makeBridge = bridgeFactory }
+    if isFollowing {
+      apply()
+      return
+    }
     isFollowing = true
     defaults.addObserver(self, forKeyPath: OwlAgentAccessPreferences.enabledKey, options: [.new], context: nil)
     apply()

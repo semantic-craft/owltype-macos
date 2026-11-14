@@ -158,7 +158,10 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   func applicationWillTerminate(_ notification: Notification) {
     // swiftlint:disable:next notification_center_detachment
     NotificationCenter.default.removeObserver(self)
-    DistributedNotificationCenter.default().removeObserver(self)
+    if let observer = installSelfCheckObserver {
+      DistributedNotificationCenter.default().removeObserver(observer)
+      installSelfCheckObserver = nil
+    }
     selectionMenuCoordinator?.stop()
     selectionMenuCoordinator = nil
     stopHotKeyTap()

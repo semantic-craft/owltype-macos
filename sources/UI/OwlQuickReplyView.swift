@@ -22,7 +22,11 @@ final class OwlQuickReplyViewModel: ObservableObject {
   let contextText: String
   let invocationContext: OwlAIInvocationContext
   private let generator: OwlReplyGeneratorProtocol
-  private var activeTask: Task<Void, Never>?
+  nonisolated(unsafe) private var activeTask: Task<Void, Never>?
+
+  deinit {
+    activeTask?.cancel()
+  }
   private var generationEpoch: UInt64 = 0
 
   init(

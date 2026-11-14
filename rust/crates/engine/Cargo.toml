@@ -38,7 +38,6 @@ sha2.workspace = true
 tempfile.workspace = true
 thiserror.workspace = true
 time = { workspace = true, features = ["formatting", "local-offset"] }
-unicode-segmentation.workspace = true
 # Vietnamese Telex and VNI transforms. MIT; pinned exactly because the uppercase workaround in vietnamese/scheme.rs is written against this version's output.
 vi = "=0.8.0"
 

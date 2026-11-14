@@ -162,9 +162,6 @@ final class SeamPortsTests: XCTestCase {
     XCTAssertTrue(delegate.selectionPolish === polish)
   }
 
-  /// Reproduces the controller's `engineUpdate()` emitter sequence
-  /// (`emitComposing` → `emitCleared`) against the injected port,
-  /// asserting each call — and `emitComposing`'s scripted args — flowed through the fake.
   func testSnapshotEmitterTriggerFlowsThroughInjectedPort() {
     let delegate = OwlApplicationDelegate()
     let emitter = FakeSnapshotEmitter()

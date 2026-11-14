@@ -682,7 +682,6 @@ final class OwlAICandidateTests: XCTestCase {
     XCTAssertTrue(hit.hit)
     XCTAssertEqual(hit.value, 1)
 
-    // Capacity is 2, so adding key2 and key3 evicts oldest entry key1.
     cache.set(key2, value: 0)
     cache.set(key3, value: nil)
     XCTAssertFalse(cache.get(key1).hit)

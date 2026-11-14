@@ -9,7 +9,7 @@ final class OwlInputStatusPanel: OwlFloatingPanel {
   private weak var owner: OwlInputController?
   private var lastPresentation: Presentation?
   private var settings = OwlCandidatePanelSettings.live.snapshot()
-  private var screenObserver: NSObjectProtocol?
+  nonisolated(unsafe) private var screenObserver: NSObjectProtocol?
 
   struct Presentation: Equatable {
     let schema: String
@@ -35,6 +35,12 @@ final class OwlInputStatusPanel: OwlFloatingPanel {
     screenObserver = NotificationCenter.default.addObserver(
       forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
     ) { [weak self] _ in MainActor.assumeIsolated { self?.keepOnScreen() } }
+  }
+
+  deinit {
+    if let screenObserver {
+      NotificationCenter.default.removeObserver(screenObserver)
+    }
   }
 
   func activate(_ controller: OwlInputController) {

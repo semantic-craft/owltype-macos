@@ -674,7 +674,6 @@ final class OwlResponsesPromptEvaluationLiveTests: XCTestCase {
       return failures
     }
 
-    // 3. Window/selection skills that share OwlAIConversationModel context assembly.
     await evaluate(
       "research-assist",
       messages: OwlLiveEvalSupport.assembleContext(

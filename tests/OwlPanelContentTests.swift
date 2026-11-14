@@ -667,7 +667,6 @@ final class OwlCandidatePanelGeometryTests: XCTestCase {
         size.rawValue
       )
 
-      // 收起按钮命中区之外仍保留一个 row inset，第一行选中块不会被 overlay 截走。
       XCTAssertEqual(
         geometry.collapseClearance,
         geometry.expandChevron.hitWidth + geometry.verticalList.collapseTrailingPadding,

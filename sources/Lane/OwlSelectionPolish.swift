@@ -13,7 +13,6 @@
 //    - require OwlCloudPreferences.isEnabled;
 //    - cap the selection length (reject > maxSelectionLength chars — never ship huge uploads);
 //    - reuse the Keychain key + json_object contract + bounded retry + OwlNumberedRewriteParser;
-//    - NEVER log the selected text or the rewrite;
 //
 
 import Foundation

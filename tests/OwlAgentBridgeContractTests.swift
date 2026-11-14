@@ -115,13 +115,33 @@ final class OwlAgentBridgeContractTests: XCTestCase {
     XCTAssertEqual(schema["methods"], .array(Bridge.Method.allCases.map { .string($0.rawValue) }))
     guard case .object(let codes) = schema["errorCodes"] else { return XCTFail("errorCodes") }
     XCTAssertEqual(codes, Dictionary(uniqueKeysWithValues: Bridge.ErrorCode.allCases.map { ($0.name, .number(Double($0.rawValue))) }))
-    XCTAssertEqual(schema["deliverStatuses"], .array(["delivered", "cancelled", "target_changed", "expired"].map { .string($0) }))
+    XCTAssertEqual(
+      schema["deliverStatuses"],
+      .array([
+        Bridge.DeliverStatus.delivered(verified: true),
+        .cancelled,
+        .targetChanged(.focusChanged),
+        .expired
+      ].map { .string($0.name) })
+    )
     XCTAssertEqual(schema["targetChangedReasons"], .array(Bridge.TargetChangedReason.allCases.map { .string($0.rawValue) }))
     let deliver = schema["$defs"]?["deliverParams"]?["properties"]
-    XCTAssertEqual(deliver?["text"]?["maxLength"], .number(20_000))
-    XCTAssertEqual(deliver?["timeoutMs"]?["minimum"], .number(5_000))
-    XCTAssertEqual(deliver?["timeoutMs"]?["maximum"], .number(600_000))
-    XCTAssertEqual(deliver?["timeoutMs"]?["default"], .number(120_000))
+    guard case .number(let maxLengthNum) = deliver?["text"]?["maxLength"],
+      case .number(let minTimeoutNum) = deliver?["timeoutMs"]?["minimum"],
+      case .number(let maxTimeoutNum) = deliver?["timeoutMs"]?["maximum"],
+      case .number(let defaultTimeoutNum) = deliver?["timeoutMs"]?["default"] else {
+      return XCTFail("deliverParams bounds missing from bridge.schema.json")
+    }
+    let maxLength = Int(maxLengthNum)
+    let minTimeout = Int(minTimeoutNum)
+    let maxTimeout = Int(maxTimeoutNum)
+    let defaultTimeout = Int(defaultTimeoutNum)
+    XCTAssertNil(Bridge.DeliverParams(requestId: "r1", text: String(repeating: "a", count: maxLength), timeoutMs: defaultTimeout).invalidField)
+    XCTAssertEqual(Bridge.DeliverParams(requestId: "r1", text: String(repeating: "a", count: maxLength + 1), timeoutMs: defaultTimeout).invalidField, "text")
+    XCTAssertNil(Bridge.DeliverParams(requestId: "r1", text: "ok", timeoutMs: minTimeout).invalidField)
+    XCTAssertEqual(Bridge.DeliverParams(requestId: "r1", text: "ok", timeoutMs: minTimeout - 1).invalidField, "timeoutMs")
+    XCTAssertNil(Bridge.DeliverParams(requestId: "r1", text: "ok", timeoutMs: maxTimeout).invalidField)
+    XCTAssertEqual(Bridge.DeliverParams(requestId: "r1", text: "ok", timeoutMs: maxTimeout + 1).invalidField, "timeoutMs")
   }
 
   func testUnknownFieldInParamsIsInvalidParams() throws {

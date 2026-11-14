@@ -2,10 +2,6 @@
 //  SnapshotValidityTests.swift
 //  OwltypeTests — P0 staleness baseline (spec P0-06)
 //
-//  Verifies `OwlSnapshotRegistry.isCurrent(_:)` returns false after every invalidation
-//  event (rawInput / preedit / pageNo / commitSerial / schemaID / sessionID change) and true
-//  for an identical snapshot. No network, no engine dependency.
-//
 
 import Foundation
 import XCTest

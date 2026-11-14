@@ -165,12 +165,6 @@ pub struct TemplateSummary {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
-pub struct TemplateList {
-    pub templates: Vec<TemplateSummary>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct Template {
     pub id: String,
     pub title: String,
@@ -460,16 +454,8 @@ pub fn template_detail(entry: &Entry) -> TemplateDetail {
     }
 }
 
-pub fn list_templates(library: &Library) -> TemplateList {
-    TemplateList {
-        templates: exposed_templates(library)
-            .into_iter()
-            .map(template_summary)
-            .collect(),
-    }
-}
-
-pub fn get_template(library: &Library, id: &str) -> Result<TemplateDetail, ErrorObject> {
+#[cfg(test)]
+fn get_template(library: &Library, id: &str) -> Result<TemplateDetail, ErrorObject> {
     match find_exposed_template(library, id) {
         Some(entry) => Ok(template_detail(entry)),
         None => Err(ErrorObject {
@@ -1372,18 +1358,6 @@ impl CallLogCore {
     pub fn clear(&mut self) {
         self.records.clear();
     }
-
-    pub fn classify_outcome(status: Option<&str>, error_code_name: Option<&str>) -> String {
-        classify_call_outcome(status, error_code_name)
-    }
-
-    pub fn to_json(&self) -> Result<String, serde_json::Error> {
-        serde_json::to_string(&self.records)
-    }
-
-    pub fn from_json(json: &str) -> Result<Vec<CallRecord>, serde_json::Error> {
-        serde_json::from_str(json)
-    }
 }
 
 pub fn classify_call_outcome(status: Option<&str>, error_code_name: Option<&str>) -> String {
@@ -1431,23 +1405,6 @@ pub fn outcome_title<'a>(outcome: &'a str) -> &'a str {
         "template_not_found" => "无此模板",
         "delivery_busy" => "正忙",
         _ => outcome,
-    }
-}
-
-pub fn listed_templates<'a>(library: &'a Library) -> Vec<&'a Entry> {
-    library
-        .entries
-        .iter()
-        .filter(|e| e.review_state.is_none())
-        .collect()
-}
-
-pub fn set_template_exposed(library: &mut Library, id: &str, exposed: bool) -> bool {
-    if let Some(entry) = library.entries.iter_mut().find(|e| e.id.eq_ignore_ascii_case(id)) {
-        entry.exposed_to_agents = Some(exposed);
-        true
-    } else {
-        false
     }
 }
 
@@ -2520,5 +2477,50 @@ mod tests {
         assert_eq!(log_res["records"].as_array().unwrap().len(), 2);
         assert_eq!(log_res["entry"]["client"], "grok 1.0");
         assert_eq!(log_res["entry"]["outcome"], "delivered");
+    }
+
+    #[test]
+    fn schema_deliver_bounds_match_bridge_schema_json() {
+        let schema: Value = serde_json::from_str(include_str!(
+            "../../../shared/contracts/agent-bridge/bridge.schema.json"
+        ))
+        .expect("valid bridge.schema.json");
+        let props = &schema["$defs"]["deliverParams"]["properties"];
+        let max_len = props["text"]["maxLength"].as_u64().unwrap() as usize;
+        let min_timeout = props["timeoutMs"]["minimum"].as_u64().unwrap();
+        let max_timeout = props["timeoutMs"]["maximum"].as_u64().unwrap();
+        let default_timeout = props["timeoutMs"]["default"].as_u64().unwrap();
+
+        assert_eq!(MAX_DELIVER_CHARS, max_len);
+        assert_eq!(*DELIVER_TIMEOUT_RANGE_MS.start(), min_timeout);
+        assert_eq!(*DELIVER_TIMEOUT_RANGE_MS.end(), max_timeout);
+        assert_eq!(DEFAULT_DELIVER_TIMEOUT_MS, default_timeout);
+
+        let within_text = "a".repeat(max_len);
+        let too_long_text = "a".repeat(max_len + 1);
+        assert_eq!(
+            validate_deliver_params("req-1", &within_text, Some(default_timeout)),
+            Ok(())
+        );
+        assert_eq!(
+            validate_deliver_params("req-1", &too_long_text, Some(default_timeout)),
+            Err("text")
+        );
+        assert_eq!(
+            validate_deliver_params("req-1", "ok", Some(min_timeout)),
+            Ok(())
+        );
+        assert_eq!(
+            validate_deliver_params("req-1", "ok", Some(min_timeout - 1)),
+            Err("timeoutMs")
+        );
+        assert_eq!(
+            validate_deliver_params("req-1", "ok", Some(max_timeout)),
+            Ok(())
+        );
+        assert_eq!(
+            validate_deliver_params("req-1", "ok", Some(max_timeout + 1)),
+            Err("timeoutMs")
+        );
     }
 }

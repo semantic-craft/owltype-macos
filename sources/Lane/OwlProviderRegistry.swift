@@ -50,10 +50,6 @@ enum OwlProviderKeyVerification {
     table = next
   }
 
-  // periphery:ignore
-  static func resetForTesting() {
-    OwlDefaults.standard.removeObject(forKey: key)
-  }
 }
 
 // MARK: - Registry

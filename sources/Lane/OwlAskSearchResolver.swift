@@ -29,10 +29,6 @@ enum OwlAskWebSearchSettings {
     set { OwlDefaults.standard.set(newValue, forKey: key) }
   }
 
-  // periphery:ignore
-  static func resetForTesting() {
-    OwlDefaults.standard.removeObject(forKey: key)
-  }
 }
 
 // MARK: - Resolved route

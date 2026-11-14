@@ -97,7 +97,8 @@ pub fn validate_hotkey(key_code: u32, modifiers: u32) -> Option<RecordedHotKey> 
     Some(RecordedHotKey { key_code, modifiers })
 }
 
-pub fn hotkey_label(hotkey: &RecordedHotKey) -> String {
+#[cfg(test)]
+fn hotkey_label(hotkey: &RecordedHotKey) -> String {
     let mut text = String::new();
     if hotkey.modifiers & CONTROL_KEY != 0 {
         text.push('⌃');

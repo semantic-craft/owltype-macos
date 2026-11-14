@@ -2,17 +2,12 @@
 //  OwlAutoPairTests.swift
 //  OwltypeTests
 //
-//  自动配对括号 (task 07-02): the `OwlAutoPair` pair/reopening tables read by native punctuation,
-//  the pref's live cached flag, and the `OwlClientAction.insertTextInRange` value case.
-//
 
 import Foundation
 import XCTest
 @testable import Owltype
 
 final class OwlAutoPairTests: XCTestCase {
-  // MARK: - 配对表与重开引号表
-
   func testPairsTableContainsExpectedChineseAndASCIIBracketsWithoutStraightQuotes() {
     let expected: [Character: Character] = [
       "（": "）", "【": "】", "《": "》", "〈": "〉",

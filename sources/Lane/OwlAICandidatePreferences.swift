@@ -31,10 +31,4 @@ enum OwlAICandidatePreferences: Sendable {
     set { OwlDefaults.standard.set(newValue, forKey: jevDiscriminativeRerankEnabledKey) }
   }
 
-  // periphery:ignore
-  static func resetForTesting() {
-    OwlDefaults.standard.removeObject(forKey: aiAssociationEnabledKey)
-    OwlDefaults.standard.removeObject(forKey: aiEnglishCandidateEnabledKey)
-    OwlDefaults.standard.removeObject(forKey: jevDiscriminativeRerankEnabledKey)
-  }
 }

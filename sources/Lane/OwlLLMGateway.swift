@@ -1,9 +1,9 @@
 import Foundation
 
 enum OwlCloudPreferences {
-  private static let enabledKey = "OwlCloudLaneEnabled"
-  private static let modelKey = "OwlDeepSeekModel"
-  private static let endpointKey = "OwlDeepSeekEndpoint"
+  static let enabledKey = "OwlCloudLaneEnabled"
+  static let modelKey = "OwlDeepSeekModel"
+  static let endpointKey = "OwlDeepSeekEndpoint"
 
   static let defaultDeepSeekEndpoint = URL(string: "https://api.deepseek.com/chat/completions")!
   static let defaultDeepSeekModel = "deepseek-flash"
@@ -31,13 +31,6 @@ enum OwlCloudPreferences {
       return url
     }
     set { OwlDefaults.standard.set(newValue.absoluteString, forKey: endpointKey) }
-  }
-
-  // periphery:ignore
-  static func resetForTesting() {
-    OwlDefaults.standard.removeObject(forKey: enabledKey)
-    OwlDefaults.standard.removeObject(forKey: modelKey)
-    OwlDefaults.standard.removeObject(forKey: endpointKey)
   }
 
   static func canonicalDeepSeekModel(_ raw: String?) -> String {

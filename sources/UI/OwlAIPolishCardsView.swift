@@ -121,7 +121,11 @@ final class OwlAIPolishViewModel: ObservableObject {
   let originalText: String
   let context: OwlAIInvocationContext
   private let client: OwlSelectionPolishClientProtocol
-  private var activeTask: Task<Void, Never>?
+  nonisolated(unsafe) private var activeTask: Task<Void, Never>?
+
+  deinit {
+    activeTask?.cancel()
+  }
   private var candidateGeneration: UInt64 = 0
 
   init(

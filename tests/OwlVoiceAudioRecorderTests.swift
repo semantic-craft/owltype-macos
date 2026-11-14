@@ -236,6 +236,31 @@ final class OwlVoiceAudioRecorderTests: XCTestCase {
     }
   }
 
+  func testBufferClampingStrictlyLimitsToMaxPCMBytes() {
+    let maxPCM = OwlVoiceAudioRecorder.maxPCMBytes
+    XCTAssertEqual(maxPCM, 1_920_000)
+
+    var unstarted = OwlVoiceAudioRecorder.RecorderState()
+    XCTAssertFalse(unstarted.append(Data(repeating: 0x11, count: 1_024), rms: 0.5))
+    XCTAssertEqual(unstarted.pcmData.count, 0)
+
+    var state = OwlVoiceAudioRecorder.RecorderState(isRecording: true)
+
+    let chunk1 = Data(repeating: 0x55, count: 1_900_000)
+    XCTAssertFalse(state.append(chunk1, rms: 0.1))
+    XCTAssertEqual(state.pcmData.count, 1_900_000)
+
+    let chunk2 = Data(repeating: 0xAA, count: 30_000)
+    XCTAssertTrue(state.append(chunk2, rms: 0.1))
+    XCTAssertEqual(state.pcmData.count, maxPCM)
+    XCTAssertTrue(state.autoStopTriggered)
+
+    let chunk3 = Data(repeating: 0xBB, count: 50_000)
+    XCTAssertFalse(state.append(chunk3, rms: 0.25))
+    XCTAssertEqual(state.pcmData.count, maxPCM)
+    XCTAssertEqual(state.peakRMS, 0.25)
+  }
+
   func testMockStopAndCancelWhenNotRecordingSafety() {
     let mock = OwlMockAudioRecorder()
     XCTAssertFalse(mock.isRecording)

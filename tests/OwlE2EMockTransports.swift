@@ -717,3 +717,68 @@ public struct OwlE2EHotPathPurityChecker {
     return (violations.isEmpty, violations)
   }
 }
+
+extension OwlAICandidatePreferences {
+  static func resetForTesting() {
+    OwlDefaults.standard.removeObject(forKey: aiAssociationEnabledKey)
+    OwlDefaults.standard.removeObject(forKey: aiEnglishCandidateEnabledKey)
+    OwlDefaults.standard.removeObject(forKey: jevDiscriminativeRerankEnabledKey)
+  }
+}
+
+extension OwlAIWritingSettings {
+  static func resetForTesting() {
+    OwlDefaults.standard.removeObject(forKey: enabledKey)
+  }
+}
+
+extension OwlAskWebSearchSettings {
+  static func resetForTesting() {
+    OwlDefaults.standard.removeObject(forKey: key)
+  }
+}
+
+extension OwlCloudPreferences {
+  static func resetForTesting() {
+    OwlDefaults.standard.removeObject(forKey: enabledKey)
+    OwlDefaults.standard.removeObject(forKey: modelKey)
+    OwlDefaults.standard.removeObject(forKey: endpointKey)
+  }
+}
+
+extension OwlProviderKeyVerification {
+  static func resetForTesting() {
+    OwlDefaults.standard.removeObject(forKey: key)
+  }
+}
+
+extension OwlRerankRuntimeStatusRegistry {
+  func reset() {
+    lock.lock()
+    statuses.removeAll()
+    lock.unlock()
+  }
+}
+
+extension OwlExperimentalPreferences {
+  static func resetForTesting() {
+    OwlDefaults.standard.removeObject(forKey: selectionPolishPromptVariantKey)
+    OwlDefaults.standard.removeObject(forKey: keyboardRerankKey)
+    OwlDefaults.standard.removeObject(forKey: settledRerankKey)
+    OwlRerankRuntimeStatusRegistry.shared.reset()
+  }
+}
+
+extension OwlSelectionMenuPreferences {
+  static func resetForTesting() {
+    OwlDefaults.standard.removeObject(forKey: enabledKey)
+    OwlDefaults.standard.removeObject(forKey: askEnabledKey)
+    OwlDefaults.standard.removeObject(forKey: polishEnabledKey)
+    OwlDefaults.standard.removeObject(forKey: sourceVerificationEnabledKey)
+    OwlDefaults.standard.removeObject(forKey: researchAssistEnabledKey)
+    OwlDefaults.standard.removeObject(forKey: publishFormattingEnabledKey)
+    OwlDefaults.standard.removeObject(forKey: translationEnabledKey)
+    OwlDefaults.standard.removeObject(forKey: promptOptimizeEnabledKey)
+    OwlDefaults.standard.removeObject(forKey: goalBriefEnabledKey)
+  }
+}

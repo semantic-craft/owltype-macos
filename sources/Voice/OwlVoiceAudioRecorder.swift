@@ -22,12 +22,26 @@ public final class OwlVoiceAudioRecorder: OwlAudioRecordingProtocol, @unchecked 
   private let engine = AVAudioEngine()
   private var converter: AVAudioConverter?
 
-  private struct RecorderState {
+  struct RecorderState {
     var isRecording: Bool = false
     var startTime: Date?
     var pcmData: Data = Data()
     var peakRMS: Float = 0.0
     var autoStopTriggered: Bool = false
+
+    mutating func append(_ rawData: Data, rms: Float) -> Bool {
+      guard isRecording else { return false }
+      peakRMS = max(peakRMS, rms)
+      let remaining = max(0, OwlVoiceAudioRecorder.maxPCMBytes - pcmData.count)
+      if remaining > 0 {
+        pcmData.append(rawData.prefix(remaining))
+      }
+      if pcmData.count >= OwlVoiceAudioRecorder.maxPCMBytes, !autoStopTriggered {
+        autoStopTriggered = true
+        return true
+      }
+      return false
+    }
   }
 
   private let lock = OSAllocatedUnfairLock(initialState: RecorderState())
@@ -177,21 +191,8 @@ public final class OwlVoiceAudioRecorder: OwlAudioRecordingProtocol, @unchecked 
   }
 
   @discardableResult
-  internal func appendPCMData(_ rawData: Data, rms: Float) -> Bool {
-    var shouldTriggerAutoStop = false
-    lock.withLock { state in
-      guard state.isRecording else { return }
-      state.peakRMS = max(state.peakRMS, rms)
-      let remaining = max(0, Self.maxPCMBytes - state.pcmData.count)
-      if remaining > 0 {
-        state.pcmData.append(rawData.prefix(remaining))
-      }
-      if state.pcmData.count >= Self.maxPCMBytes, !state.autoStopTriggered {
-        state.autoStopTriggered = true
-        shouldTriggerAutoStop = true
-      }
-    }
-    return shouldTriggerAutoStop
+  private func appendPCMData(_ rawData: Data, rms: Float) -> Bool {
+    lock.withLock { $0.append(rawData, rms: rms) }
   }
 
   public static func normalizedLevel(for rms: Float) -> Float {

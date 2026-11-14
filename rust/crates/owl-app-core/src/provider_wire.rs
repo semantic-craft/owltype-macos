@@ -368,7 +368,7 @@ pub fn rule(op: &str, a: Value) -> Value {
                 if d {
                     json!({"model":model,"completionTokens":n("outputTokens"),"promptTokens":n("inputTokens"),"promptCacheHitTokens":n("cachedTokens"),"promptCacheMissTokens":(n("inputTokens")-n("cachedTokens")).max(0),"totalTokens":n("totalTokens")})
                 } else {
-                    json!({"model":model,"completionTokens":n("completion_tokens"),"promptTokens":n("prompt_tokens"),"promptCacheHitTokens":n("prompt_cache_hit_tokens"),"promptCacheMissTokens":n("prompt_cache_miss_tokens"),"totalTokens":n("total_tokens")})
+                    json!({"model":model,"completionTokens":n("completion_tokens"),"promptTokens":n("prompt_tokens"),"promptCacheHitTokens":u["prompt_cache_hit_tokens"].as_i64(),"promptCacheMissTokens":u["prompt_cache_miss_tokens"].as_i64(),"totalTokens":n("total_tokens")})
                 }
             } else {
                 Value::Null
@@ -666,5 +666,75 @@ impl Stream {
             }
             _ => None,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn completion_parse_decodes_bailian_and_deepseek_cache_tokens() {
+        let bailian = serde_json::json!({
+            "choices": [{
+                "message": {
+                    "role": "assistant",
+                    "content": "{\"status\":\"ready\",\"result\":\"改写后的提示词\"}"
+                }
+            }],
+            "usage": {
+                "prompt_tokens": 383,
+                "completion_tokens": 2953,
+                "total_tokens": 3336,
+                "completion_tokens_details": {"reasoning_tokens": 2629, "text_tokens": 2953},
+                "prompt_tokens_details": {"text_tokens": 383}
+            },
+            "model": "qwen3.6-flash",
+            "id": "chatcmpl-x"
+        });
+        let bailian_bytes: Vec<u8> = serde_json::to_vec(&bailian).unwrap();
+        let parsed_bailian = rule(
+            "completionParse",
+            json!({"bytes": bailian_bytes, "dashscope": false, "model": "qwen3.6-flash"}),
+        );
+        assert_eq!(
+            parsed_bailian["text"].as_str(),
+            Some("{\"status\":\"ready\",\"result\":\"改写后的提示词\"}")
+        );
+        assert_eq!(parsed_bailian["usage"]["model"].as_str(), Some("qwen3.6-flash"));
+        assert_eq!(parsed_bailian["usage"]["promptTokens"].as_i64(), Some(383));
+        assert_eq!(parsed_bailian["usage"]["completionTokens"].as_i64(), Some(2953));
+        assert_eq!(parsed_bailian["usage"]["totalTokens"].as_i64(), Some(3336));
+        assert_eq!(parsed_bailian["usage"]["promptCacheHitTokens"], Value::Null);
+        assert_eq!(parsed_bailian["usage"]["promptCacheMissTokens"], Value::Null);
+
+        let deepseek = serde_json::json!({
+            "choices": [{
+                "message": {
+                    "role": "assistant",
+                    "content": "hi"
+                }
+            }],
+            "usage": {
+                "prompt_tokens": 10,
+                "completion_tokens": 5,
+                "total_tokens": 15,
+                "prompt_cache_hit_tokens": 7,
+                "prompt_cache_miss_tokens": 3
+            },
+            "model": "deepseek-v4-flash"
+        });
+        let deepseek_bytes: Vec<u8> = serde_json::to_vec(&deepseek).unwrap();
+        let parsed_deepseek = rule(
+            "completionParse",
+            json!({"bytes": deepseek_bytes, "dashscope": false, "model": "deepseek-v4-flash"}),
+        );
+        assert_eq!(parsed_deepseek["text"].as_str(), Some("hi"));
+        assert_eq!(parsed_deepseek["usage"]["model"].as_str(), Some("deepseek-v4-flash"));
+        assert_eq!(parsed_deepseek["usage"]["promptTokens"].as_i64(), Some(10));
+        assert_eq!(parsed_deepseek["usage"]["completionTokens"].as_i64(), Some(5));
+        assert_eq!(parsed_deepseek["usage"]["totalTokens"].as_i64(), Some(15));
+        assert_eq!(parsed_deepseek["usage"]["promptCacheHitTokens"].as_i64(), Some(7));
+        assert_eq!(parsed_deepseek["usage"]["promptCacheMissTokens"].as_i64(), Some(3));
     }
 }

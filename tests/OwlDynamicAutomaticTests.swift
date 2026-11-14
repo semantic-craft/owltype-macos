@@ -201,4 +201,81 @@ final class OwlDynamicAutomaticTests: XCTestCase {
     XCTAssertFalse(validity.isValid())
     XCTAssertEqual(checks, 2)
   }
+
+  func testLiveInvocationWithUnverifiedHostDeliveryRetainsResultAndCopiesOnDemand() throws {
+    let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    defer { controller.destroySession() }
+    let client = HabitsTextClient(); client.appID = "com.apple.TextEdit"
+    let source = OwlTemplateHostDelivery.AutomaticSource(
+      originalInput: ";;dynamic",
+      markedRange: NSRange(location: 0, length: 9),
+      markedText: ";;dynamic",
+      isValid: { true }
+    )
+    let delivery = OwlTemplateHostDelivery(
+      controller: controller,
+      client: client,
+      automaticSource: source,
+      boundApplication: .current
+    )
+    var copies: [String] = []
+    let broker = OwlPanelInsertionBroker(
+      captureFrontmost: { nil },
+      pasteboardWrite: { copies.append($0); return true },
+      schedule: { _, action in action() }
+    )
+    var presented = 0; var finished = 0
+    let call = OwlTemplateInvocation(
+      content: .template(entry("{argument name=purpose}", mode: .delimiterDrop)),
+      broker: broker,
+      delivery: delivery,
+      prepareAutomaticSource: true,
+      onFinish: { finished += 1 },
+      captureContext: { _ in self.context() }
+    )
+
+    call.start { _ in presented += 1 }
+    XCTAssertEqual(presented, 1)
+    XCTAssertTrue(call.confirm(values: ["n:purpose": "result"]))
+    XCTAssertEqual(call.outcome, .notAttempted(.originalNotPreserved))
+    XCTAssertEqual(call.retainedResult, .init(text: "result", cursorOffset: nil))
+    XCTAssertEqual(client.text.string, "")
+    XCTAssertTrue(copies.isEmpty)
+    XCTAssertTrue(call.copyResult())
+    XCTAssertEqual(copies, ["result"])
+    XCTAssertEqual(finished, 1)
+    call.cancel()
+    XCTAssertEqual(finished, 1)
+  }
+
+  func testInvocationExternalTransitionBlocksDeliveryWhileVerifiedRoundTripSucceeds() throws {
+    for restoreAllowed in [false, true] {
+      var writes = 0; var finishes = 0
+      let broker = OwlPanelInsertionBroker(
+        captureFrontmost: { .init(restore: {}, isRestored: { restoreAllowed }) },
+        pasteboardWrite: { _ in true },
+        schedule: { _, action in action() }
+      )
+      let call = OwlTemplateInvocation(
+        content: .template(entry("{argument name=purpose}")),
+        broker: broker,
+        deliver: { _ in writes += 1; return .confirmed },
+        isHostReady: { restoreAllowed },
+        mayRestoreFocus: { restoreAllowed },
+        onFinish: { finishes += 1 },
+        captureContext: { _ in self.context() }
+      )
+      call.start { _ in }
+      XCTAssertTrue(call.confirm(values: ["n:purpose": "result"]))
+      if restoreAllowed {
+        XCTAssertEqual(writes, 1)
+        XCTAssertEqual(call.outcome, .confirmed)
+      } else {
+        XCTAssertEqual(writes, 0)
+        XCTAssertEqual(call.outcome, .notAttempted(.targetChanged))
+        XCTAssertEqual(call.retainedResult?.text, "result")
+      }
+      XCTAssertEqual(finishes, 1)
+    }
+  }
 }

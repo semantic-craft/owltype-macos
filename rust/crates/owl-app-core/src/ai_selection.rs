@@ -356,3 +356,100 @@ impl Rewrite {
         json!({"action":self.phase,"generation":self.generation,"accepted":accepted,"text":self.text,"task":self.task,"message":self.message,"noun":self.copy["noun"]})
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn fingerprint_keeps_multi_scalar_letters_and_distinguishes_korean_syllables() {
+        let original = "क्ष 가 a\u{200D}";
+        assert_eq!(fingerprint(original), "क्ष가a\u{200D}");
+        assert_ne!(fingerprint("가"), fingerprint("나"));
+    }
+
+    #[test]
+    fn fingerprint_ignores_punctuation_and_whitespace() {
+        assert_eq!(fingerprint("你好，world 123！"), fingerprint("你好world123"));
+        assert_ne!(fingerprint("原文内容"), fingerprint("原文内容多一句"));
+    }
+
+    #[test]
+    fn quotes_pair_preserve_apostrophes_and_fold_corner_quotes() {
+        assert_eq!(quotes("选\"甲\"与'乙'"), "选“甲”与‘乙’");
+        assert_eq!(quotes("don't 与 O'Brien"), "don't 与 O'Brien");
+        assert_eq!(quotes("「书名」『篇』"), "“书名”‘篇’");
+    }
+
+    #[test]
+    fn width_only_fullwidths_beside_cjk() {
+        assert_eq!(width("中文,句号."), "中文，句号。");
+        assert_eq!(width("确定(是)吗"), "确定（是）吗");
+        assert_eq!(width("iOS 18.5"), "iOS 18.5");
+        assert_eq!(width("e.g. test"), "e.g. test");
+        assert_eq!(width("共 1,000 元"), "共 1,000 元");
+    }
+
+    #[test]
+    fn ellipsis_and_dash_conversion_leaves_numeric_ranges_intact() {
+        assert_eq!(ellipsis("等等..."), "等等……");
+        assert_eq!(ellipsis("啊。。。"), "啊……");
+        assert_eq!(ellipsis("范围--结束"), "范围——结束");
+        assert_eq!(ellipsis("他—说"), "他——说");
+        assert_eq!(ellipsis("2020-2021"), "2020-2021");
+    }
+
+    #[test]
+    fn spaces_tighten_cjk_and_digits_and_apply_pangu_spacing() {
+        assert_eq!(spaces("中 文 字"), "中文字");
+        assert_eq!(spaces("共 3 人"), "共3人");
+        assert_eq!(spaces("第3条"), "第3条");
+        assert_eq!(spaces("hello world"), "hello world");
+        assert_eq!(spaces("a  b"), "a b");
+        assert_eq!(spaces("看iOS系统"), "看 iOS 系统");
+        assert_eq!(spaces("看 iOS 系统"), "看 iOS 系统");
+        assert_eq!(spaces("看  iOS  系统"), "看 iOS 系统");
+        assert_eq!(spaces("基于GPT架构"), "基于 GPT 架构");
+        assert_eq!(spaces("详见See id."), "详见 See id.");
+    }
+
+    #[test]
+    fn preclean_strips_trailing_spaces_and_collapses_blank_lines() {
+        assert_eq!(preclean("a  \n\n\n\nb  "), "a\n\nb");
+    }
+
+    #[test]
+    fn finalize_preserves_fingerprint_and_is_idempotent() {
+        let messy = "他说\"你好\",这是...一段  测试文字—end。看 iOS 好";
+        let once = finalize(messy);
+        assert_eq!(fingerprint(&once), fingerprint(messy));
+        assert_eq!(finalize(&once), once);
+    }
+
+    #[test]
+    fn format_result_rule_guards_tampering_and_empty_reflow() {
+        let formatted = rule(
+            "formatResult",
+            json!({
+                "original": "这是一段被硬换行\n拆断的文字,\n应该合并.",
+                "reflow": "这是一段被硬换行拆断的文字,应该合并."
+            }),
+        );
+        assert_eq!(formatted["text"], "这是一段被硬换行拆断的文字，应该合并。");
+
+        let tampered = rule(
+            "formatResult",
+            json!({
+                "original": "原文内容。",
+                "reflow": "原文内容。这是模型擅自加的一句。"
+            }),
+        );
+        assert_eq!(tampered["text"], "原文内容。");
+
+        let empty = rule(
+            "formatResult",
+            json!({"original": "原文", "reflow": "   "}),
+        );
+        assert_eq!(empty["text"], "");
+    }
+}

@@ -14,7 +14,6 @@ use std::collections::HashMap;
 
 pub fn dispatch(rule: &str, args: Value) -> Result<Value, String> {
     match rule {
-        // --- CommitTransform ---
         "commit_transform_apply" => {
             let text = args["text"].as_str().unwrap_or("");
             let cjk_english = args["cjk_english_spacing"].as_bool().unwrap_or(false);
@@ -29,7 +28,6 @@ pub fn dispatch(rule: &str, args: Value) -> Result<Value, String> {
             Ok(json!(transformed))
         }
 
-        // --- ForcedFinalize ---
         "forced_finalize_commit_text" => {
             let preview = args["preview"].as_str();
             let input = args["input"].as_str().unwrap_or("");
@@ -37,13 +35,11 @@ pub fn dispatch(rule: &str, args: Value) -> Result<Value, String> {
             Ok(json!(text))
         }
 
-        // --- UserAction ---
         "user_action_classify" => {
             let action = user_action::classify_user_action_value(&args)?;
             Ok(json!(action))
         }
 
-        // --- AppInputMemory ---
         "app_input_memory_initial_mode" => {
             let app = args["app"].as_str().unwrap_or("");
             let fallback = args["fallback"].as_bool().unwrap_or(false);
@@ -64,7 +60,6 @@ pub fn dispatch(rule: &str, args: Value) -> Result<Value, String> {
             Ok(json!(should))
         }
 
-        // --- OnboardingPractice ---
         "onboarding_practice_is_complete" => {
             let target = args["target"]
                 .as_str()
@@ -86,7 +81,6 @@ pub fn dispatch(rule: &str, args: Value) -> Result<Value, String> {
             Ok(json!(hint))
         }
 
-        // --- EmojiData ---
         "emoji_category_items" => {
             let category = args["category"].as_str().unwrap_or("");
             let items = emoji::emoji_catalog(category);
@@ -112,7 +106,6 @@ pub fn dispatch(rule: &str, args: Value) -> Result<Value, String> {
             Ok(json!(updated))
         }
 
-        // --- QuickSendHotKey ---
         "hotkey_validate" => {
             let key_code = args["key_code"].as_u64().unwrap_or(0) as u32;
             let modifiers = args["modifiers"].as_u64().unwrap_or(0) as u32;
@@ -177,7 +170,6 @@ pub fn dispatch(rule: &str, args: Value) -> Result<Value, String> {
             Ok(json!(matches))
         }
 
-        // --- InputSource TIS/LS ---
         "input_source_diag_classify" => {
             let sources: Vec<input_source_diag::TisSourceState> =
                 serde_json::from_value(args["sources"].clone()).unwrap_or_default();
@@ -196,7 +188,6 @@ pub fn dispatch(rule: &str, args: Value) -> Result<Value, String> {
             Ok(json!(report))
         }
 
-        // --- UpdateLogoutPrompt ---
         "logout_prompt_should_suggest" => {
             let failed = args["failed_version"].as_str();
             let current = args
