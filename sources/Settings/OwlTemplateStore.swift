@@ -10,21 +10,6 @@ struct OwlTemplateParameter: Codable, Equatable, Sendable {
   var options: [String] = []
 }
 
-enum OwlPromptVariables {
-  static func extract(from body: String) -> [String] {
-    OwlTemplateEngine.parse(body: body, syntax: .legacyDoubleBraces).parameters.map(\.key)
-  }
-
-  static func substitute(in body: String, values: [String: String], clipboard: String = "") -> String {
-    let parsed = OwlTemplateEngine.parse(body: body, syntax: .legacyDoubleBraces)
-    return OwlTemplateEngine.render(
-      parsed, values: values,
-      context: .init(clipboard: .text(clipboard)),
-      decisions: .init(allowEmptyClipboard: true)
-    ).previewText
-  }
-}
-
 struct OwlTemplateEntry: Identifiable, Codable, Equatable, Sendable {
   enum CodingKeys: String, CodingKey, CaseIterable {
     case id, title, body, bodyType, syntax, candidateAliases, trigger, tags, isPinned, category
@@ -73,10 +58,6 @@ struct OwlTemplateEntry: Identifiable, Codable, Equatable, Sendable {
 
   var executionIssue: String? {
     OwlTemplateEngine.parse(self).diagnostics.first(where: { $0.severity == .error })?.message
-  }
-
-  var legacyVariables: [String] {
-    bodyType == .template && syntax == .legacyDoubleBraces ? OwlPromptVariables.extract(from: body) : []
   }
 }
 

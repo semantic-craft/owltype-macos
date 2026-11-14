@@ -139,23 +139,6 @@ final class OwlAIWindow: NSWindowController {
     return model
   }
 
-  @discardableResult
-  func showPolish(
-    context: OwlAIInvocationContext,
-    selectedText: String? = nil,
-    style: OwlPolishStyle = .faithful
-  ) -> OwlAIConversationModel {
-    show(context: context, selectedText: selectedText, initialMode: .polish)
-  }
-
-  @discardableResult
-  func showReply(
-    context: OwlAIInvocationContext,
-    contextText: String? = nil,
-    template: OwlReplyTemplate = .agree
-  ) -> OwlAIConversationModel {
-    show(context: context, selectedText: contextText, initialMode: .quickReply)
-  }
   // 出窗技能（核验回执卡 / 替换原文的技能）执行前用继承的 NSWindowController.close() 关窗，
   // 经 windowWillClose 把焦点还给宿主。
 

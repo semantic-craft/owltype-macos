@@ -15,7 +15,6 @@ import Combine
 /// 填空 sheet 的视图模型：保序变量名 + 各自当前值。`@Published values` 驱动文本框双向绑定。
 final class OwlPromptFillModel: ObservableObject {
   let title: String
-  /// 去重、保序的变量名（来自 `OwlPromptVariables.extract`）。
   let variables: [String]
   @Published var values: [String: String]
 
