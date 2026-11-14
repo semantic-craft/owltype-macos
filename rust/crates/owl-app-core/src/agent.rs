@@ -1643,31 +1643,6 @@ pub fn rule(rule: &str, args: Value) -> Result<Value, String> {
             Ok(status_json)
         }
 
-        "call_log_record" => {
-            let client_name = args["client_name"].as_str().unwrap_or("");
-            let client_version = args["client_version"].as_str().unwrap_or("");
-            let method = args["method"].as_str().unwrap_or("");
-            let reply_status = args["reply_status"].as_str();
-            let reply_error_code = args["reply_error_code"].as_str();
-            let at_iso8601 = args["at_iso8601"].as_str().unwrap_or("");
-
-            let outcome = classify_call_outcome(reply_status, reply_error_code);
-            let client = if client_name.is_empty() {
-                "".to_string()
-            } else if client_version.is_empty() {
-                client_name.to_string()
-            } else {
-                format!("{client_name} {client_version}")
-            };
-
-            Ok(json!({
-                "at": at_iso8601,
-                "client": client,
-                "method": method,
-                "outcome": outcome
-            }))
-        }
-
         "agent_call_log_append" | "call_log_append" => {
             let limit = args["limit"].as_u64().unwrap_or(CALL_LOG_LIMIT as u64) as usize;
             let mut core = CallLogCore::new(limit);

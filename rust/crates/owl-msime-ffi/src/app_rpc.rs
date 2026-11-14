@@ -299,15 +299,7 @@ fn app_dispatch(bytes: &[u8]) -> Value {
                     (d >> 48) as u64 & 0xFFFFFFFFFFFF
                 )
             });
-            let mut copy =
-                owl_app_core::template_library::Entry::new(id, e.title + " 副本", e.body);
-            copy.body_type = e.body_type;
-            copy.syntax = e.syntax;
-            copy.tags = e.tags;
-            copy.is_pinned = e.is_pinned;
-            copy.category = e.category;
-            copy.parameters = e.parameters;
-            copy.review_state = e.review_state;
+            let copy = e.duplicated(id);
             json!(copy)
         }
         AppRequest::TemplateEncode { library } => {
@@ -743,6 +735,76 @@ mod app_ffi_tests {
             );
             owl_msime_string_free(result);
             owl_msime_string_free(std::ptr::null_mut());
+        }
+    }
+
+    #[test]
+    fn both_template_duplicate_entrypoints_preserve_content_and_reset_identity_metadata() {
+        let dir = TempDir::new().unwrap();
+        for exposure in [Value::Null, json!(false), json!(true)] {
+            let mut entry = json!({
+                "id": "abcdefab-cdef-4abc-8def-abcdefabcdef",
+                "title": "模板",
+                "body": "{{topic}}",
+                "bodyType": "template",
+                "syntax": "legacyDoubleBraces",
+                "candidateAliases": ["alias"],
+                "trigger": ";;topic",
+                "tags": ["work"],
+                "isPinned": true,
+                "category": "prompt",
+                "parameters": [{"key":"topic","name":"主题","isRequired":true,
+                    "defaultValue":"发布","options":["发布","复盘"]}],
+                "invocationMode": "automatic",
+                "expansionMode": "immediate",
+                "importSource": {"version":1,"originalName":"导入",
+                    "originalBody":"{{topic}}","originalKeyword":"keyword"},
+                "reviewState": "pending"
+            });
+            if !exposure.is_null() {
+                entry["exposedToAgents"] = exposure;
+            }
+            let expected = json!({
+                "id": "supplied-id",
+                "title": "模板 副本",
+                "body": "{{topic}}",
+                "bodyType": "template",
+                "syntax": "legacyDoubleBraces",
+                "candidateAliases": [],
+                "tags": ["work"],
+                "isPinned": true,
+                "category": "prompt",
+                "parameters": entry["parameters"],
+                "invocationMode": "searchOnly",
+                "expansionMode": "delimiterDrop",
+                "reviewState": "pending"
+            });
+            let direct = call(1, &serde_json::to_vec(&json!({
+                "operation":"template_duplicate", "entry":entry, "new_id":"supplied-id"
+            })).unwrap());
+            assert_eq!(direct, json!({"ok":true,"value":expected}));
+
+            for request in [
+                json!({"operation":"template_duplicate", "entry":entry}),
+                json!({"operation":"storage", "data_dir":dir.path(),
+                    "storage_op":"library_duplicate", "args":{"entry":entry}}),
+            ] {
+                let result = call(1, &serde_json::to_vec(&request).unwrap());
+                assert_eq!(result["ok"], true);
+                let mut copy = result["value"].clone();
+                let id = copy["id"].as_str().unwrap();
+                assert!(owl_app_core::template_library::valid_id(id), "{result}");
+                assert_ne!(id, "ABCDEFAB-CDEF-4ABC-8DEF-ABCDEFABCDEF");
+                copy["id"] = json!("supplied-id");
+                assert_eq!(copy, expected);
+            }
+        }
+        for request in [
+            json!({"operation":"template_duplicate", "entry":{"id":"invalid"}}),
+            json!({"operation":"storage", "data_dir":dir.path(),
+                "storage_op":"library_duplicate", "args":{"entry":{"id":"invalid"}}}),
+        ] {
+            assert_eq!(call(1, &serde_json::to_vec(&request).unwrap()), app_error("invalid_payload"));
         }
     }
 

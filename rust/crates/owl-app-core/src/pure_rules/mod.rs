@@ -360,10 +360,6 @@ pub fn dispatch(rule: &str, args: Value) -> Result<Value, String> {
         }
 
         // --- 13. EngineRuntime ---
-        "engine_runtime_is_usable" => {
-            let has_style = args["has_style_section"].as_bool().unwrap_or(false);
-            Ok(json!(has_style))
-        }
         "engine_option_valid" => {
             let name = args["name"].as_str().unwrap_or("");
             let valid = engine_runtime_rule::is_valid_engine_option(name);

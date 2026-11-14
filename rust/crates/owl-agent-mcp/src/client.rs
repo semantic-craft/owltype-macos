@@ -92,7 +92,6 @@ pub struct BridgeConnection {
     reader: BufReader<tokio::net::unix::OwnedReadHalf>,
     writer: tokio::net::unix::OwnedWriteHalf,
     next_id: u64,
-    pub app_protocol_version: u32,
 }
 
 impl BridgeConnection {
@@ -111,17 +110,14 @@ impl BridgeConnection {
             return Err(BridgeError::Untrusted("the listening process belongs to another user".into()));
         }
         let (reader, writer) = stream.into_split();
-        let mut connection = BridgeConnection { reader: BufReader::new(reader), writer, next_id: 1, app_protocol_version: 0 };
+        let mut connection = BridgeConnection { reader: BufReader::new(reader), writer, next_id: 1 };
         let hello = Call::Hello(HelloParams {
             protocol_version: PROTOCOL_VERSION,
             helper: Component { name: "owltype-mcp".into(), version: env!("CARGO_PKG_VERSION").into() },
             agent_client,
         });
         match connection.call(&hello, CALL_TIMEOUT).await? {
-            Outcome::Hello(result) if result.protocol_version == PROTOCOL_VERSION => {
-                connection.app_protocol_version = result.protocol_version;
-                Ok(connection)
-            }
+            Outcome::Hello(result) if result.protocol_version == PROTOCOL_VERSION => Ok(connection),
             Outcome::Hello(result) => {
                 Err(BridgeError::Protocol(format!("Owltype speaks bridge protocol {}", result.protocol_version)))
             }
