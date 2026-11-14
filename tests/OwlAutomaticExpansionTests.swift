@@ -556,6 +556,63 @@ final class OwlAutomaticExpansionTests: XCTestCase {
   }
 
   @MainActor
+  func testSaveAndDeleteEachRefreshBoundRuntimeOnce() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("OwlCommitTests-" + UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: root) }
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    let suite = "OwlCommitTests-" + UUID().uuidString
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set(true, forKey: OwlAutomaticExpansionRuntime.enabledKey)
+    let runtime = OwlAutomaticExpansionRuntime()
+    try runtime.reload(dataDir: root, defaults: defaults)
+    let item = entry(";;commit")
+    let beforeSave = runtime.revision
+    try OwlTemplateStore.save(.init(entries: [item]), dataDir: root)
+    XCTAssertEqual(runtime.revision, beforeSave + 1)
+    XCTAssertEqual(type(";;commit", into: OwlAutomaticExpansionRecognizer(), index: runtime.index),
+                   .invoke(item, trigger: ";;commit"))
+
+    let saved = try OwlTemplateStore.load(dataDir: root)
+    let beforeDelete = runtime.revision
+    let deleted = try OwlTemplateStore.delete(id: item.id, expected: saved, dataDir: root)
+    XCTAssertTrue(deleted.entries.isEmpty)
+    XCTAssertTrue(runtime.index.isEmpty)
+    XCTAssertEqual(runtime.revision, beforeDelete + 1)
+  }
+
+  @MainActor
+  func testChangedImportRefreshesBoundRuntimeOnceAndRepeatedImportDoesNotRefresh() throws {
+    let root = FileManager.default.temporaryDirectory.appendingPathComponent("OwlImportCommitTests-" + UUID().uuidString)
+    defer { try? FileManager.default.removeItem(at: root) }
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    let suite = "OwlImportCommitTests-" + UUID().uuidString
+    let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
+    defer { defaults.removePersistentDomain(forName: suite) }
+    defaults.set(true, forKey: OwlAutomaticExpansionRuntime.enabledKey)
+    let runtime = OwlAutomaticExpansionRuntime()
+    try runtime.reload(dataDir: root, defaults: defaults)
+    let importer = OwlRaycastImport(dataDir: root)
+    let source = try JSONSerialization.data(withJSONObject: [["name": "导入", "text": "导入正文", "keyword": ";;import"]])
+    let preview = try importer.preview(data: source)
+    XCTAssertEqual(preview.selectedCount, 1)
+    let beforeImport = runtime.revision
+    let imported = try importer.commit(preview)
+    XCTAssertEqual(imported.entries.count, 1)
+    XCTAssertEqual(runtime.revision, beforeImport + 1)
+
+    let libraryURL = root.appendingPathComponent(OwlTemplateStore.fileName)
+    let savedBytes = try Data(contentsOf: libraryURL)
+    let repeated = try importer.preview(data: source)
+    XCTAssertEqual(repeated.selectedCount, 0)
+    let beforeRepeatedImport = runtime.revision
+    let unchanged = try importer.commit(repeated)
+    XCTAssertEqual(unchanged, imported)
+    XCTAssertEqual(try Data(contentsOf: libraryURL), savedBytes)
+    XCTAssertEqual(runtime.revision, beforeRepeatedImport)
+  }
+
+  @MainActor
   func testSavedExpansionModeRefreshesBoundRuntimeAndFailedConflictKeepsPreviousMode() throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("OwlDelimiterTests-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
