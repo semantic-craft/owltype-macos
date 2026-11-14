@@ -223,8 +223,8 @@ mod tests {
 
     #[tokio::test]
     async fn preserves_utf8_and_following_lines_and_reports_eof() {
-        let mut reader = buffered_answer("猫头鹰\nnext\npartial".as_bytes()).await;
-        assert_eq!(read_line(&mut reader).await.unwrap(), "猫头鹰".as_bytes());
+        let mut reader = buffered_answer("测试文本\nnext\npartial".as_bytes()).await;
+        assert_eq!(read_line(&mut reader).await.unwrap(), "测试文本".as_bytes());
         assert_eq!(read_line(&mut reader).await.unwrap(), b"next");
         assert!(matches!(read_line(&mut reader).await, Err(BridgeError::Io(_))));
         assert!(matches!(read_line(&mut reader).await, Err(BridgeError::Io(_))));
