@@ -8,6 +8,27 @@ import XCTest
 
 final class OwlVoiceGrokASRClientTests: XCTestCase {
 
+  func testDeepSeekUploadsOnlyWAVAndDecodesTranscript() async throws {
+    let wav = OwlWAVPacker.pack16kMono(pcmData: Data([1, 2, 3, 4]))
+    let transport = OwlStubVoiceTransport { request in
+      XCTAssertEqual(request.url?.absoluteString, "https://api.deepseek.com/v1/tools/asr")
+      XCTAssertEqual(request.value(forHTTPHeaderField: "Authorization"), "Bearer test-deepseek")
+      let body = try XCTUnwrap(request.httpBody)
+      let text = String(decoding: body, as: UTF8.self)
+      XCTAssertTrue(text.contains("name=\"file\"; filename=\"speech.wav\""))
+      XCTAssertNotNil(body.range(of: wav))
+      for field in ["model", "response_format", "prompt"] {
+        XCTAssertFalse(text.contains("name=\"\(field)\""))
+      }
+      let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+      return (Data(#"{"request_id":"asr-test","text":" 今天开会。 ","duration_ms":1000}"#.utf8), response)
+    }
+    let client = OwlVoiceGrokASRClient(
+      providerID: "deepseek", transport: transport, apiKeyProvider: { "test-deepseek" })
+    let transcript = try await client.transcribe(audioWavData: wav, prompt: "不应发送的上下文")
+    XCTAssertEqual(transcript, "今天开会。")
+  }
+
   // MARK: - 1. Multipart Payload Byte Structure
 
   func testMultipartPayloadEncoding() {

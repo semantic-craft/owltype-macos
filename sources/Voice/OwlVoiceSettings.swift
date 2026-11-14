@@ -63,7 +63,17 @@ public enum OwlVoiceASRCatalog {
     keyHint: "AIza..."
   )
 
-  public static let presets: [OwlVoiceASRPreset] = [openai, gemini]
+  public static let deepseek = OwlVoiceASRPreset(
+    id: "deepseek",
+    displayName: "DeepSeek",
+    endpoint: "https://api.deepseek.com/v1/tools/asr",
+    defaultModel: "",
+    curatedModels: [],
+    keyLabel: "DeepSeek API Key",
+    keyHint: "sk-..."
+  )
+
+  public static let presets: [OwlVoiceASRPreset] = [openai, gemini, deepseek]
 
   public static func preset(id: String) -> OwlVoiceASRPreset {
     let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()

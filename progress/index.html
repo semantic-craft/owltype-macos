@@ -3,8 +3,15 @@
 <title>法墨输入法 · 项目进度与剩余工作</title>
 <style>body{font:16px system-ui;max-width:960px;margin:3rem auto;padding:0 1rem;color:#202936;background:#f7f8fb}article,section{padding:1rem;margin:1rem 0;background:white;border-radius:12px}a{color:#1555ac}.badge{padding:.25rem .6rem;border-radius:20px;background:#e9edf5}small{color:#566}</style>
 <h1>法墨输入法 · 项目进度与剩余工作</h1>
-<p>Observed: 2026-11-13T12:46:48.466757Z</p>
-<p>Main: <code>main: 31f709b0ffac86666687297c4fd2e5213ac4ba1d</code></p>
+<p>Observed: 2026-11-13T23:54:35.390069Z</p>
+<p>Main: <code>main: dfb4b692ec39d02ebb3773e5d5949de2465a79b1</code></p>
+<section id="deepseek-services"><h2>DeepSeek 服务接入</h2>
+<article id="deepseek-asr"><h3>DeepSeek 语音识别供应商</h3><span class="badge">in_progress</span><p>ASR 新增 DeepSeek 预设，复用供应商密钥，按官方接口仅上传 WAV；设置隐藏模型选择并说明录完转写。现有问答、改写、起草、语音润色、联网搜索和来源核验已有 DeepSeek 接入。项目尚无独立 TTS、OCR 或网页正文读取功能。</p><ul>
+<li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/sources/Voice/OwlVoiceSettings.swift">file sources/Voice/OwlVoiceSettings.swift: DeepSeek ASR 预设及现有共享密钥路径。</a></li>
+<li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/tests/OwlVoiceGrokASRClientTests.swift">file tests/OwlVoiceGrokASRClientTests.swift: 73 项语音相关测试通过，验证请求格式、密钥复用及回归；20261113T235029Z-swift-jd8g1s91，source_unchanged=true。</a></li>
+<li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/tests/OwlSkillsLiveTests.swift">file tests/OwlSkillsLiveTests.swift: 2026-11-14 经 live-test.sh 执行 testDeepSeekASRTranscribesSpokenAudio，通过真实 DeepSeek ASR，4.368 秒。</a></li>
+</ul><p>Next: 完成精确提交的完整合并门禁；正式安装与真实麦克风体验尚未验收。</p></article>
+</section>
 <section id="chinese-name"><h2>中文名称恢复</h2>
 <article id="restore-chinese-name"><h3>恢复法墨输入法中文名称</h3><span class="badge">unverified</span><p>当前界面、简繁体资源和安装文案已恢复法墨名称。隔离设置界面、三种语言编译资源及 18 项身份门禁已通过；正式安装验收未完成。</p><ul>
 <li><a href="https://github.com/semantic-craft/owltype-macos/issues/421">issue 421: 名称恢复与连续性验收范围</a></li>

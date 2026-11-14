@@ -214,23 +214,29 @@ struct OwlAIPage: View {
       TextField("ASR 端点，如 https://api.openai.com/v1/audio/transcriptions", text: $voiceEndpointInput)
         .textFieldStyle(.roundedBorder)
     }
-    formRow("模型") {
-      HStack(spacing: 8) {
-        TextField("ASR 模型，如 gpt-transcribe", text: $voiceModelInput)
-          .textFieldStyle(.roundedBorder)
-        Menu {
-          ForEach(voiceAvailableModels, id: \.self) { id in
-            Button(id) {
-              voiceModelInput = id
-              OwlVoiceSettings.asrModel = id
+    if activeVoiceASRPreset.id == OwlVoiceASRCatalog.deepseek.id {
+      Text("DeepSeek 自动识别语种，无需选择模型；录音结束后转写，不支持热词提示。每次录音最长 60 秒。")
+        .font(.system(size: 12))
+        .foregroundStyle(palette.ink3)
+    } else {
+      formRow("模型") {
+        HStack(spacing: 8) {
+          TextField("ASR 模型，如 gpt-transcribe", text: $voiceModelInput)
+            .textFieldStyle(.roundedBorder)
+          Menu {
+            ForEach(voiceAvailableModels, id: \.self) { id in
+              Button(id) {
+                voiceModelInput = id
+                OwlVoiceSettings.asrModel = id
+              }
             }
+          } label: {
+            Text("选择")
           }
-        } label: {
-          Text("选择")
+          .fixedSize()
+          .accessibilityLabel("选择语音识别模型")
+          smallButton("拉取模型") { fetchVoiceModels() }
         }
-        .fixedSize()
-        .accessibilityLabel("选择语音识别模型")
-        smallButton("拉取模型") { fetchVoiceModels() }
       }
     }
     formRow("密钥") {

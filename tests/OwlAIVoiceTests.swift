@@ -764,6 +764,71 @@ final class OwlAIVoiceTests: XCTestCase {
     )
   }
 
+  func testConfiguredDeepSeekProviderProfileAutoSwitchesVoiceASRAndFormatsErrorsWithDeepSeekName() throws {
+    let suiteName = "OwlVoiceAutoDeepSeekTests.\(UUID().uuidString)"
+    let defaults = UserDefaults(suiteName: suiteName)!
+    defer { defaults.removePersistentDomain(forName: suiteName) }
+
+    let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+    try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: tempDir) }
+
+    let store = OwlProviderProfileStore(root: tempDir)
+    let deepseekProfile = try store.add(OwlProviderProfile(
+      displayName: "DeepSeek",
+      endpoint: URL(string: "https://api.deepseek.com/chat/completions")!,
+      model: "deepseek-flash",
+      providerID: "deepseek",
+      isDefault: true
+    ))
+
+    final class InMemorySecrets: OwlSecretStoring {
+      var values: [String: String] = [:]
+      func secret(named name: String) throws -> String? { values[name] }
+      func setSecret(_ value: String, named name: String) throws { values[name] = value }
+      func deleteSecret(named name: String) throws { values.removeValue(forKey: name) }
+    }
+    let secrets = InMemorySecrets()
+    try secrets.setSecret("AIza-deepseek-key", named: deepseekProfile.secretName)
+
+    // Even when defaults had no ASR provider or had unconfigured "openai" or legacy "grok",
+    // resolvedASRProviderID automatically selects "deepseek" because the user configured DeepSeek!
+    XCTAssertEqual(
+      OwlVoiceSettings.resolvedASRProviderID(defaults: defaults, store: store, secrets: secrets),
+      "deepseek"
+    )
+    defaults.set("grok", forKey: OwlVoiceSettings.asrProviderIDKey)
+    XCTAssertEqual(
+      OwlVoiceSettings.resolvedASRProviderID(defaults: defaults, store: store, secrets: secrets),
+      "deepseek"
+    )
+    defaults.set("openai", forKey: OwlVoiceSettings.asrProviderIDKey)
+    XCTAssertEqual(
+      OwlVoiceSettings.resolvedASRProviderID(defaults: defaults, store: store, secrets: secrets),
+      "deepseek"
+    )
+
+    // Verify OwlVoiceError uses the active preset name instead of hardcoded "xAI"
+    let savedProvider = OwlDefaults.standard.object(forKey: OwlVoiceSettings.asrProviderIDKey)
+    defer {
+      if let savedProvider { OwlDefaults.standard.set(savedProvider, forKey: OwlVoiceSettings.asrProviderIDKey) }
+      else { OwlDefaults.standard.removeObject(forKey: OwlVoiceSettings.asrProviderIDKey) }
+    }
+    OwlVoiceSettings.asrProviderID = "deepseek"
+    XCTAssertEqual(
+      OwlVoiceError.missingAPIKey.errorDescription,
+      "未配置 DeepSeek API Key，请在 AI 设置中配置。"
+    )
+    XCTAssertEqual(
+      OwlVoiceError.invalidToken(status: 401, message: "bad key").errorDescription,
+      "DeepSeek 认证失败 (401): bad key"
+    )
+    XCTAssertEqual(
+      OwlVoiceError.badHTTPStatus(status: 503, message: "unavailable").errorDescription,
+      "DeepSeek 语音服务响应异常 (503): unavailable"
+    )
+  }
+
   func testVoiceKeychainReadsConfiguredDeepSeekProfileKey() throws {
     let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
@@ -791,10 +856,10 @@ final class OwlAIVoiceTests: XCTestCase {
     XCTAssertEqual(resolved, "sk-deepseek-from-profile")
   }
 
-  func testTwoPresetASRCatalogOpenAIAndGemini() throws {
+  func testASRCatalogOpenAIAndGeminiAndDeepSeek() throws {
     XCTAssertEqual(
       OwlVoiceASRCatalog.presets.map(\.id),
-      ["openai", "gemini"]
+      ["openai", "gemini", "deepseek"]
     )
     XCTAssertEqual(OwlVoiceASRCatalog.preset(id: "openai").defaultModel, "gpt-transcribe")
     XCTAssertEqual(OwlVoiceASRCatalog.preset(id: "gemini").defaultModel, "gemini-3.5-transcribe")
