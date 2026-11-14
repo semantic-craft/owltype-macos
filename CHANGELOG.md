@@ -1,3 +1,11 @@
+<a name="2.5.5"></a>
+## 2.5.5 (2026-11-14)
+
+- 全库清理 Swift 与 Rust 死代码、无调用方封装及未使用 Cargo 依赖（`unicode-segmentation`、`base64`、`rusqlite`），双模式 Periphery 扫描警告清零且 `sources/` 无 `// periphery:ignore` 豁免，并将 `resetForTesting` 测试钩子迁出生产源码至 `tests/`。（#433）
+- 加固运行期生命周期管理（`OwlAgentAccess.start` KVO 防重入保护、`OwlApplicationDelegate` 与 `OwlInputStatusPanel` 通知观察者注销清理、`OwlQuickReplyViewModel` 与 `OwlAIPolishViewModel` `deinit` 取消任务），并补齐行为测试覆盖（`ai_selection`、`host_delivery`、`OwlVoiceAudioRecorder` PCM 截断限制、`provider_wire` 缓存用量解析与 `DeliverParams` 边界）。（#433）
+- Sweep unused Swift and Rust code, orphan wrappers, and unused Cargo dependencies (`unicode-segmentation`, `base64`, `rusqlite`) across the repository, reaching zero Periphery warnings in both index-store and standalone scans with zero `// periphery:ignore` suppressions in `sources/` and relocating `resetForTesting` test hooks to `tests/` (#433).
+- Harden runtime lifecycle safety (`OwlAgentAccess.start` KVO reentrancy guard, `OwlApplicationDelegate` and `OwlInputStatusPanel` block-observer cleanup, and `OwlQuickReplyViewModel` and `OwlAIPolishViewModel` `deinit` task cancellation) and restore behavioral test coverage across `ai_selection`, `host_delivery`, `OwlVoiceAudioRecorder` PCM clamping, `provider_wire` prompt cache token parsing, and `DeliverParams` bounds (#433).
+
 <a name="2.5.4"></a>
 ## 2.5.4 (2026-11-14)
 

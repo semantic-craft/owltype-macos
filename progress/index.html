@@ -3,29 +3,47 @@
 <title>法墨输入法 · 项目进度与剩余工作</title>
 <style>body{font:16px system-ui;max-width:960px;margin:3rem auto;padding:0 1rem;color:#202936;background:#f7f8fb}article,section{padding:1rem;margin:1rem 0;background:white;border-radius:12px}a{color:#1555ac}.badge{padding:.25rem .6rem;border-radius:20px;background:#e9edf5}small{color:#566}</style>
 <h1>法墨输入法 · 项目进度与剩余工作</h1>
-<p>Observed: 2026-11-14T04:43:09Z</p>
-<p>Main: <code>main: e132cdafcd7087f91d02c9381b599804bbf261dd</code></p>
+<p>Observed: 2026-11-14T09:44:43.720297Z</p>
+<p>Main: <code>main: 39e214a171bee8e8f2c3e8b7ded2b918e7e79041</code></p>
+<section id="release-2-5-5"><h2>2.5.5 发布与代码清理加固</h2>
+<article id="release-2-5-5-prep"><h3>2.5.5 发布准备与待办边界</h3><span class="badge">in_progress</span><p>2.5.5 发布分支基于 main 39e214a，整合已合并的 PR #433（全库 Swift 与 Rust 死代码清理、运行期生命周期加固与行为测试补齐）。12 处 Xcode 版本字段已更新为 2.5.5，CHANGELOG.md 与进度页已同步。已合并 PR #433 的精确提交 8f1992b 已通过完整门禁（20261114T090746Z-full-p6qq0o65，15 项门禁全过，Swift 执行 1,478 项含 1 项跳过 0 失败），但 2.5.5 发布提交本身的最终完整门禁、正式签名与公证、公开发布分发、本机安装升级以及用户真机打字与麦克风验收均尚未执行。</p><ul>
+<li><a href="https://github.com/semantic-craft/owltype-macos/pull/433">pull 433: PR #433 已合入 main（39e214a），精确提交 8f1992b 通过完整门禁（20261114T090746Z-full-p6qq0o65）。</a></li>
+<li><a href="https://github.com/semantic-craft/owltype-macos/commit/39e214a171bee8e8f2c3e8b7ded2b918e7e79041">commit 39e214a171bee8e8f2c3e8b7ded2b918e7e79041: PR #433 合并至 main 的精确提交。</a></li>
+<li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/CHANGELOG.md">file CHANGELOG.md: 2.5.5 中英文更新说明覆盖 #433。</a></li>
+<li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/Owltype.xcodeproj/project.pbxproj">file Owltype.xcodeproj/project.pbxproj: 应用与测试目标 MARKETING_VERSION 与 CURRENT_PROJECT_VERSION 均已更新为 2.5.5（共 12 处）。</a></li>
+</ul><p>Next: 在 2.5.5 发布提交上运行最终完整门禁并合并至 main，随后执行 2.5.5 正式签名与公证、downloads.responsay.com 公开发布、资产回读与本机安装升级，最终交由用户完成真机物理打字与麦克风体验验收。</p></article>
+<article id="dead-code-lifecycle-sweep"><h3>全库死代码清理、生命周期加固与行为测试补齐</h3><span class="badge">in_progress</span><p>PR #433 已合入 main（39e214a），全库清理 Swift 与 Rust 死代码、无调用方封装及未使用 Cargo 依赖（unicode-segmentation、base64、rusqlite），双模式 Periphery 扫描警告清零且 sources/ 无任何 Periphery 注释豁免，并将 resetForTesting 测试钩子迁出生产源码至 tests/；加固运行期生命周期安全（OwlAgentAccess.start KVO 防重入保护、OwlApplicationDelegate 与 OwlInputStatusPanel 通知观察者注销清理、OwlQuickReplyViewModel 与 OwlAIPolishViewModel deinit 取消任务），并补齐 ai_selection、host_delivery、OwlVoiceAudioRecorder PCM 截断、provider_wire 缓存用量解析与 DeliverParams 边界测试。精确提交 8f1992b 通过 15 项完整门禁（20261114T090746Z-full-p6qq0o65），尚待随 2.5.5 完成正式发版、本机升级与真机验收。</p><ul>
+<li><a href="https://github.com/semantic-craft/owltype-macos/pull/433">pull 433: PR #433 已合并；精确提交 8f1992b 完整门禁通过（20261114T090746Z-full-p6qq0o65，15 项门禁全过，Swift 执行 1,478 项含 1 项跳过 0 失败）。</a></li>
+<li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/.periphery.yml">file .periphery.yml: Periphery 双模式扫描配置且警告清零，sources/ 无忽略豁免。</a></li>
+<li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/sources/Agent/OwlAgentAccess.swift">file sources/Agent/OwlAgentAccess.swift: OwlAgentAccess.start 增加 KVO 防重入保护。</a></li>
+<li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/sources/Controller/OwlApplicationDelegate.swift">file sources/Controller/OwlApplicationDelegate.swift: 应用委托与状态面板补齐通知观察者注销清理。</a></li>
+<li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/rust/crates/owl-app-core/src/host_delivery.rs">file rust/crates/owl-app-core/src/host_delivery.rs: 补齐 host_delivery、ai_selection 与 provider_wire 行为测试并清理死代码。</a></li>
+<li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/tests/OwlVoiceAudioRecorderTests.swift">file tests/OwlVoiceAudioRecorderTests.swift: 补齐 OwlVoiceAudioRecorder PCM 截断限制行为测试。</a></li>
+</ul><p>Next: 随 2.5.5 完成发布提交门禁、正式签名公证、公开发布与本机升级；实际宿主打字、语音录音与界面生命周期体验待安装后用户验收。</p></article>
+</section>
 <section id="release-2-5-4"><h2>2.5.4 发布与近期修复</h2>
-<article id="release-2-5-4-prep"><h3>2.5.4 发布整合与发版状态</h3><span class="badge">in_progress</span><p>2.5.4 发布分支已变基至 main e132cda，整合 PR #429（墨滴图标）、#431（Agent/MCP/模板存储加固）与 #432（Swift/Rust 冗余封装清理与策略收口）；12 处 Xcode 版本字段已设为 2.5.4，更新说明与进度页已同步。三项 PR 的合并前自动门禁均已通过，发布提交本身的最终完整门禁、签名公证发布与本机安装尚未执行。</p><ul>
-<li><a href="https://github.com/semantic-craft/owltype-macos/pull/429">pull 429: 恢复最早版墨滴应用与菜单栏图标，已合并至 main（76b8c58）。</a></li>
-<li><a href="https://github.com/semantic-craft/owltype-macos/pull/431">pull 431: Agent 投递调用归属、MCP 1 MiB 换行帧上限与模板单次提交广播，已合并至 main（30efca5）。</a></li>
-<li><a href="https://github.com/semantic-craft/owltype-macos/pull/432">pull 432: 清理无调用方 Swift/Rust 封装并集中模板复制与重试预算规则，已合并至 main（e132cda）。</a></li>
+<article id="release-2-5-4-prep"><h3>2.5.4 已合并发布并完成本机升级</h3><span class="badge">unverified</span><p>PR #430（整合 #429 墨滴图标、#431 Agent/MCP/模板加固与 #432 代码清理及策略收口）精确提交 3bd9dde 通过完整门禁（20261114T051345Z-full-3osj956h，15 项全过）并已合入 main（0fad308）。2.5.4 产物已完成签名公证与公开发布（downloads.responsay.com），本机 /Library/Input Methods/Owltype.app 已升级至 2.5.4 并通过版本核验（PASS_VERSION_ONLY）。真机物理打字与麦克风体验仍由用户负责验收。</p><ul>
+<li><a href="https://github.com/semantic-craft/owltype-macos/pull/430">pull 430: 2.5.4 发布 PR 已合入 main（0fad308），精确提交 3bd9dde 通过完整门禁（20261114T051345Z-full-3osj956h）。</a></li>
+<li><a href="https://github.com/semantic-craft/owltype-macos/commit/0fad308869ed0106abb1d63c4a752346e41c5dc9">commit 0fad308869ed0106abb1d63c4a752346e41c5dc9: PR #430 合并提交，包含 2.5.4 版本号与发布说明。</a></li>
+<li><a href="https://github.com/semantic-craft/owltype-macos/pull/429">pull 429: 恢复最早版墨滴应用与菜单栏图标，已合入 main（76b8c58）并随 2.5.4 发布。</a></li>
+<li><a href="https://github.com/semantic-craft/owltype-macos/pull/431">pull 431: Agent 投递调用归属、MCP 1 MiB 换行帧上限与模板单次提交广播，已合入 main（30efca5）并随 2.5.4 发布。</a></li>
+<li><a href="https://github.com/semantic-craft/owltype-macos/pull/432">pull 432: 清理无调用方 Swift/Rust 封装并集中模板复制与重试预算规则，已合入 main（e132cda）并随 2.5.4 发布。</a></li>
 <li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/CHANGELOG.md">file CHANGELOG.md: 2.5.4 中英文更新说明覆盖 #429、#431 与 #432。</a></li>
-<li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/Owltype.xcodeproj/project.pbxproj">file Owltype.xcodeproj/project.pbxproj: 应用与测试目标 MARKETING_VERSION 与 CURRENT_PROJECT_VERSION 均为 2.5.4。</a></li>
-</ul><p>Next: 区分已合并 PR 与自动门禁和待完成发版：待在最终发布提交执行完整门禁与合并，随后完成 2.5.4 正式签名、公证、发布、公开资产回读及本机安装，并由用户进行真实打字与麦克风体验验收。</p></article>
-<article id="agent-mcp-template-ownership"><h3>Agent 投递调用归属、MCP 帧上限与模板单次提交</h3><span class="badge">in_progress</span><p>MCP Unix 套接字 read_line 在尾字节与换行同读入时也强制校验 1 MiB 上限；模板存储仅由 OwlStorageHost 已提交回执发出单次 libraryDidCommit 通知；DeliveryCoordinatorCore 与 OwlAgentDeliveryCoordinator 以单调 invocation_id 和 target_id 隔离目标绑定、预览、超时与写回回调。PR #431 已合入 main 且合并门禁通过，正随 2.5.4 发布。</p><ul>
-<li><a href="https://github.com/semantic-craft/owltype-macos/pull/431">pull 431: PR #431 已合并；精确提交 63ceb01 完整门禁通过（20261114T033929Z-full-bmimmdd9，SecureInput: false）。</a></li>
+<li>note https://downloads.responsay.com/owltype/latest.json: downloads.responsay.com 公开 latest.json 返回 2.5.4（status 为 complete，app、dmg 与 pkg 均已 stapled，修订 0fad308），本机安装版本核验为 2.5.4（PASS_VERSION_ONLY）。</li>
+</ul><p>Next: 物理打字与麦克风体验验收由用户负责完成；后续代码清理与生命周期加固已由 PR #433 合入并进入 2.5.5 准备。</p></article>
+<article id="agent-mcp-template-ownership"><h3>Agent 投递调用归属、MCP 帧上限与模板单次提交</h3><span class="badge">unverified</span><p>MCP Unix 套接字 read_line 在尾字节与换行同读入时也强制校验 1 MiB 上限；模板存储仅由 OwlStorageHost 已提交回执发出单次 libraryDidCommit 通知；DeliveryCoordinatorCore 与 OwlAgentDeliveryCoordinator 以单调 invocation_id 和 target_id 隔离目标绑定、预览、超时与写回回调。PR #431 已随 2.5.4（#430，0fad308）公开发布并完成本机升级（PASS_VERSION_ONLY），真实宿主应用中的打字与 Agent 投递体验仍待用户验收。</p><ul>
+<li><a href="https://github.com/semantic-craft/owltype-macos/pull/431">pull 431: PR #431 已合并；精确提交 63ceb01 完整门禁通过（20261114T033929Z-full-bmimmdd9，SecureInput 为 false）。</a></li>
 <li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/rust/crates/owl-app-core/src/agent.rs">file rust/crates/owl-app-core/src/agent.rs: DeliveryCoordinatorCore 以单调 invocation_id 与 target_id 隔离投递状态与回调。</a></li>
 <li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/rust/crates/owl-agent-mcp/src/client.rs">file rust/crates/owl-agent-mcp/src/client.rs: MCP Unix 套接字 read_line 强制校验 1 MiB 换行帧上限。</a></li>
 <li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/tests/OwlAgentDeliveryTests.swift">file tests/OwlAgentDeliveryTests.swift: 按次调用目标绑定、取消释放与重入安全回归测试。</a></li>
 <li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/LESSONS.md">file LESSONS.md: 记录 Agent 投递按 invocation_id 归属的不变量与验证命令。</a></li>
-</ul><p>Next: 合并并随 2.5.4 完成签名、公证、发布与本机安装；真实宿主应用中的打字及 Agent 投递体验待安装后用户验收。</p></article>
-<article id="swift-rust-cleanup-centralization"><h3>Swift/Rust 冗余封装清理与复制及重试策略收口</h3><span class="badge">in_progress</span><p>移除无调用方的 Swift/Rust 封装及无效投递状态（AttachWaiter、CompleteWaiters、Decided 等），将 OwlStubVoiceTransport 迁入测试桩文件；在 owl-app-core 集中实现 Entry::duplicated 统一模板复制逻辑，并集中 valid_id 与 provider_wire::max_attempts 规则。PR #432 已合入 main 且 15 项完整门禁（Swift 1,578 通过、1 跳过，Rust 通过）及三模型审查通过，正随 2.5.4 发布。</p><ul>
+</ul><p>Next: 真实宿主应用中的打字及 Agent 投递体验由用户在已升级版本中验收。</p></article>
+<article id="swift-rust-cleanup-centralization"><h3>Swift/Rust 冗余封装清理与复制及重试策略收口</h3><span class="badge">unverified</span><p>移除无调用方的 Swift/Rust 封装及无效投递状态（AttachWaiter、CompleteWaiters、Decided 等），将 OwlStubVoiceTransport 迁入测试桩文件；在 owl-app-core 集中实现 Entry::duplicated 统一模板复制逻辑，并集中 valid_id 与 provider_wire::max_attempts 规则。PR #432 已随 2.5.4（#430，0fad308）公开发布并完成本机升级（PASS_VERSION_ONLY），实际输入法与语音场景体验仍待用户验收。</p><ul>
 <li><a href="https://github.com/semantic-craft/owltype-macos/pull/432">pull 432: PR #432 已合并；精确提交 92decb4 通过 15 项完整门禁（20261114T042251Z-full-wvmz5kzw）。</a></li>
 <li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/rust/crates/owl-app-core/src/template_library.rs">file rust/crates/owl-app-core/src/template_library.rs: 在 owl-app-core 集中实现 Entry::duplicated，供两条模板复制入口共用。</a></li>
 <li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/rust/crates/owl-app-core/src/provider_wire.rs">file rust/crates/owl-app-core/src/provider_wire.rs: 集中定义 provider_wire::max_attempts 重试预算规则。</a></li>
 <li><a href="https://github.com/semantic-craft/owltype-macos/blob/main/tests/OwlE2EMockTransports.swift">file tests/OwlE2EMockTransports.swift: 承接从生产路径迁出的 OwlStubVoiceTransport 测试桩。</a></li>
-</ul><p>Next: 随 2.5.4 最终完整门禁、签名公证发布与本机安装完成交付；实际输入法与语音场景体验待安装后用户验收。</p></article>
+</ul><p>Next: 实际输入法与语音场景体验由用户在已升级版本中验收。</p></article>
 </section>
 <section id="ink-icons"><h2>原版墨滴图标</h2>
 <article id="restore-ink-icons"><h3>恢复最早版墨滴图标</h3><span class="badge">in_progress</span><p>应用全部 10 档 PNG 和菜单栏 PDF 从最早公开提交 e966feb 原样恢复；菜单 SVG 与历史 PDF 的墨滴路径一致。AppKit 原生绘制通过，16×16 pt 菜单图标有 329 个不透明像素。原稿恢复已合并 PR #429 且 PR 合并门禁通过，正随 2.5.4 发布分支推进正式发版与本机升级。</p><ul>
