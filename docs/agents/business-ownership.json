@@ -1218,7 +1218,7 @@
       "role": "adapter",
       "target": "Swift",
       "issue": null,
-      "reason": "Network transport protocol abstraction and offline test stub implementation"
+      "reason": "Voice URLSession transport and redirect refusal at the native network boundary"
     },
     {
       "path": "sources/Voice/OwlVoicePolishServiceProtocol.swift",

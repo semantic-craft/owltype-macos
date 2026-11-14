@@ -2,6 +2,37 @@
 use crate::template_library::{automatic_index, AutomaticNode, Entry, Expansion};
 use serde_json::{json, Value};
 
+#[cfg(test)]
+mod provider_call_tests {
+    use super::*;
+
+    #[test]
+    fn purpose_policy_and_call_budget_preserve_retry_and_cancellation() {
+        for (purpose, timeout, attempts) in [
+            ("interactiveRewrite", 8, 2),
+            ("drafting", 60, 1),
+            ("connectivityProbe", 20, 1),
+            ("unknown", 20, 1),
+        ] {
+            assert_eq!(
+                crate::provider_wire::rule("purpose", json!({"purpose":purpose})),
+                json!({"timeout":timeout,"maxAttempts":attempts})
+            );
+            let args = json!({"purpose":purpose});
+            let mut call = Session::create("providerCall", args.clone()).unwrap();
+            assert_eq!(call.event("next", Value::Null, None).unwrap(), true);
+            assert_eq!(call.event("retry", json!({"retryable":false}), None).unwrap(), false);
+            assert_eq!(call.event("retry", json!({"retryable":true}), None).unwrap(), attempts == 2);
+            assert_eq!(call.event("next", Value::Null, None).unwrap(), false);
+
+            let mut cancelled = Session::create("providerCall", args).unwrap();
+            assert_eq!(cancelled.event("cancel", Value::Null, None).unwrap(), false);
+            assert_eq!(cancelled.event("next", Value::Null, None).unwrap(), false);
+            assert_eq!(cancelled.event("retry", json!({"retryable":true}), None).unwrap(), false);
+        }
+    }
+}
+
 pub enum Session {
     Pins(crate::user_data::Pins),
     TextInserter(crate::host_delivery::Inserter),
@@ -43,11 +74,9 @@ impl Session {
                 args,
             ))),
             "providerCall" => Ok(Self::ProviderCall {
-                remaining: if args["purpose"] == "interactiveRewrite" {
-                    2
-                } else {
-                    1
-                },
+                remaining: crate::provider_wire::max_attempts(
+                    args["purpose"].as_str().unwrap_or(""),
+                ),
                 cancelled: false,
             }),
             "providerRegistry" => Ok(Self::ProviderRegistry { probe: Value::Null }),

@@ -149,6 +149,17 @@ impl Entry {
             exposed_to_agents: None,
         }
     }
+    pub fn duplicated(self, new_id: String) -> Self {
+        let mut copy = Self::new(new_id, self.title + " 副本", self.body);
+        copy.body_type = self.body_type;
+        copy.syntax = self.syntax;
+        copy.tags = self.tags;
+        copy.is_pinned = self.is_pinned;
+        copy.category = self.category;
+        copy.parameters = self.parameters;
+        copy.review_state = self.review_state;
+        copy
+    }
     pub fn parsed(&self, review: bool) -> template::Parsed {
         template::parse(
             &self.body,
@@ -256,10 +267,7 @@ pub fn validate(library: &Library) -> Result<()> {
     let mut ids = BTreeSet::new();
     let mut triggers = BTreeSet::new();
     for e in &library.entries {
-        if !regex::Regex::new(r"^[a-fA-F0-9]{8}(-[a-fA-F0-9]{4}){3}-[a-fA-F0-9]{12}$")
-            .unwrap()
-            .is_match(&e.id)
-        {
+        if !valid_id(&e.id) {
             return Err("invalid_uuid".into());
         }
         if !ids.insert(e.id.to_uppercase()) {
@@ -416,14 +424,7 @@ pub fn dispatch<H: Host>(host: &mut H, operation: &str, args: Value) -> Result<V
         ))),
         "library_duplicate" => {
             let e = entry()?;
-            let mut copy = Entry::new(uuid(host)?, e.title + " 副本", e.body);
-            copy.body_type = e.body_type;
-            copy.syntax = e.syntax;
-            copy.tags = e.tags;
-            copy.is_pinned = e.is_pinned;
-            copy.category = e.category;
-            copy.parameters = e.parameters;
-            copy.review_state = e.review_state;
+            let copy = e.duplicated(uuid(host)?);
             Ok(json!(copy))
         }
         "library_sorted" => Ok(json!(sorted(host, &entries()?)?)),
@@ -492,11 +493,7 @@ pub fn dispatch<H: Host>(host: &mut H, operation: &str, args: Value) -> Result<V
                 .strip_prefix("🦉[")
                 .and_then(|v| v.split_once(']'))
                 .map(|v| v.0);
-            let id = id.filter(|v| {
-                regex::Regex::new(r"^[a-fA-F0-9]{8}(-[a-fA-F0-9]{4}){3}-[a-fA-F0-9]{12}$")
-                    .unwrap()
-                    .is_match(v)
-            });
+            let id = id.filter(|v| valid_id(v));
             Ok(json!({"id":id}))
         }
         "library_resolve" => {

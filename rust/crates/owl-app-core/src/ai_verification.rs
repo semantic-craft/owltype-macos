@@ -277,8 +277,6 @@ pub fn rule(name: &str, a: Value) -> Value {
             json!({"query":a["routes"].as_array().into_iter().flatten().find(|r|r["url"].as_str().is_some_and(|s|url::Url::parse(s).is_ok_and(|u|u.query().is_none_or(str::is_empty)))).map(|r|&r["query"])})
         }
         "cnki" => json!(cnki(&a["input"])),
-        "cnkiEscape" => json!(escape(s(&a, "text"))),
-        "cnkiField" => json!(field(s(&a, "field"), s(&a, "query"))),
         "cnkiNormalize" => json!(normalize_field(s(&a, "text"))),
         "verifyMenu" => {
             let fallback = query(s(&a, "text"));

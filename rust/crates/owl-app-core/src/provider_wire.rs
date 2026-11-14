@@ -9,6 +9,13 @@ pub fn s<'a>(v: &'a Value, key: &str) -> &'a str {
 fn nonempty(v: &Value) -> Option<&str> {
     v.as_str().filter(|v| !v.is_empty())
 }
+pub fn max_attempts(purpose: &str) -> usize {
+    if purpose == "interactiveRewrite" {
+        2
+    } else {
+        1
+    }
+}
 pub fn dialect(id: &str, model: &str, host: &str) -> Option<&'static str> {
     let (id, m, h) = (id.to_lowercase(), model.to_lowercase(), host.to_lowercase());
     if id == "qwen" || h.contains("dashscope") || h.contains("aliyuncs") {
@@ -422,7 +429,6 @@ pub fn rule(op: &str, a: Value) -> Value {
             json!(out)
         }
         "searchPath" => json!("/v1/tools/search"),
-        "withoutFragment" => json!(s(&a, "url").split('#').next().unwrap_or("")),
         "jsonMode" => json!(a["hasSplit"] != true),
         "formProvider" => {
             let id = crate::provider_store::inferred(&a["profile"]);
@@ -452,7 +458,6 @@ pub fn rule(op: &str, a: Value) -> Value {
             "none"
         }),
         "responsesBody" => body(&a),
-        "input" => input(s(&a, "role"), s(&a, "text"), s(&a, "dialect")),
         "responsesPath" => {
             let p = s(&a, "path");
             json!(if let Some(base) = p.strip_suffix("/chat/completions") {
@@ -523,11 +528,15 @@ pub fn rule(op: &str, a: Value) -> Value {
             matches!(s(&a, "kind"), "empty" | "timeout" | "connectionLost")
                 || (s(&a, "kind") == "http" && matches!(a["status"].as_i64(), Some(500 | 503)))
         ),
-        "purpose" => json!(match s(&a, "purpose") {
-            "interactiveRewrite" => json!({"timeout":8,"maxAttempts":2}),
-            "drafting" => json!({"timeout":60,"maxAttempts":1}),
-            _ => json!({"timeout":20,"maxAttempts":1}),
-        }),
+        "purpose" => {
+            let purpose = s(&a, "purpose");
+            let timeout = match purpose {
+                "interactiveRewrite" => 8,
+                "drafting" => 60,
+                _ => 20,
+            };
+            json!({"timeout":timeout,"maxAttempts":max_attempts(purpose)})
+        }
         "chatBody" => {
             let mut out = json!({"model":a["model"],"messages":a["messages"],"stream":a["stream"]});
             for (field, wire) in [

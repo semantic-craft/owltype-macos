@@ -43,19 +43,6 @@ enum OwlCNKIExpertQueryBuilder {
     OwlAIBusinessCore.call("cnki", ["input": OwlAIBusinessCore.json(input)])
   }
 
-  // MARK: - Internals
-
-  /// CNKI 专业检索用 '' 表示词内单引号（SQL 式转义）。
-  static func escape(_ value: String) -> String {
-    OwlAIBusinessCore.call("cnkiEscape", ["text": value])
-  }
-
-  /// 单字段检索式。SU→%=；TI/AB→%；其余→=。多词用「 * 」组合。
-  static func fieldExpr(field: String, query: String) -> String {
-    OwlAIBusinessCore.call("cnkiField", ["field": field, "query": query])
-  }
-
-
   static func normalizeField(_ type: String) -> String {
     OwlAIBusinessCore.call("cnkiNormalize", ["text": type])
   }

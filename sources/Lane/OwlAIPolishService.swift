@@ -121,7 +121,7 @@ public final class OwlAIPolishService: OwlSelectionPolishClientProtocol, OwlRepl
 
     let trimmed = contextText.trimmingCharacters(in: .whitespacesAndNewlines)
     if trimmed.isEmpty {
-      return OwlDualPolishParser.parseReplies(raw: "", contextText: contextText)
+      return OwlDualPolishParser.parseReplies(raw: "")
     }
 
     let auth = await authGateProvider()
@@ -149,6 +149,6 @@ public final class OwlAIPolishService: OwlSelectionPolishClientProtocol, OwlRepl
     )
 
     let raw = try await gateway.complete(payload, routing: routing, apiKey: apiKey, purpose: .interactiveRewrite)
-    return OwlDualPolishParser.parseReplies(raw: raw, contextText: contextText)
+    return OwlDualPolishParser.parseReplies(raw: raw)
   }
 }

@@ -95,7 +95,6 @@ final class OwlAgentDeliveryCoordinator {
     let seconds: Double?
     let targetPid: Int32?
     let waiterId: UInt64?
-    let waiters: [UInt64]?
     let result: Wire.DeliverResult?
     let error: Wire.ErrorObject?
 
@@ -111,7 +110,6 @@ final class OwlAgentDeliveryCoordinator {
       case seconds
       case targetPid = "target_pid"
       case waiterId = "waiter_id"
-      case waiters
       case result
       case error
     }
@@ -340,7 +338,7 @@ final class OwlAgentDeliveryCoordinator {
       dispatchPerformWrite(action)
     case "finish_invocation":
       dispatchFinishInvocation(action)
-    case "complete_waiter", "complete_waiters", "reject_waiter":
+    case "complete_waiter", "reject_waiter":
       dispatchWaiterAction(action)
     default:
       break
@@ -441,13 +439,6 @@ final class OwlAgentDeliveryCoordinator {
       guard let waiterID = action.waiterId, let result = action.result else { return }
       if let waiter = waiters.removeValue(forKey: waiterID), !waiter.cancellation.isCancelled {
         waiter.reply(.success(OwlJSONValue(encoding: result)))
-      }
-    case "complete_waiters":
-      guard let waiterIDs = action.waiters, let result = action.result else { return }
-      for id in waiterIDs {
-        if let waiter = waiters.removeValue(forKey: id), !waiter.cancellation.isCancelled {
-          waiter.reply(.success(OwlJSONValue(encoding: result)))
-        }
       }
     case "reject_waiter":
       guard let waiterID = action.waiterId, let error = action.error else { return }

@@ -73,7 +73,6 @@ fn build_catalog() -> Value {
       .map(|row| json!({"schemaID":row["id"],"fileName":format!("{}.custom.yaml",row["id"].as_str().unwrap()),"displayName":row["name"]})).collect();
     value["doublePinyinSchemas"] = json!({"flypy":"double_pinyin_flypy", "mspy":"double_pinyin_mspy", "shoudao":"double_pinyin_shoudao", "ziranma":"double_pinyin", "sogou":"double_pinyin_sogou", "abc":"double_pinyin_abc", "ziguang":"double_pinyin_ziguang", "jiajia":"double_pinyin_jiajia"});
     value["wubiSchemas"] = json!({"jidian86":"wubi86_jidian", "pinyinMix":"wubi86_jidian_pinyin", "jidian98":"wubi98", "pinyinMix98":"wubi98_pinyin"});
-    value["candidateFilters"] = json!({"normal":null, "singleFirst":"lua_filter@*wubi86_jidian_single_char_first_filter", "singleOnly":"lua_filter@*wubi86_jidian_single_char_only"});
     value
 }
 

@@ -680,26 +680,6 @@ public final class OwlVoicePolisher: OwlVoicePolishServiceProtocol, @unchecked S
     try await polish(rawTranscript: rawTranscript, hotwords: [], preContext: nil)
   }
 
-  public func polishWithFallback(
-    rawTranscript: String,
-    hotwords: [String] = [],
-    preContext: String? = nil
-  ) async -> (text: String, fallbackUsed: Bool) {
-    let trimmed = rawTranscript.trimmingCharacters(in: .whitespacesAndNewlines)
-    guard !trimmed.isEmpty else { return ("", false) }
-    do {
-      let polished = try await polishWithTimeout(rawTranscript: trimmed, hotwords: hotwords, preContext: preContext)
-      let cleaned = Self.sanitize(polished: polished)
-      if Self.validate(raw: trimmed, polished: cleaned) {
-        return (cleaned, false)
-      } else {
-        return (trimmed, true)
-      }
-    } catch {
-      return (trimmed, true)
-    }
-  }
-
   public func polishWithTimeout(
     rawTranscript: String,
     hotwords: [String] = [],
@@ -866,14 +846,6 @@ public final class OwlVoicePolisher: OwlVoicePolishServiceProtocol, @unchecked S
     }
 
     return text.trimmingCharacters(in: .whitespacesAndNewlines)
-  }
-
-  public static func sanitizeAndVerify(rawTranscript: String, polishedOutput: String) -> String? {
-    let cleaned = sanitize(polished: polishedOutput)
-    guard validate(raw: rawTranscript, polished: cleaned) else {
-      return nil
-    }
-    return cleaned
   }
 
   public static func parseErrorMessage(from data: Data, removing apiKey: String = "") -> String {

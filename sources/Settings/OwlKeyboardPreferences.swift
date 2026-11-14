@@ -81,10 +81,6 @@ enum OwlWubiCandidateMode: String, CaseIterable, Sendable, Encodable {
     case .singleOnly: return "纯单字"
     }
   }
-
-  var luaFilter: String? {
-    OwlAppCore.keyboardCatalog.candidateFilters[rawValue] ?? nil
-  }
 }
 
 /// 双拼 scheme. Display the 中文 name; expose the rime-ice `schema_id` as a real

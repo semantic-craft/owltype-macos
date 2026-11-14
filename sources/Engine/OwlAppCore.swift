@@ -110,7 +110,6 @@ extension OwlAppCore {
     let schemas: [SchemaConfiguration]
     let doublePinyinSchemas: [String: String]
     let wubiSchemas: [String: String]
-    let candidateFilters: [String: String?]
   }
   static let keyboardCatalog: KeyboardCatalog = required(["operation": "keyboard_catalog"])
 

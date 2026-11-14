@@ -125,8 +125,6 @@ struct OwlRecordedHotKey: Equatable, Sendable {
     UInt32(kVK_ANSI_Y): "Y", UInt32(kVK_ANSI_Z): "Z"
   ]
 
-  private static let allowedModifierBits = UInt32(controlKey | optionKey | shiftKey | cmdKey)
-
   /// `nil` when the combo is outside the recordable range (non-letter key, unknown modifier bits,
   /// or fewer than two modifiers).
   init?(keyCode: UInt32, modifiers: UInt32) {

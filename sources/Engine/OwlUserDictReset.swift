@@ -52,11 +52,6 @@ enum OwlUserDictResetError: LocalizedError, Equatable {
 }
 
 enum OwlUserDictReset {
-  static let rustDirectoryName = "msime-user"
-  static let journalName = "msime_user.db"
-  static let dictionariesName = "dictionaries"
-  static let backupDirPrefix = "rust-userdict-reset-"
-
   private struct Reply: Decodable {
     struct Failure: Decodable {
       let kind: String
@@ -70,22 +65,18 @@ enum OwlUserDictReset {
     let error: Failure?
   }
 
-  static func resetItemNames(in root: URL, fileManager fm: FileManager = .default) throws -> [String] {
-    try execute("user_reset_items", root: root, timestamp: "", fileManager: fm).removedItems
-  }
-
   @discardableResult
-  static func run(root: URL, timestamp: String, fileManager fm: FileManager = .default,
+  static func run(root: URL, timestamp: String,
                   removeCheckpoint: (String) throws -> Void = { _ in }) throws -> OwlUserDictResetOutcome {
     try withoutActuallyEscaping(removeCheckpoint) { checkpoint in
-      try execute("user_reset", root: root, timestamp: timestamp, fileManager: fm, checkpoint: checkpoint)
+      try execute(root: root, timestamp: timestamp, checkpoint: checkpoint)
     }
   }
 
-  private static func execute(_ operation: String, root: URL, timestamp: String, fileManager fm: FileManager,
+  private static func execute(root: URL, timestamp: String,
                               checkpoint: @escaping (String) throws -> Void = { _ in }) throws -> OwlUserDictResetOutcome {
     let host = OwlStorageHost(dataDir: root, checkpoint: checkpoint)
-    let reply: Reply = try host.call(operation, ["timestamp": timestamp])
+    let reply: Reply = try host.call("user_reset", ["timestamp": timestamp])
     if let error = reply.error {
       func reason(_ token: String) -> String {
         token == "not_directory" ? "不是普通目录" : (host.errors[token]?.localizedDescription ?? token)

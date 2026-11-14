@@ -138,17 +138,9 @@ final class EngineRuntime {
 
   // MARK: - Config cache and style flags
 
-  /// `config` 可用性判据（2026-07-12 B1/B2）：打得开且非空壳。实测 `config_open("owltype")`
-  /// 在 build/owltype.yaml 缺席/重建窗口会「成功」返回空壳（一切读取失败）——只看 open 返回值不够，
-  /// 必须探真内容（owltype.yaml 恒有 style 段）。
   private static func isUsable(_ config: OwlConfig?) -> Bool {
     guard let config else { return false }
-    let hasSection = config.has(section: "style")
-    return OwlAppCore.required([
-      "operation": "pure_rule",
-      "rule": "engine_runtime_is_usable",
-      "args": ["has_style_section": hasSection]
-    ])
+    return config.has(section: "style")
   }
 
   private func makeConfig() -> OwlConfig {

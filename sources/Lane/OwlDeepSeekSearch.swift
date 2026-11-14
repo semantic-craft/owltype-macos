@@ -71,10 +71,6 @@ enum OwlDeepSeekSearchWire {
         publishedAt: value.publishedAt, hostname: value.hostname ?? URL(string: value.url)?.host)
     }
   }
-
-  static func withoutFragment(_ url: String) -> String {
-    OwlProviderCore.call("withoutFragment", ["url": url])
-  }
 }
 
 /// DeepSeek Search 的实时客户端。`fetch` 可注入，测试不碰网络。

@@ -23,11 +23,6 @@ struct OwlAutomaticExpansionIndex {
     do { core = try OwlAppSession("index", args: OwlAppCore.payload(entries)) }
     catch let error as OwlAppCore.Failure { throw OwlStorageHost.failure(error.code) }
   }
-
-  static func validTrigger(_ text: String) -> Bool {
-    OwlTemplateStore.core("automatic_valid", ["text": text])
-  }
-
 }
 
 /// Only the reserved prefix buffer belongs here; Rime continues to own Chinese conversion.

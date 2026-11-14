@@ -748,7 +748,6 @@ pub enum DeliveryPhase {
     ReadyForUser,
     Leaving { target_process_id: i32 },
     Writing { target_process_id: i32 },
-    Decided,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -778,10 +777,6 @@ pub enum DeliveryEvent {
         frontmost_pid: Option<i32>,
         is_secure_input: bool,
         initial_bind: Result<TargetInfo, TargetChangedReason>,
-        waiter_id: u64,
-    },
-    AttachWaiter {
-        request_id: String,
         waiter_id: u64,
     },
     CancelWaiter {
@@ -867,10 +862,6 @@ pub enum DeliveryAction {
     },
     CompleteWaiter {
         waiter_id: u64,
-        result: DeliverResult,
-    },
-    CompleteWaiters {
-        waiters: Vec<u64>,
         result: DeliverResult,
     },
     RejectWaiter {
@@ -1059,27 +1050,6 @@ impl DeliveryCoordinatorCore {
                 self.pending = Some(pending);
             }
 
-            DeliveryEvent::AttachWaiter {
-                request_id,
-                waiter_id,
-            } => {
-                if let Some(ref mut pending) = self.pending {
-                    if pending.request_id == request_id {
-                        pending.waiters.push(DeliveryWaiter {
-                            id: waiter_id,
-                            replayed: true,
-                        });
-                        return actions;
-                    }
-                }
-                if let Some(status) = self.outcomes.get(&request_id, now_secs) {
-                    actions.push(DeliveryAction::CompleteWaiter {
-                        waiter_id,
-                        result: DeliverResult::from_status(request_id, status, true),
-                    });
-                }
-            }
-
             DeliveryEvent::CancelWaiter { waiter_id } => {
                 if let Some(ref mut pending) = self.pending {
                     let before = pending.waiters.len();
@@ -1104,8 +1074,7 @@ impl DeliveryCoordinatorCore {
                 let Some(mut pending) = self.active_pending(invocation_id) else {
                     return actions;
                 };
-                if pending.phase == DeliveryPhase::Decided
-                    || matches!(pending.phase, DeliveryPhase::Writing { .. })
+                if matches!(pending.phase, DeliveryPhase::Writing { .. })
                     || matches!(pending.phase, DeliveryPhase::Leaving { .. })
                 {
                     return actions;
@@ -1190,9 +1159,6 @@ impl DeliveryCoordinatorCore {
                 let Some(mut pending) = self.pending.clone() else {
                     return actions;
                 };
-                if pending.phase == DeliveryPhase::Decided {
-                    return actions;
-                }
 
                 let invocation_id = pending.invocation_id;
                 if let Some(ref target) = pending.target {
@@ -1641,31 +1607,6 @@ pub fn rule(rule: &str, args: Value) -> Result<Value, String> {
                 }),
             };
             Ok(status_json)
-        }
-
-        "call_log_record" => {
-            let client_name = args["client_name"].as_str().unwrap_or("");
-            let client_version = args["client_version"].as_str().unwrap_or("");
-            let method = args["method"].as_str().unwrap_or("");
-            let reply_status = args["reply_status"].as_str();
-            let reply_error_code = args["reply_error_code"].as_str();
-            let at_iso8601 = args["at_iso8601"].as_str().unwrap_or("");
-
-            let outcome = classify_call_outcome(reply_status, reply_error_code);
-            let client = if client_name.is_empty() {
-                "".to_string()
-            } else if client_version.is_empty() {
-                client_name.to_string()
-            } else {
-                format!("{client_name} {client_version}")
-            };
-
-            Ok(json!({
-                "at": at_iso8601,
-                "client": client,
-                "method": method,
-                "outcome": outcome
-            }))
         }
 
         "agent_call_log_append" | "call_log_append" => {
