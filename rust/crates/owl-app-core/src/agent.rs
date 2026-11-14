@@ -748,7 +748,6 @@ pub enum DeliveryPhase {
     ReadyForUser,
     Leaving { target_process_id: i32 },
     Writing { target_process_id: i32 },
-    Decided,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -778,10 +777,6 @@ pub enum DeliveryEvent {
         frontmost_pid: Option<i32>,
         is_secure_input: bool,
         initial_bind: Result<TargetInfo, TargetChangedReason>,
-        waiter_id: u64,
-    },
-    AttachWaiter {
-        request_id: String,
         waiter_id: u64,
     },
     CancelWaiter {
@@ -867,10 +862,6 @@ pub enum DeliveryAction {
     },
     CompleteWaiter {
         waiter_id: u64,
-        result: DeliverResult,
-    },
-    CompleteWaiters {
-        waiters: Vec<u64>,
         result: DeliverResult,
     },
     RejectWaiter {
@@ -1059,27 +1050,6 @@ impl DeliveryCoordinatorCore {
                 self.pending = Some(pending);
             }
 
-            DeliveryEvent::AttachWaiter {
-                request_id,
-                waiter_id,
-            } => {
-                if let Some(ref mut pending) = self.pending {
-                    if pending.request_id == request_id {
-                        pending.waiters.push(DeliveryWaiter {
-                            id: waiter_id,
-                            replayed: true,
-                        });
-                        return actions;
-                    }
-                }
-                if let Some(status) = self.outcomes.get(&request_id, now_secs) {
-                    actions.push(DeliveryAction::CompleteWaiter {
-                        waiter_id,
-                        result: DeliverResult::from_status(request_id, status, true),
-                    });
-                }
-            }
-
             DeliveryEvent::CancelWaiter { waiter_id } => {
                 if let Some(ref mut pending) = self.pending {
                     let before = pending.waiters.len();
@@ -1104,8 +1074,7 @@ impl DeliveryCoordinatorCore {
                 let Some(mut pending) = self.active_pending(invocation_id) else {
                     return actions;
                 };
-                if pending.phase == DeliveryPhase::Decided
-                    || matches!(pending.phase, DeliveryPhase::Writing { .. })
+                if matches!(pending.phase, DeliveryPhase::Writing { .. })
                     || matches!(pending.phase, DeliveryPhase::Leaving { .. })
                 {
                     return actions;
@@ -1190,9 +1159,6 @@ impl DeliveryCoordinatorCore {
                 let Some(mut pending) = self.pending.clone() else {
                     return actions;
                 };
-                if pending.phase == DeliveryPhase::Decided {
-                    return actions;
-                }
 
                 let invocation_id = pending.invocation_id;
                 if let Some(ref target) = pending.target {
