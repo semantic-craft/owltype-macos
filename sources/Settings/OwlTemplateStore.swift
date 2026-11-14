@@ -145,14 +145,12 @@ enum OwlTemplateStore {
       let _: Bool = try OwlStorageHost(dataDir: dataDir, checkpoint: checkpoint).call("library_save",
         ["library": OwlAppCore.payload(library), "expected": expectedLibrary.map(OwlAppCore.payload) ?? NSNull()])
     }
-    notifyCommittedLibrary(dataDir: dataDir)
   }
   static func delete(id: UUID, expected: OwlTemplateLibrary, dataDir: URL = OwlApp.userDir, beforeWrite: (String) throws -> Void = { _ in }) throws -> OwlTemplateLibrary {
     let result: OwlTemplateLibrary = try withoutActuallyEscaping(beforeWrite) { checkpoint in
       try OwlStorageHost(dataDir: dataDir, checkpoint: checkpoint).call("library_delete",
         ["id": id.uuidString, "expected": OwlAppCore.payload(expected)])
     }
-    notifyCommittedLibrary(dataDir: dataDir)
     return result
   }
   static let libraryDidCommit = Notification.Name("OwlTemplateLibraryDidCommit")
