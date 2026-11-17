@@ -13,7 +13,8 @@ fail=0
 ok() { printf 'ok   %s\n' "$1"; pass=$((pass + 1)); }
 bad() { printf 'FAIL %s\n' "$1" >&2; fail=$((fail + 1)); }
 
-mkdir -p "$work/valid-bin" "$work/invalid-bin"
+mkdir -p "$work/valid-bin" "$work/invalid-bin" "$work/notary-bin" \
+  "$work/home-with-notary/.local/bin" "$work/empty-home"
 cat > "$work/valid-bin/xcrun" <<'STUB'
 #!/usr/bin/env bash
 profile=""
@@ -24,6 +25,9 @@ while (($#)); do
   fi
   shift
 done
+if [[ -n "${XCRUN_LOG:-}" ]]; then
+  printf 'xcrun %s\n' "$profile" >>"$XCRUN_LOG"
+fi
 if [[ -n "${EXPECTED_NOTARY_PROFILE:-}" && "$profile" != "$EXPECTED_NOTARY_PROFILE" ]]; then
   exit 64
 fi
@@ -33,12 +37,22 @@ cat > "$work/invalid-bin/xcrun" <<'STUB'
 #!/usr/bin/env bash
 exit 1
 STUB
-chmod +x "$work/valid-bin/xcrun" "$work/invalid-bin/xcrun"
+cat > "$work/notary-bin/macos-notary-profile" <<'STUB'
+#!/usr/bin/env bash
+printf 'stub-path-profile\n'
+STUB
+cat > "$work/home-with-notary/.local/bin/macos-notary-profile" <<'STUB'
+#!/usr/bin/env bash
+printf 'stub-home-profile\n'
+STUB
+chmod +x "$work/valid-bin/xcrun" "$work/invalid-bin/xcrun" \
+  "$work/notary-bin/macos-notary-profile" \
+  "$work/home-with-notary/.local/bin/macos-notary-profile"
 
 run_gate() {
   local bin_dir="$1"
   shift
-  env PATH="$bin_dir:/usr/bin:/bin:/usr/sbin:/sbin" "$@" bash "$GATE" --preflight-only
+  env HOME="$work/empty-home" PATH="$bin_dir:/usr/bin:/bin:/usr/sbin:/sbin" "$@" bash "$GATE" --preflight-only
 }
 
 output="$work/output"
@@ -57,12 +71,35 @@ else
   bad "release metadata must populate both version roles with marketing newer than 1.4.17 (marketing=${marketing_version:-unset} app=${app_version:-unset})"
 fi
 
-if env -u NOTARY_PROFILE EXPECTED_NOTARY_PROFILE=owltype-notary \
+if env -u NOTARY_PROFILE HOME="$work/empty-home" \
+    EXPECTED_NOTARY_PROFILE=stub-path-profile \
+    PATH="$work/valid-bin:$work/notary-bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+    bash "$GATE" --preflight-only >"$output" 2>&1; then
+  ok "unset NOTARY_PROFILE resolves via macos-notary-profile on PATH"
+else
+  bad "unset NOTARY_PROFILE should resolve via macos-notary-profile on PATH"
+fi
+
+if env -u NOTARY_PROFILE HOME="$work/home-with-notary" \
+    EXPECTED_NOTARY_PROFILE=stub-home-profile \
     PATH="$work/valid-bin:/usr/bin:/bin:/usr/sbin:/sbin" \
     bash "$GATE" --preflight-only >"$output" 2>&1; then
-  ok "missing NOTARY_PROFILE uses the canonical owltype-notary profile"
+  ok "unset NOTARY_PROFILE resolves via ~/.local/bin/macos-notary-profile"
 else
-  bad "missing NOTARY_PROFILE should use the canonical owltype-notary profile"
+  bad "unset NOTARY_PROFILE should resolve via ~/.local/bin/macos-notary-profile"
+fi
+
+xcrun_log="$work/xcrun.log"
+: >"$xcrun_log"
+if env -u NOTARY_PROFILE HOME="$work/empty-home" XCRUN_LOG="$xcrun_log" \
+    PATH="$work/valid-bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+    bash "$GATE" --preflight-only >"$output" 2>&1; then
+  bad "unset NOTARY_PROFILE without macos-notary-profile should fail"
+elif grep -qF 'NOTARY_PROFILE is unset and macos-notary-profile is not installed' "$output" &&
+     [[ ! -s "$xcrun_log" ]]; then
+  ok "unset NOTARY_PROFILE without macos-notary-profile fails loudly without fallback"
+else
+  bad "unset NOTARY_PROFILE without macos-notary-profile should fail loudly without invoking xcrun"
 fi
 
 if run_gate "$work/invalid-bin" NOTARY_PROFILE=fixture-profile >"$output" 2>&1; then
@@ -73,14 +110,37 @@ else
   bad "unusable NOTARY_PROFILE diagnostic should identify the invalid profile variable"
 fi
 
-if env LC_ALL=C LANG=C PATH="$work/valid-bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+if env LC_ALL=C LANG=C HOME="$work/home-with-notary" \
+    PATH="$work/valid-bin:$work/notary-bin:/usr/bin:/bin:/usr/sbin:/sbin" \
     NOTARY_PROFILE=fixture-profile EXPECTED_NOTARY_PROFILE=fixture-profile \
     bash "$GATE" --preflight-only >"$output" 2>&1 &&
     grep -q 'PASS: release environment preflight complete' "$output" &&
     [[ "$(grep -c 'check-rust-delivery.py' "$GATE")" -ge 2 ]]; then
-  ok "explicit NOTARY_PROFILE overrides the default and both release Apps use the Rust gate"
+  ok "explicit NOTARY_PROFILE overrides macos-notary-profile and both release Apps use the Rust gate"
 else
-  bad "explicit NOTARY_PROFILE should override the default and the Rust gate must cover both Apps"
+  bad "explicit NOTARY_PROFILE should override macos-notary-profile and the Rust gate must cover both Apps"
+fi
+
+if env -u NOTARY_PROFILE HOME="$work/empty-home" \
+    PATH="$work/notary-bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+    make -C "$ROOT" --no-print-directory -n notarized-app DEPS_CHECK= DEV_ID=fixture \
+      RELEASE_OUTPUT_ROOT="$work/make-out" >"$output" 2>&1 &&
+    grep -qF 'package/sign_app "fixture"' "$output" &&
+    grep -qF '"stub-path-profile"' "$output"; then
+  ok "Makefile resolves NOTARY_PROFILE via macos-notary-profile when unset"
+else
+  bad "Makefile should resolve NOTARY_PROFILE via macos-notary-profile when unset"
+fi
+
+if env -u NOTARY_PROFILE HOME="$work/empty-home" \
+    PATH="/usr/bin:/bin:/usr/sbin:/sbin" \
+    make -C "$ROOT" --no-print-directory -n notarized-app DEPS_CHECK= DEV_ID=fixture \
+      RELEASE_OUTPUT_ROOT="$work/make-out" >"$output" 2>&1 &&
+    grep -qF 'NOTARY_PROFILE is unset and macos-notary-profile is not installed' "$output" &&
+    ! grep -qF "$(printf '%s-%s' owltype notary)" "$output"; then
+  ok "Makefile fails clearly when NOTARY_PROFILE is unset and macos-notary-profile is missing"
+else
+  bad "Makefile must fail clearly when NOTARY_PROFILE is unset and macos-notary-profile is missing"
 fi
 
 if grep -qE '^NOTARY_PROFILE[[:space:]]*\?=[[:space:]]*\$\(DEV_ID\)' "$ROOT/Makefile"; then

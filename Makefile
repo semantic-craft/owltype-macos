@@ -15,7 +15,7 @@ DERIVED_DATA_PATH ?= build
 RELEASE_OUTPUT_ROOT ?= $(DERIVED_DATA_PATH)
 RELEASE_APP = $(RELEASE_OUTPUT_ROOT)/Build/Products/Release/Owltype.app
 RELEASE_OUTPUT_ROOT_ABSOLUTE = $(shell python3 -c 'import os, sys; print(os.path.abspath(sys.argv[1]))' "$(RELEASE_OUTPUT_ROOT)")
-NOTARY_PROFILE ?= owltype-notary
+NOTARY_PROFILE ?= $(shell if command -v macos-notary-profile >/dev/null 2>&1; then macos-notary-profile; elif [ -n "$(HOME)" ] && [ -x "$(HOME)/.local/bin/macos-notary-profile" ]; then "$(HOME)/.local/bin/macos-notary-profile"; fi)
 
 # Unified single Rust FFI staticlib (msime + owl-app-core)
 RUST_FFI_LIBRARY = lib/libowl_msime_ffi.a
@@ -116,7 +116,7 @@ clean-sparkle:
 notarized-app: release
 	python3 scripts/release-cohort-state.py initialize "$(RELEASE_OUTPUT_ROOT)"
 ifdef DEV_ID
-	@test -n "$(NOTARY_PROFILE)" || { echo "ERROR: NOTARY_PROFILE is required when DEV_ID is set" >&2; exit 1; }
+	@test -n "$(NOTARY_PROFILE)" || { echo "ERROR: NOTARY_PROFILE is unset and macos-notary-profile is not installed" >&2; exit 1; }
 	bash package/sign_app "$(DEV_ID)" "$(RELEASE_OUTPUT_ROOT)" "$(NOTARY_PROFILE)"
 endif
 	@# 出厂盘点必须描述**最终出厂的那份 app**，所以固定排在 ifdef 块之后：签名会重写全部

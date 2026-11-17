@@ -41,8 +41,17 @@ case "${1:-}" in
   *) usage >&2; fail "unknown argument: $1" ;;
 esac
 
-NOTARY_PROFILE="${NOTARY_PROFILE:-owltype-notary}"
-if xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1; then
+NOTARY_PROFILE="${NOTARY_PROFILE:-}"
+if [[ -z "$NOTARY_PROFILE" ]]; then
+  if command -v macos-notary-profile >/dev/null 2>&1; then
+    NOTARY_PROFILE="$(macos-notary-profile 2>/dev/null || true)"
+  elif [[ -n "${HOME:-}" && -x "$HOME/.local/bin/macos-notary-profile" ]]; then
+    NOTARY_PROFILE="$("$HOME/.local/bin/macos-notary-profile" 2>/dev/null || true)"
+  fi
+fi
+if [[ -z "$NOTARY_PROFILE" ]]; then
+  fail "NOTARY_PROFILE is unset and macos-notary-profile is not installed"
+elif xcrun notarytool history --keychain-profile "$NOTARY_PROFILE" >/dev/null 2>&1; then
   pass "NOTARY_PROFILE keychain profile is available"
 else
   fail "NOTARY_PROFILE 指向的 notarytool keychain profile 不可用"

@@ -65,4 +65,14 @@ printf 'internal fleet link: https://github.com/semantic-craft/agent-fleet\n' > 
 git -C "$case_repo" add notes.txt
 expect_failure "internal repository reference"
 
+new_case
+printf 'NOTARY_PROFILE=xw-notary\n' > "$case_repo/notes.txt"
+git -C "$case_repo" add notes.txt
+expect_failure "personal notary profile"
+
+new_case
+printf 'NOTARY_PROFILE=%s-%s\n' owltype notary > "$case_repo/notes.txt"
+git -C "$case_repo" add notes.txt
+expect_failure "retired repo-specific notary profile"
+
 printf 'public privacy self-test passed\n'
