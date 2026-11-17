@@ -52,7 +52,14 @@ app="$output_root/Build/Products/Release/Owltype.app"
 release_dir="$output_root/release"
 cohort_file="$release_dir/OWLTYPE-RELEASE-COHORT.json"
 dev_id="${DEV_ID:-}"
-notary_profile="${NOTARY_PROFILE:-owltype-notary}"
+notary_profile="${NOTARY_PROFILE:-}"
+if [[ -z "$notary_profile" ]]; then
+  if command -v macos-notary-profile >/dev/null 2>&1; then
+    notary_profile="$(macos-notary-profile 2>/dev/null || true)"
+  elif [[ -n "${HOME:-}" && -x "$HOME/.local/bin/macos-notary-profile" ]]; then
+    notary_profile="$("$HOME/.local/bin/macos-notary-profile" 2>/dev/null || true)"
+  fi
+fi
 
 run python3 "$STATE" revoke-publish "$output_root"
 
@@ -60,8 +67,15 @@ if ((!dry_run)) && [[ -z "$dev_id" ]]; then
   echo >&2 "ERROR: set DEV_ID to the Developer ID common name"
   exit 1
 fi
+if ((!dry_run)) && [[ -z "$notary_profile" ]]; then
+  echo >&2 "ERROR: NOTARY_PROFILE is unset and macos-notary-profile is not installed"
+  exit 1
+fi
 if ((dry_run)) && [[ -z "$dev_id" ]]; then
   dev_id='<Developer ID common name>'
+fi
+if ((dry_run)) && [[ -z "$notary_profile" ]]; then
+  notary_profile='<notarytool keychain profile>'
 fi
 
 cd "$ROOT"
@@ -163,7 +177,7 @@ echo "==> 6/8 run release and identity gates"
 run env OWL_IDENTITY_STRICT=1 "OWL_APP=$app" "OWL_PKG=$pkg" "OWL_DMG=$dmg" \
   bash "$ROOT/scripts/check-identity-residual.sh"
 run env "OWL_APP=$app" bash "$ROOT/scripts/check-manifest.sh"
-run env "RELEASE_OUTPUT_ROOT=$output_root" \
+run env "RELEASE_OUTPUT_ROOT=$output_root" "NOTARY_PROFILE=$notary_profile" \
   bash "$ROOT/scripts/check-release.sh" --automated-only
 
 echo "==> 7/8 run privacy and centralized secret gates"

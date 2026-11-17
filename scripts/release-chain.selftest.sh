@@ -241,6 +241,48 @@ else
 fi
 
 : >"$runner_log"
+notary_stub_bin="$work/notary-stub-bin"
+mkdir -p "$notary_stub_bin" "$work/empty-home"
+cat >"$notary_stub_bin/macos-notary-profile" <<'STUB'
+#!/bin/sh
+printf 'stub-notary-profile\n'
+STUB
+chmod +x "$notary_stub_bin/macos-notary-profile"
+
+if env -u NOTARY_PROFILE HOME="$work/empty-home" \
+    PATH="$notary_stub_bin:$runner_bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+    OWL_RELEASE_TEST_LOG="$runner_log" \
+    OWL_RELEASE_TEST_SOURCE="$work/fake-source.tar.gz" \
+    DEV_ID='fixture identity' \
+    /bin/bash "$RELEASE" --output-root "$work/resolved notary output" >"$output" 2>&1 &&
+   grep -qF 'xcrun notarytool history --keychain-profile stub-notary-profile' "$runner_log" &&
+   grep -qF 'NOTARY_PROFILE=stub-notary-profile' "$runner_log" &&
+   ! grep -qF "$(printf '%s-%s' owltype notary)" "$runner_log"; then
+  ok "release entrypoint resolves unset NOTARY_PROFILE via macos-notary-profile"
+else
+  sed 's/^/     /' "$runner_log" >&2
+  sed 's/^/     /' "$output" >&2
+  bad "release entrypoint must resolve unset NOTARY_PROFILE via macos-notary-profile"
+fi
+
+: >"$runner_log"
+expect_fail "release entrypoint fails loudly when NOTARY_PROFILE is unset and macos-notary-profile is missing" \
+  "NOTARY_PROFILE is unset and macos-notary-profile is not installed" \
+  env -u NOTARY_PROFILE HOME="$work/empty-home" \
+    PATH="$runner_bin:/usr/bin:/bin:/usr/sbin:/sbin" \
+    OWL_RELEASE_TEST_LOG="$runner_log" \
+    OWL_RELEASE_TEST_SOURCE="$work/fake-source.tar.gz" \
+    DEV_ID='fixture identity' \
+    /bin/bash "$RELEASE" --output-root "$work/missing notary output"
+if ! grep -q '^xcrun ' "$runner_log" &&
+   ! grep -qF "$(printf '%s-%s' owltype notary)" "$runner_log"; then
+  ok "missing notary profile stops before xcrun without legacy fallback"
+else
+  sed 's/^/     /' "$runner_log" >&2
+  bad "missing notary profile must stop before xcrun without legacy fallback"
+fi
+
+: >"$runner_log"
 expect_fail "release chain stops at the first failed composition step" "" \
   env PATH="$runner_bin:/usr/bin:/bin:/usr/sbin:/sbin" \
     OWL_RELEASE_TEST_LOG="$runner_log" \

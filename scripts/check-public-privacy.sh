@@ -44,7 +44,7 @@ fi
 
 private_repo_matches="$(
   git grep -I -l -E \
-    'semantic-craft/(famoime-mac|famotype-mac-private|famotype-macos|famotype-macos-retired-private|famotype-macos-merge-metadata|agent-fleet|TeslaHub)|_shared-work|xw-notary' \
+    'semantic-craft/(famoime-mac|famotype-mac-private|famotype-macos|famotype-macos-retired-private|famotype-macos-merge-metadata|agent-fleet|TeslaHub)|_shared-work|xw-notary|(owltype|owl-app)[-]notary' \
     -- . \
     ':(exclude)scripts/check-public-privacy.sh' \
     ':(exclude)scripts/check-public-privacy.selftest.sh' || true

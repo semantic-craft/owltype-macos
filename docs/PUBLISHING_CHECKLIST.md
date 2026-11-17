@@ -37,9 +37,15 @@ branch. Then use the only release entrypoint:
 
 ```sh
 DEV_ID='Developer ID common name' \
-NOTARY_PROFILE='notarytool keychain profile' \
 bash scripts/release.sh --output-root build/release-<version>-<short-sha>
 ```
+
+When `NOTARY_PROFILE` is unset, [Makefile](../Makefile), [scripts/release.sh](../scripts/release.sh), and
+[scripts/check-release.sh](../scripts/check-release.sh) resolve the profile by running
+`macos-notary-profile` (on `PATH` or `~/.local/bin/macos-notary-profile`). Set
+`NOTARY_PROFILE='notarytool keychain profile'` to override it explicitly. If `NOTARY_PROFILE` is
+unset and `macos-notary-profile` is not installed, release preflight fails instead of falling back
+to a repository-specific default.
 
 The input method, Rust engine, MCP helper, Sparkle components, and DMG installer
 build only `arm64`. The delivery gate rejects any other architecture before signing.

@@ -130,7 +130,7 @@ PY
     }
     trap cleanup EXIT
     if [[ "$kind" == app ]]; then
-      archive_dir="$(mktemp -d "${TMPDIR:-/tmp}/owl-app-notary.XXXXXX")"
+      archive_dir="$(mktemp -d "${TMPDIR:-/tmp}/owl-notary-stage.XXXXXX")"
       archive="$archive_dir/Owltype-app.zip"
       ditto -c -k --keepParent "$source_artifact" "$archive" || exit 70
       submission="$archive"
