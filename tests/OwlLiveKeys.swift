@@ -3,9 +3,9 @@
 //  OwltypeTests — 实盘测试读 Key 的唯一入口
 //
 //  Key 只从测试进程环境读，不读仓库外的 Key 文件或钥匙串。命令行用
-//  `bash scripts/live-test.sh <测试名>`：它经 direnv 按项目 .envrc 取 Key，
+//  `bash scripts/live-test.sh <测试名>`：它经 with-secrets 按项目 .secrets 取 Key，
 //  加 `TEST_RUNNER_` 前缀交给 xcodebuild（进测试进程时前缀被去掉）。IDE 里在 scheme 设同名变量。
-//  scripts/live-test.sh 从下面的 case 读名字；新增 Key 只改这里，再把名字加进 .envrc。
+//  scripts/live-test.sh 从下面的 case 读名字；新增 Key 只改这里，再把名字加进 .secrets。
 //
 
 import Foundation

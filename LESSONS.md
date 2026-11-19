@@ -445,20 +445,21 @@ fails `OwlSettingsUITests`; the suite is not in the gate, so both drifted unnoti
 
 ## Run live tests through scripts/live-test.sh
 
-**Live keys come from the environment only; `scripts/live-test.sh` loads them through direnv and fails when a named live test skips.**
+**Live keys come from the environment only; `scripts/live-test.sh` loads them through `with-secrets` and fails when a named live test skips.**
 
 - Reason: the DeepSeek key was in the project's `.envrc`, yet live tests skipped and the
   agent reported the key as missing. Three causes stacked: tests read keys from three places
   (`TEST_RUNNER_*` and legacy home-directory key files); the agent shell is not a login
   shell and had inherited a stale direnv export (DashScope and Ark keys, no DeepSeek key); and
   xcodebuild drops plain environment variables, so a skip looked like a clean run.
-- Prevention: [OwlLiveKeys](tests/OwlLiveKeys.swift) is the only key reader and key list.
-  [live-test.sh](scripts/live-test.sh) reads the names from it, always re-resolves them with
-  `direnv exec` against the current `.envrc`, forwards them as `TEST_RUNNER_*`, and exits non-zero
-  when a requested test skips. A blocked `.envrc` stops the run; the user approves it with
-  `direnv allow`.
+- Prevention: [OwlLiveKeys](tests/OwlLiveKeys.swift) is the only key reader and key list,
+  mirrored in the name-only `.secrets` manifest. [live-test.sh](scripts/live-test.sh) reads the
+  names from it, clears stale keys, re-resolves them with `with-secrets --project "$root" --optional --`,
+  forwards them as `TEST_RUNNER_*`, and exits non-zero when a requested test skips. A `with-secrets`
+  failure stops the run instead of falling back to inherited keys.
 - Regression: [live-test.selftest.sh](scripts/live-test.selftest.sh) in the gate covers the
-  stale-environment case, skip-as-failure, a blocked `.envrc` and keys never printed.
+  stale-environment case, skip-as-failure, a `with-secrets` failure, manifest parity with
+  `OwlLiveKeys.swift`, and keys never printed.
 - Verify (验证点): `scripts/live-test.selftest.sh` passes; a live run through `scripts/live-test.sh` exits non-zero when a named live test skips.
 - Seen on 1 distinct date: 2026-10-21.
 
