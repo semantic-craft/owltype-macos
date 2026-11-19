@@ -1,5 +1,5 @@
 #!/bin/bash
-# scripts/live-test.sh 的行为自检：用假的 direnv / xcodebuild / make 顶替，不打网络、不碰真实 Key。
+# scripts/live-test.sh 的行为自检：用假的 with-secrets / xcodebuild / make 顶替，不打网络、不碰真实 Key。
 set -euo pipefail
 
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -8,20 +8,22 @@ trap 'rm -rf "$work"' EXIT
 bin="$work/bin"
 mkdir -p "$bin"
 
-# direnv exec：模拟项目 .envrc，只给 DEEPSEEK_API_KEY。
-cat >"$bin/direnv" <<'SH'
+cat >"$bin/with-secrets" <<'SH'
 #!/bin/bash
-[[ $1 == exec ]] || exit 9
-shift 2
-[[ -n ${FAKE_DIRENV_BLOCKED:-} ]] && { echo "direnv: error .envrc is blocked" >&2; exit 1; }
-exec env -u DASHSCOPE_API_KEY -u ARK_API_KEY DEEPSEEK_API_KEY=sk-fake-from-envrc "$@"
+[[ $1 == --project && $2 == "$FAKE_EXPECTED_ROOT" && $3 == --optional && $4 == -- ]] || {
+  echo "with-secrets: unexpected args: $*" >&2
+  exit 9
+}
+shift 4
+[[ -n ${FAKE_WITH_SECRETS_FAIL:-} ]] && { echo "with-secrets: secret source unreadable" >&2; exit 1; }
+exec env DEEPSEEK_API_KEY=sk-fake-from-secrets "$@"
 SH
-# xcodebuild：把收到的 TEST_RUNNER_ 名字记进 FAKE_LOG（不记值），按 FAKE_SKIP 决定跳过还是通过。
+
 cat >"$bin/xcodebuild" <<'SH'
 #!/bin/bash
 for arg in "$@"; do [[ $arg == build-for-testing ]] && exit 0; done
 env | grep -o '^TEST_RUNNER_[A-Z_]*' | sort | sed 's/^/forwarded /' >"$FAKE_LOG"
-[[ ${TEST_RUNNER_DEEPSEEK_API_KEY:-} == sk-fake-from-envrc ]] && echo "value ok" >>"$FAKE_LOG"
+[[ ${TEST_RUNNER_DEEPSEEK_API_KEY:-} == sk-fake-from-secrets ]] && echo "value ok" >>"$FAKE_LOG"
 if [[ -n ${FAKE_SKIP:-} ]]; then
   echo "Test Case '-[OwltypeTests.OwlSkillsLiveTests testX]' skipped (0.001 seconds)."
 else
@@ -34,42 +36,43 @@ chmod +x "$bin"/*
 log="$work/forwarded"
 run() {
   : >"$log"
-  env PATH="$bin:/usr/bin:/bin" FAKE_LOG="$log" "$@" \
+  env PATH="$bin:/usr/bin:/bin" FAKE_LOG="$log" FAKE_EXPECTED_ROOT="$root" "$@" \
     bash "$root/scripts/live-test.sh" OwlSkillsLiveTests/testX 2>&1
 }
 
 fail() { echo "live-test.selftest: $*" >&2; exit 1; }
 
-# 1. 继承来的旧环境有别的 Key，也要经 direnv 按当前 .envrc 重取（2026-10-21 的复发条件）。
+[[ -f "$root/.secrets" ]] || fail "缺少项目 .secrets 清单"
+grep -q "=" "$root/.secrets" && fail ".secrets 不得包含赋值（=）"
+for key in $(grep -oE '"[A-Z][A-Z0-9_]*_API_KEY"' "$root/tests/OwlLiveKeys.swift" | tr -d '"'); do
+  grep -qx "$key" "$root/.secrets" || fail ".secrets 缺少 OwlLiveKeys.swift 声明的 $key"
+done
+
 out=$(run DASHSCOPE_API_KEY=stale) || fail "通过的运行不该失败：$out"
-grep -q "forwarded TEST_RUNNER_DEEPSEEK_API_KEY" "$log" || fail "没把 .envrc 的 Key 转给测试"
+grep -q "forwarded TEST_RUNNER_DEEPSEEK_API_KEY" "$log" || fail "没把 with-secrets 的 Key 转给测试"
 grep -q "forwarded TEST_RUNNER_DASHSCOPE_API_KEY" "$log" && fail "沿用了继承来的旧 Key"
 grep -q "value ok" "$log" || fail "转给测试的值不对"
 grep -q "sk-fake" <<<"$out" && fail "输出里出现了 Key 的值"
 
-# 2. 点名的实盘测试被跳过 = 失败。
 if out=$(run FAKE_SKIP=1); then fail "跳过被当成了通过：$out"; fi
 grep -q "有实盘测试被跳过" <<<"$out" || fail "跳过时没说明原因：$out"
 
-# 3. .envrc 被拦截：直接失败，不退回继承来的环境。
-if out=$(run FAKE_DIRENV_BLOCKED=1 DEEPSEEK_API_KEY=stale); then fail "direnv 拦截时不该继续：$out"; fi
+if out=$(run FAKE_WITH_SECRETS_FAIL=1 DEEPSEEK_API_KEY=stale); then fail "with-secrets 失败时不该继续：$out"; fi
 
-# 4. 不带测试名是用法错误。
 if env PATH="$bin:/usr/bin:/bin" bash "$root/scripts/live-test.sh" >/dev/null 2>&1; then
   fail "不带测试名应当报错"
 fi
 
-# The local reply profile talks only to an already running backend, without host keys.
-out=$(env PATH="$bin:/usr/bin:/bin" FAKE_LOG="$log" FAKE_DIRENV_BLOCKED=1 \
+out=$(env PATH="$bin:/usr/bin:/bin" FAKE_LOG="$log" FAKE_EXPECTED_ROOT="$root" FAKE_WITH_SECRETS_FAIL=1 \
   bash "$root/scripts/live-test.sh" --reply-service /tmp/synthetic-replies.sock 2>&1) \
-  || fail "本地服务不应加载 direnv 或要求宿主 Key：$out"
+  || fail "本地服务不应加载 with-secrets 或要求宿主 Key：$out"
 grep -q "forwarded TEST_RUNNER_OWL_REPLY_SERVICE_SOCKET" "$log" || fail "没转发明确测试 socket"
 grep -q "API_KEY" "$log" && fail "本地服务 profile 转发了宿主 Key"
-if env PATH="$bin:/usr/bin:/bin" FAKE_LOG="$log" bash "$root/scripts/live-test.sh" \
+if env PATH="$bin:/usr/bin:/bin" FAKE_LOG="$log" FAKE_EXPECTED_ROOT="$root" bash "$root/scripts/live-test.sh" \
   --reply-service /tmp/synthetic-replies.sock OwlSkillsLiveTests/testX >/dev/null 2>&1; then
   fail "本地服务 profile 不得绕过其他实盘测试的凭据入口"
 fi
-if env PATH="$bin:/usr/bin:/bin" FAKE_LOG="$log" FAKE_SKIP=1 bash "$root/scripts/live-test.sh" \
+if env PATH="$bin:/usr/bin:/bin" FAKE_LOG="$log" FAKE_EXPECTED_ROOT="$root" FAKE_SKIP=1 bash "$root/scripts/live-test.sh" \
   --reply-service /tmp/synthetic-replies.sock >/dev/null 2>&1; then
   fail "本地服务 profile 跳过应失败"
 fi

@@ -1,10 +1,9 @@
 #!/bin/bash
 # 实盘测试的唯一入口：bash scripts/live-test.sh OwlSkillsLiveTests/testX [OwlSkillsLiveTests/testY …]
 #
-# 开发凭据来自项目 .envrc。agent 的 shell 不是 login
-# shell、不加载 direnv，继承来的环境还可能是旧 .envrc 导出的残留（2026-10-21：有千问、豆包
-# 方舟 Key，却没有后加的 DeepSeek Key）。所以不看当前环境有没有 Key，一律经 `direnv exec`
-# 按当前 .envrc 重新执行自己一次。
+# 开发凭据名由项目 .secrets 声明，经 with-secrets 按需注入。为避免非 login shell 继承到旧环境残留的
+# Key（2026-10-21：有千问、豆包方舟 Key，却没有后加的 DeepSeek Key），先清空旧 Key，再一律经
+# `with-secrets --project "$root" --optional --` 重新执行自己一次。
 # xcodebuild 不把普通环境变量转给测试进程，要加 TEST_RUNNER_ 前缀；这里统一转。
 # 点名要跑的实盘测试若被跳过（缺 Key），整次运行算失败，不让「跳过」冒充「通过」。
 # Key 只在环境里传递，不打印、不落盘。
@@ -18,7 +17,6 @@ fi
 root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root"
 
-# Key 名单只有一份：tests/OwlLiveKeys.swift 的 case。
 KEYS=($(grep -oE '"[A-Z][A-Z0-9_]*_API_KEY"' tests/OwlLiveKeys.swift | tr -d '"'))
 if ((${#KEYS[@]} == 0)); then
   echo "live-test: 没从 tests/OwlLiveKeys.swift 读到 Key 名单" >&2
@@ -33,11 +31,23 @@ have_any_key() {
   return 1
 }
 
+find_with_secrets() {
+  if command -v with-secrets >/dev/null 2>&1; then
+    command -v with-secrets
+    return 0
+  fi
+  if [[ -n ${HOME:-} && -x "$HOME/.local/bin/with-secrets" ]]; then
+    printf '%s\n' "$HOME/.local/bin/with-secrets"
+    return 0
+  fi
+  return 1
+}
+
 forward=()
 missing=()
 if [[ ${1:-} == --reply-service ]]; then
   # No credentials belong to the input method. Only this fixed local-service suite is
-  # eligible; other Live suites must still pass through direnv and OwlLiveKey.
+  # eligible; other Live suites must still pass through with-secrets and OwlLiveKey.
   [[ $# == 2 && $2 == /* ]] || { echo "用法：live-test.sh --reply-service /absolute/test.sock" >&2; exit 2; }
   forward+=("TEST_RUNNER_OWL_REPLY_SERVICE_SOCKET=$2")
   for name in "${KEYS[@]}" OPENAI_API_KEY; do
@@ -45,25 +55,28 @@ if [[ ${1:-} == --reply-service ]]; then
   done
   set -- JEVReplyServiceLiveTests/testSharedServiceCandidatesAndOverrides
 else
-if [[ -z ${OWL_LIVE_TEST_REEXEC:-} ]] && command -v direnv >/dev/null; then
-  OWL_LIVE_TEST_REEXEC=1 exec direnv exec "$root" bash "$0" "$@"
-fi
-if ! have_any_key; then
-  echo "live-test: 没有任何实盘 Key（${KEYS[*]}）。.envrc 被拦截时先在仓库主目录运行 direnv allow；" >&2
-  echo "           名字不在 .envrc 里时补上对应环境变量导出。" >&2
-  exit 1
-fi
-
-for name in "${KEYS[@]}"; do
-  if [[ -n ${!name:-} ]]; then
-    forward+=("TEST_RUNNER_${name}=${!name}")
-  else
-    missing+=("$name")
+  if [[ -z ${OWL_LIVE_TEST_REEXEC:-} ]]; then
+    if with_secrets=$(find_with_secrets); then
+      for name in "${KEYS[@]}"; do
+        unset "$name"
+      done
+      OWL_LIVE_TEST_REEXEC=1 exec "$with_secrets" --project "$root" --optional -- bash "$0" "$@"
+    fi
   fi
-done
-# 全量提示词评测的开关同样要经前缀才进得了测试进程。
-[[ -n ${OWL_RUN_LIVE_PROMPT_EVAL:-} ]] && forward+=("TEST_RUNNER_OWL_RUN_LIVE_PROMPT_EVAL=$OWL_RUN_LIVE_PROMPT_EVAL")
+  if ! have_any_key; then
+    echo "live-test: 没有任何实盘 Key（${KEYS[*]}）。请确认已安装 with-secrets（~/.local/bin/with-secrets）、" >&2
+    echo "           .secrets 列出了所需 Key 名且 secret source（~/.env）可读。" >&2
+    exit 1
+  fi
 
+  for name in "${KEYS[@]}"; do
+    if [[ -n ${!name:-} ]]; then
+      forward+=("TEST_RUNNER_${name}=${!name}")
+    else
+      missing+=("$name")
+    fi
+  done
+  [[ -n ${OWL_RUN_LIVE_PROMPT_EVAL:-} ]] && forward+=("TEST_RUNNER_OWL_RUN_LIVE_PROMPT_EVAL=$OWL_RUN_LIVE_PROMPT_EVAL")
 fi
 
 only=()
