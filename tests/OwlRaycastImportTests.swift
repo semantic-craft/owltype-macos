@@ -253,9 +253,7 @@ final class OwlRaycastImportTests: XCTestCase {
     var preview = try importer.preview(data: data([["name": "待修正", "text": "{argument name=\"old\"} {unsupported}"]]))
     preview.rows[0].selected = true
     _ = try importer.commit(preview)
-    let suite = "OwlRaycastImportTests-" + UUID().uuidString
-    let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-    defer { defaults.removePersistentDomain(forName: suite) }
+    let defaults = makeIsolatedDefaults(prefix: "OwlRaycastImportTests")
     let model = OwlTemplateEditorModel(dataDir: root, defaults: defaults,
                                       automaticRuntime: OwlAutomaticExpansionRuntime())
     await model.loadLibraryForEditing(); model.draft = try XCTUnwrap(model.library.entries.first)

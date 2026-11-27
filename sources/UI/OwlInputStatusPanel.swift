@@ -125,7 +125,7 @@ struct OwlInputStatusView: View {
       button(presentation.traditional ? "繁" : "简", label: presentation.traditional ? "繁体输出；切换简体" : "简体输出；切换繁体", action: .traditional)
       Button { action(.settings) } label: {
         Image(systemName: "gearshape").font(.system(size: 17)).frame(width: 32, height: 32)
-      }.buttonStyle(StatusButtonStyle(palette: palette)).help("Owltype 设置").accessibilityLabel("Owltype 设置")
+      }.buttonStyle(StatusButtonStyle(palette: palette)).help("法墨设置").accessibilityLabel("法墨设置")
     }
     .padding(7)
     .background(RoundedRectangle(cornerRadius: presentation.settings.skin.theme.cornerRadius).fill(palette.card))

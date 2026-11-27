@@ -670,9 +670,7 @@ final class ProviderProfileStoreTests: XCTestCase {
   }
 
   func testQwenWorkspaceSettingPersistsOnlyTheNormalizedHost() throws {
-    let suiteName = "OwlQwenWorkspaceTests-\(UUID().uuidString)"
-    let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-    defer { defaults.removePersistentDomain(forName: suiteName) }
+    let defaults = makeIsolatedDefaults(prefix: "OwlQwenWorkspaceTests")
     let registry = OwlProviderRegistry(
       store: makeStore(), secrets: OwlInMemorySecretStore(), defaults: defaults)
 
@@ -718,9 +716,7 @@ final class ProviderProfileStoreTests: XCTestCase {
     }
     let profilesBefore = store.profiles()
     let secretsBefore = secrets.storage
-    let suiteName = "OwlQwenWorkspaceActionTests-\(UUID().uuidString)"
-    let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-    defer { defaults.removePersistentDomain(forName: suiteName) }
+    let defaults = makeIsolatedDefaults(prefix: "OwlQwenWorkspaceActionTests")
 
     let result = Actions.saveQwenWorkspace(
       "ws-test123abc", apiKey: "", store: store, secrets: secrets, defaults: defaults)
@@ -772,9 +768,7 @@ final class ProviderProfileStoreTests: XCTestCase {
     let keys = secrets.storage
     let bytes = Data("{ invalid JSON".utf8)
     try bytes.write(to: store.fileURL)
-    let suite = "WorkspaceMalformed-\(UUID().uuidString)"
-    let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-    defer { defaults.removePersistentDomain(forName: suite) }
+    let defaults = makeIsolatedDefaults(prefix: "WorkspaceMalformed")
     defaults.set("ws-original.cn-beijing.maas.aliyuncs.com", forKey: OwlQwenWorkspaceSettings.key)
     let settings = defaults.dictionaryRepresentation()
     var writes = 0
@@ -796,9 +790,7 @@ final class ProviderProfileStoreTests: XCTestCase {
   func testSavingQwenWorkspaceMissingFileOnlyUpdatesSettings() throws {
     let store = makeStore()
     let secrets = OwlInMemorySecretStore()
-    let suite = "WorkspaceMissing-\(UUID().uuidString)"
-    let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-    defer { defaults.removePersistentDomain(forName: suite) }
+    let defaults = makeIsolatedDefaults(prefix: "WorkspaceMissing")
     let result = Actions.saveQwenWorkspace(
       "ws-test123abc", apiKey: "new-key", store: store, secrets: secrets, defaults: defaults)
     XCTAssertTrue(result.saved)
@@ -823,9 +815,7 @@ final class ProviderProfileStoreTests: XCTestCase {
       Actions.markProviderProfileKeyVerified(profile)
     }
     let editing = try XCTUnwrap(store.profiles().last)
-    let suite = "WorkspaceEditing-\(UUID().uuidString)"
-    let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-    defer { defaults.removePersistentDomain(forName: suite) }
+    let defaults = makeIsolatedDefaults(prefix: "WorkspaceEditing")
     let result = Actions.saveQwenWorkspace(
       "ws-test123abc", apiKey: "new-key", store: store, secrets: secrets, defaults: defaults)
     XCTAssertTrue(result.saved)
@@ -931,9 +921,7 @@ final class ProviderProfileStoreTests: XCTestCase {
     }
     let keys = secrets.backing.storage
     let verified = before.map { OwlProviderKeyVerification.verifiedAt(secretName: $0.secretName) }
-    let suite = "WorkspaceTransaction-\(UUID().uuidString)"
-    let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-    defer { defaults.removePersistentDomain(forName: suite) }
+    let defaults = makeIsolatedDefaults(prefix: "WorkspaceTransaction")
     defaults.set("ws-original.cn-beijing.maas.aliyuncs.com", forKey: OwlQwenWorkspaceSettings.key)
     let hostBefore = OwlQwenWorkspaceSettings.apiHost(defaults: defaults)
     var saves = 0
@@ -1021,9 +1009,7 @@ final class ProviderProfileStoreTests: XCTestCase {
     }
     let before = store.profiles()
     let keys = secrets.storage
-    let suite = "WorkspaceSameOrigin-\(UUID().uuidString)"
-    let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-    defer { defaults.removePersistentDomain(forName: suite) }
+    let defaults = makeIsolatedDefaults(prefix: "WorkspaceSameOrigin")
     let result = Actions.saveQwenWorkspace(
       "ws-test123abc", apiKey: "new-key", store: store, secrets: secrets, defaults: defaults)
     XCTAssertTrue(result.saved)
@@ -1088,9 +1074,7 @@ final class ProviderProfileStoreTests: XCTestCase {
     let verificationBefore = profilesBefore.map {
       OwlProviderKeyVerification.verifiedAt(secretName: $0.secretName)
     }
-    let suiteName = "OwlQwenWorkspaceRejectionTests-\(UUID().uuidString)"
-    let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-    defer { defaults.removePersistentDomain(forName: suiteName) }
+    let defaults = makeIsolatedDefaults(prefix: "OwlQwenWorkspaceRejectionTests")
     defaults.set("ws-existing123.cn-beijing.maas.aliyuncs.com", forKey: OwlQwenWorkspaceSettings.key)
     let hostBefore = OwlQwenWorkspaceSettings.apiHost(defaults: defaults)
     let before = try Data(contentsOf: store.fileURL)
@@ -1123,9 +1107,7 @@ final class ProviderProfileStoreTests: XCTestCase {
     let profilesBefore = store.profiles()
     let defaultBefore = store.defaultProfile
     let before = try Data(contentsOf: store.fileURL)
-    let suiteName = "OwlQwenWorkspaceWithoutProfilesTests-\(UUID().uuidString)"
-    let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-    defer { defaults.removePersistentDomain(forName: suiteName) }
+    let defaults = makeIsolatedDefaults(prefix: "OwlQwenWorkspaceWithoutProfilesTests")
     var writes = 0
     store.beforeSave = { writes += 1 }
 

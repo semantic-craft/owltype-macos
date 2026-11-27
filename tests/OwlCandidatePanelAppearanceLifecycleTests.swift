@@ -10,18 +10,14 @@ import SwiftUI
 
 @MainActor
 final class OwlCandidatePanelAppearanceLifecycleTests: XCTestCase {
-  private var suiteName = ""
   private var defaults: UserDefaults!
 
   override func setUp() {
     super.setUp()
-    suiteName = "OwlCandidatePanelAppearanceLifecycleTests-\(UUID().uuidString)"
-    defaults = UserDefaults(suiteName: suiteName)!
-    defaults.removePersistentDomain(forName: suiteName)
+    defaults = makeIsolatedDefaults(prefix: "OwlCandidatePanelAppearanceLifecycleTests")
   }
 
   override func tearDown() {
-    defaults.removePersistentDomain(forName: suiteName)
     defaults = nil
     super.tearDown()
   }
@@ -321,6 +317,7 @@ final class OwlCandidatePanelAppearanceLifecycleTests: XCTestCase {
       state: firstState,
       onSelectSchema: { _ in },
       onRedeploy: { true },
+      onTemplatesChanged: {},
       onApplyKeyboardConfigFast: { .init(written: [], succeeded: true) },
       onApplyFuzzyConfigFast: { .init(written: [], succeeded: true) },
       userDataActions: .init(resetUserDict: {}),
@@ -343,6 +340,7 @@ final class OwlCandidatePanelAppearanceLifecycleTests: XCTestCase {
       state: secondState,
       onSelectSchema: { _ in },
       onRedeploy: { true },
+      onTemplatesChanged: {},
       onApplyKeyboardConfigFast: { .init(written: [], succeeded: true) },
       onApplyFuzzyConfigFast: { .init(written: [], succeeded: true) },
       userDataActions: .init(resetUserDict: {}),

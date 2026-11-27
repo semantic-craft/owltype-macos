@@ -86,7 +86,7 @@ struct OwlFuzzySheet: View {
       Text("模糊拼音")
         .font(.system(size: 15, weight: .semibold))
         .foregroundStyle(palette.ink)
-      Text("开启后这些音将互相模糊匹配（如 zh 与 z 视为相同）。修改即时保存；关闭面板后会应用到 Rime。")
+      Text("开启后这些音将互相模糊匹配（如 zh 与 z 视为相同）。修改即时保存；关闭面板后会立即应用到输入引擎。")
         .font(.system(size: 12))
         .foregroundStyle(palette.ink3)
         .fixedSize(horizontal: false, vertical: true)

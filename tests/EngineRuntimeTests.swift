@@ -59,6 +59,41 @@ final class EngineRuntimeTests: XCTestCase {
     XCTAssertTrue(engine.deployedConfigFiles.isEmpty)
   }
 
+  func testRefreshTemplateHostPhrasesRefreshesLiveSessionsWithoutRedeploy() {
+    let engine = FakeInputEngine(finalizeResult: false)
+
+    XCTAssertTrue(makeRuntime(engine).refreshTemplateHostPhrases())
+    XCTAssertEqual(engine.refreshHostPhrasesCount, 1)
+    XCTAssertEqual(engine.finalizeCount, 0)
+    XCTAssertEqual(engine.lifecycleTrace, ["refreshHostPhrases"])
+
+    engine.refreshHostPhrasesResult = false
+    XCTAssertFalse(makeRuntime(engine).refreshTemplateHostPhrases())
+    XCTAssertEqual(engine.refreshHostPhrasesCount, 2)
+    XCTAssertEqual(engine.finalizeCount, 0)
+    XCTAssertEqual(engine.lifecycleTrace, ["refreshHostPhrases", "refreshHostPhrases"])
+  }
+
+  func testRemoveTestDefaultsSuiteUnlinksPreferencesPlist() throws {
+    let (defaults, suite) = makeIsolatedDefaultsSuite(prefix: "im.owltype.inputmethod.Owltype.unit.unlink")
+    let plist = try XCTUnwrap(Self.testDefaultsPlistURL(for: suite))
+    let userPrefsPlist = try XCTUnwrap(
+      FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first?
+        .appendingPathComponent("Preferences", isDirectory: true)
+        .appendingPathComponent(plist.lastPathComponent)
+    )
+    defaults.set("value", forKey: "key")
+    defaults.synchronize()
+    XCTAssertTrue(FileManager.default.fileExists(atPath: plist.path))
+    XCTAssertFalse(FileManager.default.fileExists(atPath: userPrefsPlist.path))
+
+    Self.removeTestDefaultsSuite(suite)
+
+    XCTAssertFalse(FileManager.default.fileExists(atPath: plist.path))
+    XCTAssertFalse(FileManager.default.fileExists(atPath: plist.deletingLastPathComponent().path))
+    XCTAssertFalse(FileManager.default.fileExists(atPath: userPrefsPlist.path))
+  }
+
   // MARK: - Running work with the engine stopped
 
   func testWhileStoppedRunsBodyBetweenStopAndRestart() {
@@ -631,6 +666,44 @@ final class EngineRuntimeTests: XCTestCase {
     XCTAssertEqual(emitter.emitClearedCount, 0, "non-active controller must not run engineUpdate on schema switch")
   }
 
+  @MainActor
+  func testToggleFullShapeFromMenuUpdatesSessionAndPersistsPreference() throws {
+    let delegate = NSApp.owlAppDelegate
+    let previousEngine = delegate.runtime.engine
+    let previousEmitter = delegate.snapshotEmitter
+    let previousFullShape = OwlKeyboardPreferences.defaultFullShape
+    delegate.runtime.engine = FakeInputEngine()
+    delegate.snapshotEmitter = FakeSnapshotEmitter()
+    OwlKeyboardPreferences.defaultFullShape = false
+    defer {
+      OwlKeyboardPreferences.defaultFullShape = previousFullShape
+      delegate.runtime.engine = previousEngine
+      delegate.snapshotEmitter = previousEmitter
+    }
+
+    let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    defer {
+      MainActor.assumeIsolated { OwlInputStatusPanel.shared.deactivate(controller) }
+      controller.destroySession()
+    }
+    controller.destroySession()
+    let session = FakeEngineSession(
+      sessionID: 94,
+      status: EngineStatus(schemaId: "rime_ice", isASCIIMode: false, isASCIIPunct: false, isFullShape: false)
+    )
+    controller.client = HabitsTextClient()
+    controller.engineSession = session
+
+    controller.toggleFullShapeFromMenu()
+    XCTAssertEqual(session.optionState[.fullShape], true)
+    XCTAssertTrue(OwlKeyboardPreferences.defaultFullShape)
+
+    session.scriptedStatus = EngineStatus(schemaId: "rime_ice", isASCIIMode: false, isASCIIPunct: false, isFullShape: true)
+    controller.toggleFullShapeFromMenu()
+    XCTAssertEqual(session.optionState[.fullShape], false)
+    XCTAssertFalse(OwlKeyboardPreferences.defaultFullShape)
+  }
+
   // MARK: - Helpers
 
   private func makeRuntime(_ engine: FakeInputEngine) -> EngineRuntime {
@@ -903,6 +976,7 @@ final class FakeInputEngine: OwlRustEngine {
   var scriptedVersion: String?
   var startMaintenanceResult: Bool
   var deployConfigFileResult: Bool
+  var refreshHostPhrasesResult: Bool
   var finalizeResult: Bool
   var selectSchemaResult: Bool
 
@@ -910,6 +984,7 @@ final class FakeInputEngine: OwlRustEngine {
   private(set) var finalizeCount = 0
   private(set) var cleanupAllSessionsCount = 0
   private(set) var joinMaintenanceCount = 0
+  private(set) var refreshHostPhrasesCount = 0
   private(set) var lifecycleTrace: [String] = []
   private(set) var deployedConfigFiles: [String] = []
   private(set) var createdSessionCount = 0
@@ -924,6 +999,7 @@ final class FakeInputEngine: OwlRustEngine {
     version: String? = nil,
     startMaintenanceResult: Bool = true,
     deployConfigFileResult: Bool = true,
+    refreshHostPhrasesResult: Bool = true,
     finalizeResult: Bool = true,
     selectSchemaResult: Bool = true
   ) {
@@ -933,6 +1009,7 @@ final class FakeInputEngine: OwlRustEngine {
     self.scriptedVersion = version
     self.startMaintenanceResult = startMaintenanceResult
     self.deployConfigFileResult = deployConfigFileResult
+    self.refreshHostPhrasesResult = refreshHostPhrasesResult
     self.finalizeResult = finalizeResult
     self.selectSchemaResult = selectSchemaResult
     super.init()
@@ -950,6 +1027,11 @@ final class FakeInputEngine: OwlRustEngine {
   override func deployConfigFile(_ fileName: String, versionKey: String) -> Bool {
     deployedConfigFiles.append(fileName)
     return deployConfigFileResult
+  }
+  override func refreshHostPhrases() -> Bool {
+    refreshHostPhrasesCount += 1
+    lifecycleTrace.append("refreshHostPhrases")
+    return refreshHostPhrasesResult
   }
   override func setNotificationHandler(_ handler: @escaping EngineNotificationHandler) {
     notificationHandlerSet = true
@@ -976,5 +1058,56 @@ final class FakeInputEngine: OwlRustEngine {
   override func session(for id: UInt64) -> OwlRustSession {
     sessionForIDs.append(id)
     return vendedSession
+  }
+}
+
+extension XCTestCase {
+  private static let isolatedDefaultsDirPrefix = "owl-test-defaults-"
+
+  static func testDefaultsPlistURL(for suiteName: String) -> URL? {
+    if suiteName.hasPrefix("/") {
+      let path = suiteName.hasSuffix(".plist") ? suiteName : "\(suiteName).plist"
+      return URL(fileURLWithPath: path)
+    }
+    return FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask).first?
+      .appendingPathComponent("Preferences", isDirectory: true)
+      .appendingPathComponent("\(suiteName).plist")
+  }
+
+  static func removeTestDefaultsSuite(_ suiteName: String) {
+    let defaults = UserDefaults(suiteName: suiteName)
+    defaults?.removePersistentDomain(forName: suiteName)
+    defaults?.synchronize()
+    if let file = testDefaultsPlistURL(for: suiteName) {
+      try? FileManager.default.removeItem(at: file)
+      if suiteName.hasPrefix("/") {
+        let parent = file.deletingLastPathComponent()
+        if parent.lastPathComponent.hasPrefix(isolatedDefaultsDirPrefix) {
+          try? FileManager.default.removeItem(at: parent)
+        }
+      }
+    }
+  }
+
+  func makeIsolatedDefaultsSuite(
+    prefix: String = "im.owltype.inputmethod.Owltype.unit"
+  ) -> (defaults: UserDefaults, suiteName: String) {
+    let directory = FileManager.default.temporaryDirectory
+      .resolvingSymlinksInPath()
+      .appendingPathComponent("\(Self.isolatedDefaultsDirPrefix)\(UUID().uuidString)", isDirectory: true)
+    try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+    let suiteName = directory.appendingPathComponent("\(prefix).\(UUID().uuidString)").path
+    let defaults = UserDefaults(suiteName: suiteName)!
+    defaults.removePersistentDomain(forName: suiteName)
+    addTeardownBlock {
+      XCTestCase.removeTestDefaultsSuite(suiteName)
+    }
+    return (defaults, suiteName)
+  }
+
+  func makeIsolatedDefaults(
+    prefix: String = "im.owltype.inputmethod.Owltype.unit"
+  ) -> UserDefaults {
+    makeIsolatedDefaultsSuite(prefix: prefix).defaults
   }
 }

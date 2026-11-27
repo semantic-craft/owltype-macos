@@ -80,6 +80,12 @@ final class EngineRuntime {
     return ok
   }
 
+  /// Push updated template/host phrases to live sessions without shutting down the engine.
+  @discardableResult
+  func refreshTemplateHostPhrases() -> Bool {
+    engine.refreshHostPhrases()
+  }
+
   /// The outcome of work that needs the engine stopped.
   enum StoppedRun<Value> {
     /// A session was still live, so the engine kept running and `body` never ran.

@@ -103,7 +103,10 @@ extension OwlInputController {
   }
 
   @objc func toggleFullShapeFromMenu() {
-    toggleEngineOption(.fullShape)
+    let fullShape = !currentEngineStatusFlags().fullShape
+    setEngineOption(.fullShape, fullShape)
+    OwlKeyboardPreferences.defaultFullShape = fullShape
+    engineUpdate()
   }
 
   // v0.2: forward to the delegate's SwiftUI settings window. Additive UI only;
@@ -212,10 +215,5 @@ extension OwlInputController {
   @objc func checkForUpdates() {
     OwlLatencyTrace.event("button.open.checkUpdates")
     NSApp.owlAppDelegate.checkForUpdates()
-  }
-
-  @objc func openWiki() {
-    OwlLatencyTrace.event("button.open.wiki")
-    NSApp.owlAppDelegate.openWiki()
   }
 }

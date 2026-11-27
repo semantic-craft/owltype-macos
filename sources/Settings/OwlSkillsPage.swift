@@ -129,7 +129,7 @@ struct OwlSkillsPage: View {
           }
         )
         SettingsCardDivider(palette: palette)
-        Text("🔒 AI 只在你主动触发时工作：划词技能发送你选中的文本，任意提问发送你输入的问题；打字时的主候选始终来自本地 Rime，绝不上云。")
+        Text("🔒 AI 只在你主动触发时工作：划词技能发送你选中的文本，任意提问发送你输入的问题；打字时的主候选始终由本地水杉引擎计算，绝不上云。")
           .font(.system(size: 12))
           .foregroundStyle(palette.ink3)
           .fixedSize(horizontal: false, vertical: true)

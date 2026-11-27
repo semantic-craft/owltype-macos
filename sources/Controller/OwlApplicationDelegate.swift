@@ -14,7 +14,6 @@ import os
 final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverDelegate, UNUserNotificationCenterDelegate {
   private var installSelfCheckObserver: NSObjectProtocol?
   private var workspacePowerOffObserver: NSObjectProtocol?
-  static let rimeWikiURL = URL(string: "https://github.com/rime/home/wiki")!
   static let updateNotificationIdentifier = "OwlUpdateNotification"
   static let notificationIdentifier = "OwlNotification"
 
@@ -357,6 +356,9 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
           : NSLocalizedString("应用配置失败，请查看诊断日志。", comment: "redeploy failed")
         return ok
       },
+      onTemplatesChanged: { [weak self] in
+        _ = self?.runtime.refreshTemplateHostPhrases()
+      },
       onApplyKeyboardConfigFast: { [weak self] in
         try self?.runtime.applyKeyboardSettings(.config) ?? .init(written: [], succeeded: false)
       },
@@ -405,6 +407,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
       state: state,
       onSelectSchema: { state.currentSchemaId = $0 },
       onRedeploy: { true },
+      onTemplatesChanged: {},
       onApplyKeyboardConfigFast: { .init(written: [], succeeded: true) },
       onApplyFuzzyConfigFast: { .init(written: [], succeeded: true) },
       userDataActions: .init(
@@ -559,10 +562,6 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     } else {
       print("Cannot check for updates")
     }
-  }
-
-  func openWiki() {
-    NSWorkspace.shared.open(Self.rimeWikiURL)
   }
 
   /// 用户可感反馈（决策点 1）：显式切方案失败（多因 build/<id>.schema.yaml 未编译）。走已有系统

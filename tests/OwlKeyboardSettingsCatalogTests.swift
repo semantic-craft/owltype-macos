@@ -16,13 +16,14 @@ final class OwlKeyboardSettingsCatalogTests: XCTestCase {
 
   override func setUp() {
     super.setUp()
-    suiteName = "im.owltype.inputmethod.Owltype.catalog-tests.\(UUID().uuidString)"
-    defaults = UserDefaults(suiteName: suiteName)
+    let isolated = makeIsolatedDefaultsSuite(prefix: "im.owltype.inputmethod.Owltype.catalog-tests")
+    defaults = isolated.defaults
+    suiteName = isolated.suiteName
   }
 
   override func tearDown() {
-    defaults.removePersistentDomain(forName: suiteName)
     defaults = nil
+    suiteName = ""
     super.tearDown()
   }
 

@@ -269,6 +269,10 @@ final class OwlSettingsActionTests: XCTestCase {
     XCTAssertTrue(clipboardEnabled)
     XCTAssertEqual(enableStatus, "已启用；只在你点击捕获时读取纯文本剪贴板。")
 
+    let disableStatus = OwlSettingsActions.setClipboardEnabled(false) { clipboardEnabled = $0 }
+    XCTAssertFalse(clipboardEnabled)
+    XCTAssertEqual(disableStatus, "已关闭；法墨不读取系统剪贴板。")
+
     let blockedCapture = try OwlSettingsActions.captureClipboard(enabled: false, text: "忽略") { _ in
       XCTFail("disabled capture must not read the pasteboard")
       return []

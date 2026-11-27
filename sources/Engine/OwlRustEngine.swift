@@ -250,6 +250,8 @@ class OwlRustSession {
     if hasControl && hasShift && !hasAltOrSuper
        && (keycode == UInt32(XK_3) || keycode == UInt32(XK_numbersign)) {
       let nextPunct = !(optionFlags[.asciiPunct] ?? false)
+      OwlKeyboardPreferences.cjkPunctToggle = nextPunct
+      lastAppliedASCIIPunct = nextPunct
       setOption(.asciiPunct, nextPunct)
       return true
     }
@@ -1017,6 +1019,10 @@ class OwlRustEngine {
     _ = fileName
     _ = versionKey
     return refreshAllSessionsPreferences(includeHostPhrases: true)
+  }
+
+  func refreshHostPhrases() -> Bool {
+    refreshAllSessionsPreferences(includeHostPhrases: true)
   }
 
   func setNotificationHandler(_ handler: @escaping EngineNotificationHandler) {

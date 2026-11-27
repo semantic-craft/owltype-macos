@@ -572,9 +572,7 @@ final class OwlAutomaticExpansionTests: XCTestCase {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("OwlCommitTests-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: root) }
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-    let suite = "OwlCommitTests-" + UUID().uuidString
-    let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-    defer { defaults.removePersistentDomain(forName: suite) }
+    let defaults = makeIsolatedDefaults(prefix: "OwlCommitTests")
     defaults.set(true, forKey: OwlAutomaticExpansionRuntime.enabledKey)
     let runtime = OwlAutomaticExpansionRuntime()
     try runtime.reload(dataDir: root, defaults: defaults)
@@ -598,9 +596,7 @@ final class OwlAutomaticExpansionTests: XCTestCase {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("OwlImportCommitTests-" + UUID().uuidString)
     defer { try? FileManager.default.removeItem(at: root) }
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-    let suite = "OwlImportCommitTests-" + UUID().uuidString
-    let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-    defer { defaults.removePersistentDomain(forName: suite) }
+    let defaults = makeIsolatedDefaults(prefix: "OwlImportCommitTests")
     defaults.set(true, forKey: OwlAutomaticExpansionRuntime.enabledKey)
     let runtime = OwlAutomaticExpansionRuntime()
     try runtime.reload(dataDir: root, defaults: defaults)
@@ -628,12 +624,8 @@ final class OwlAutomaticExpansionTests: XCTestCase {
   func testSavedExpansionModeRefreshesBoundRuntimeAndFailedConflictKeepsPreviousMode() throws {
     let root = FileManager.default.temporaryDirectory.appendingPathComponent("OwlDelimiterTests-" + UUID().uuidString)
     try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-    let suite = "OwlDelimiterTests-" + UUID().uuidString
-    let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-    defer {
-      try? FileManager.default.removeItem(at: root)
-      defaults.removePersistentDomain(forName: suite)
-    }
+    let defaults = makeIsolatedDefaults(prefix: "OwlDelimiterTests")
+    defer { try? FileManager.default.removeItem(at: root) }
     defaults.set(true, forKey: OwlAutomaticExpansionRuntime.enabledKey)
     let runtime = OwlAutomaticExpansionRuntime()
     try runtime.reload(dataDir: root, defaults: defaults)

@@ -408,7 +408,7 @@ enum OwlSettingsActions {
 
   static func setClipboardEnabled(_ value: Bool, write: (Bool) -> Void) -> String {
     write(value)
-    return value ? "已启用；只在你点击捕获时读取纯文本剪贴板。" : "已关闭；Owltype 不读取系统剪贴板。"
+    return value ? "已启用；只在你点击捕获时读取纯文本剪贴板。" : "已关闭；法墨不读取系统剪贴板。"
   }
 
   static func captureClipboard(

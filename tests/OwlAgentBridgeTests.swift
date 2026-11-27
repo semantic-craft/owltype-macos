@@ -245,17 +245,15 @@ final class OwlAgentBridgeTests: XCTestCase {
 
 final class OwlAgentAccessTests: XCTestCase {
   private var defaults: UserDefaults!
-  private var suite: String!
   private var directory: URL!
 
   override func setUp() {
-    suite = "OwlAgentAccessTests.\(UUID().uuidString)"
-    defaults = UserDefaults(suiteName: suite)
+    defaults = makeIsolatedDefaults(prefix: "OwlAgentAccessTests")
     directory = URL(fileURLWithPath: "/tmp", isDirectory: true).appendingPathComponent("owlaa-\(UUID().uuidString.prefix(8))")
   }
 
   override func tearDown() {
-    defaults.removePersistentDomain(forName: suite)
+    defaults = nil
     try? FileManager.default.removeItem(at: directory)
   }
 
@@ -394,9 +392,7 @@ final class OwlAgentHelperInteropTests: XCTestCase {
     XCTAssertEqual(SecCodeCopySigningInformation(code!, SecCSFlags(rawValue: kSecCSSigningInformation), &info), errSecSuccess)
     let cdhash = try XCTUnwrap((info as? [String: Any])?[kSecCodeInfoUnique as String] as? Data)
 
-    let suite = "OwlAgentHelperInteropTests.\(UUID().uuidString)"
-    let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-    defer { defaults.removePersistentDomain(forName: suite) }
+    let defaults = makeIsolatedDefaults(prefix: "OwlAgentHelperInteropTests")
     OwlAgentAccessPreferences.setEnabled(true, defaults)
     let access = OwlAgentAccess(defaults: defaults)
     access.inputSnapshot = { OwlAgentInputSnapshot(schemaID: "rime_ice", asciiMode: false) }

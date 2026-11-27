@@ -90,9 +90,7 @@ final class OwlSettingsE2EContractTests: XCTestCase {
 
   func testStoreBackedSettingsUseIsolatedLocalStorage() throws {
     let dataDir = try makeTempDir()
-    let suiteName = "OwlSettingsE2E-\(UUID().uuidString)"
-    let defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
-    defer { defaults.removePersistentDomain(forName: suiteName) }
+    let defaults = makeIsolatedDefaults(prefix: "OwlSettingsE2E")
 
     var template = OwlTemplateEntry(title: "法墨测试", body: "法墨测试")
     template.trigger = "mtycs"

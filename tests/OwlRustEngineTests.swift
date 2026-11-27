@@ -750,6 +750,32 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertFalse(session.option(.asciiPunct))
   }
 
+  func testCtrlShift3PersistsCJKPunctToggleAndSurvivesPreferenceSync() throws {
+    let original = OwlKeyboardPreferences.cjkPunctToggle
+    defer { OwlKeyboardPreferences.cjkPunctToggle = original }
+    OwlKeyboardPreferences.cjkPunctToggle = false
+
+    let engine = try makeSharedSupportSeedEngine()
+    let session = engine.createSession()
+    defer { session.destroy() }
+
+    let chordModifiers = kControlMask.rawValue | kShiftMask.rawValue
+    XCTAssertFalse(session.option(.asciiPunct))
+    XCTAssertTrue(session.process(keycode: UInt32(XK_3), modifiers: chordModifiers))
+    XCTAssertTrue(session.option(.asciiPunct))
+    XCTAssertTrue(OwlKeyboardPreferences.cjkPunctToggle)
+
+    XCTAssertTrue(session.syncRuntimePreferences(includeHostPhrases: false))
+    XCTAssertTrue(session.option(.asciiPunct))
+
+    XCTAssertTrue(session.process(keycode: UInt32(XK_numbersign), modifiers: chordModifiers))
+    XCTAssertFalse(session.option(.asciiPunct))
+    XCTAssertFalse(OwlKeyboardPreferences.cjkPunctToggle)
+
+    XCTAssertTrue(session.syncRuntimePreferences(includeHostPhrases: false))
+    XCTAssertFalse(session.option(.asciiPunct))
+  }
+
   func testRustPunctuationMenusMatchRimeOrderAndContinueTyping() throws {
     let originalSlash = OwlKeyboardPreferences.slashSymbolMenu
     let originalAngle = OwlKeyboardPreferences.angleSymbolMenu
