@@ -30,7 +30,7 @@ enum OwlOnboarding {
   }
 }
 
-final class OwlOnboardingWindow: NSWindowController {
+final class OwlOnboardingWindow: NSWindowController, NSWindowDelegate {
   init() {
     let window = NSWindow(
       contentRect: NSRect(
@@ -44,6 +44,11 @@ final class OwlOnboardingWindow: NSWindowController {
     window.isReleasedWhenClosed = false
     window.center()
     super.init(window: window)
+    window.delegate = self
+  }
+
+  func windowWillClose(_ notification: Notification) {
+    window?.contentView = nil
   }
 
   @available(*, unavailable)

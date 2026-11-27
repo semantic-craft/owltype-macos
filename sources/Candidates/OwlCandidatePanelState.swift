@@ -100,6 +100,20 @@ final class CandidatePanelState {
   func showsCompactComment(for candidate: CandidateViewModel) -> Bool {
     candidateFormat.showsComment && isWubiSchema && candidate.comment?.isEmpty == false
   }
+
+  func resetComposition() {
+    preedit = ""
+    cursor = 0
+    selStart = 0
+    selEnd = 0
+    candidates = []
+    scrollRows = []
+    highlightedIndex = 0
+    page = 0
+    hasPrevPage = false
+    hasNextPage = false
+    isExpanded = false
+  }
 }
 
 /// 多行里的一整页候选（前页行或后页行）。`id` 取 the engine 的**页号**，这是多行动画的关键：
