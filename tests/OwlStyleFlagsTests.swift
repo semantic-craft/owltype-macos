@@ -7,18 +7,14 @@ import XCTest
 @testable import Owltype
 
 final class OwlStyleFlagsTests: XCTestCase {
-  private var suiteName = ""
   private var defaults: UserDefaults!
 
   override func setUp() {
     super.setUp()
-    suiteName = "OwlStyleFlagsTests-\(UUID().uuidString)"
-    defaults = UserDefaults(suiteName: suiteName)!
-    defaults.removePersistentDomain(forName: suiteName)
+    defaults = makeIsolatedDefaults(prefix: "OwlStyleFlagsTests")
   }
 
   override func tearDown() {
-    defaults.removePersistentDomain(forName: suiteName)
     defaults = nil
     super.tearDown()
   }

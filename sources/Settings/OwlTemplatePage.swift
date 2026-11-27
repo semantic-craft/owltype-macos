@@ -173,7 +173,7 @@ final class OwlTemplateEditorModel: ObservableObject {
 struct OwlTemplatePage: View {
   let palette: OwlCandidatePalette
   @State private var promptOnly = false
-  var onRedeploy: (() -> Void)?
+  var onTemplatesChanged: (() -> Void)?
   @StateObject private var model: OwlTemplateEditorModel
   @State private var hasLoadedLibrary = false
   @State private var search = ""
@@ -197,10 +197,10 @@ struct OwlTemplatePage: View {
   @State private var diagnosticSelection: NSRange?
 
   init(palette: OwlCandidatePalette, promptOnly: Bool = false,
-       dataDir: URL = OwlApp.userDir, onRedeploy: (() -> Void)? = nil) {
+       dataDir: URL = OwlApp.userDir, onTemplatesChanged: (() -> Void)? = nil) {
     self.palette = palette
     _promptOnly = State(initialValue: promptOnly)
-    self.onRedeploy = onRedeploy
+    self.onTemplatesChanged = onTemplatesChanged
     _model = StateObject(wrappedValue: OwlTemplateEditorModel(
       dataDir: dataDir, category: promptOnly ? .prompt : .general
     ))
@@ -271,20 +271,20 @@ struct OwlTemplatePage: View {
       Button("切换并插入") { model.draft.bodyType = .template; model.draft.syntax = .standard; model.insertClipboardField() }
     } message: { Text("正文中的动态字段将开始解析。剪贴板只在本次调用时主动读取一次，不启用剪贴板历史。") }
     .confirmationDialog("当前草稿尚未保存", isPresented: $showingUnsaved, titleVisibility: .visible) {
-      Button("保存并继续") { if model.save() { onRedeploy?(); performPending() } }
+      Button("保存并继续") { if model.save() { onTemplatesChanged?(); performPending() } }
         .disabled(!hasLoadedLibrary || !model.canEdit)
       Button("放弃草稿并继续", role: .destructive) { performPending() }
       Button("取消", role: .cancel) { pendingAction = nil }
     }
     .alert("删除这个模板？", isPresented: $showingDelete, presenting: deletion) { entry in
       Button("取消", role: .cancel) { deletion = nil }
-      Button("删除", role: .destructive) { if model.delete(entry) { onRedeploy?() }; deletion = nil }
+      Button("删除", role: .destructive) { if model.delete(entry) { onTemplatesChanged?() }; deletion = nil }
     } message: { entry in
       Text(entry.title + " · " + String(entry.id.uuidString.prefix(8)) + "\n" + (entry.trigger ?? "仅搜索") +
         " · " + entry.tags.joined(separator: "、") + "\n" + String(entry.body.prefix(160)))
     }
     .sheet(item: $importPreview) { preview in
-      OwlRaycastImportView(preview: preview) { selection in try model.importRaycast(selection); onRedeploy?() }
+      OwlRaycastImportView(preview: preview) { selection in try model.importRaycast(selection); onTemplatesChanged?() }
     }
   }
 
@@ -494,7 +494,7 @@ struct OwlTemplatePage: View {
       VStack(alignment: .leading, spacing: 8) {
         Toggle("启用自动展开", isOn: Binding(get: { model.automaticEnabled }, set: { model.setAutomaticEnabled($0) }))
           .accessibilityIdentifier("template-automatic-enabled")
-        Text("仅在 Owltype 激活时工作；支持普通文本和动态模板的立即或分隔符展开。多个工具使用同一触发词时，请自行选择由哪个工具处理。")
+        Text("仅在法墨激活时工作；支持普通文本和动态模板的立即或分隔符展开。多个工具使用同一触发词时，请自行选择由哪个工具处理。")
           .font(.caption).foregroundStyle(.secondary)
         Text("在以下应用中禁用").font(.caption)
         ForEach(model.disabledBundleIDs, id: \.self) { bundleID in
@@ -558,7 +558,7 @@ struct OwlTemplatePage: View {
   private var saveBar: some View {
     VStack(alignment: .leading, spacing: 8) {
       HStack(spacing: 8) {
-        Button("保存") { if model.save() { onRedeploy?() } }.accessibilityIdentifier("template-save").disabled(!hasLoadedLibrary || !model.canEdit)
+        Button("保存") { if model.save() { onTemplatesChanged?() } }.accessibilityIdentifier("template-save").disabled(!hasLoadedLibrary || !model.canEdit)
           .buttonStyle(OwlFilledButtonStyle(palette: palette))
           .fixedSize()
         Button("复制为新条目") { withSavedDraft { model.draft = model.draft.duplicated(); model.status = "副本尚未保存。" } }.disabled(!hasLoadedLibrary || !model.canEdit)

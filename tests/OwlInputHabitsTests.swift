@@ -6,13 +6,11 @@ import XCTest
 
 final class OwlInputHabitsTests: XCTestCase {
   private var defaults: UserDefaults!
-  private var suite: String!
 
   override func setUp() {
-    suite = "OwlInputHabitsTests.\(UUID().uuidString)"
-    defaults = UserDefaults(suiteName: suite)
+    defaults = makeIsolatedDefaults(prefix: "OwlInputHabitsTests")
   }
-  override func tearDown() { defaults.removePersistentDomain(forName: suite) }
+  override func tearDown() { defaults = nil }
 
   func testModeMemoryOverridesInitialEnglishAndSurvivesRestart() {
     let memory = OwlAppInputMemory(defaults: defaults)

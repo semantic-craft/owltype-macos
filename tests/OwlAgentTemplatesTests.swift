@@ -12,15 +12,13 @@ import XCTest
 final class OwlAgentTemplatesTests: XCTestCase {
   private typealias Wire = OwlAgentBridgeProtocol
   private var defaults: UserDefaults!
-  private var suite: String!
 
   override func setUp() {
-    suite = "OwlAgentTemplatesTests.\(UUID().uuidString)"
-    defaults = UserDefaults(suiteName: suite)
+    defaults = makeIsolatedDefaults(prefix: "OwlAgentTemplatesTests")
     OwlAgentAccessPreferences.setEnabled(true, defaults)
   }
 
-  override func tearDown() { defaults.removePersistentDomain(forName: suite) }
+  override func tearDown() { defaults = nil }
 
   private func entry(_ title: String, _ body: String, exposed: Bool = true) -> OwlTemplateEntry {
     var entry = OwlTemplateEntry(title: title, body: body)

@@ -34,6 +34,8 @@ struct OwlSettingsView: View {
   let onSelectSchema: (String) -> Void
   /// 应用配置改动 → delegate `deploy()` (the heavy full maintenance; 维护与诊断「重新部署」).
   let onRedeploy: () -> Bool
+  /// 快捷片段变更 → refresh live sessions' host phrases without full engine shutdown.
+  let onTemplatesChanged: () -> Void
   /// Track-2 config-only fast apply → shared settings application (deploy_config_file
   /// + live reselect + replay; no engine shutdown). Used for 候选个数 / 键位 / 标点 / schema_list.
   let onApplyKeyboardConfigFast: () throws -> OwlKeyboardSettingsApplication.Outcome
@@ -222,7 +224,7 @@ struct OwlSettingsView: View {
       case .schemes:
         schemesPage
       case .quickSend:
-        OwlTemplatePage(palette: palette, onRedeploy: { _ = onRedeploy() })
+        OwlTemplatePage(palette: palette, onTemplatesChanged: onTemplatesChanged)
       case .clipboard:
         OwlClipboardPage(
           palette: palette,

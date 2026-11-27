@@ -17,17 +17,13 @@ import XCTest
 @testable import Owltype
 
 final class OwlUpdateLogoutPromptTests: XCTestCase {
-  private func freshDefaults() -> (UserDefaults, String) {
-    let suite = "test.owltype.logout.\(UUID().uuidString)"
-    let defaults = UserDefaults(suiteName: suite)!
-    defaults.removePersistentDomain(forName: suite)
-    return (defaults, suite)
+  private func freshDefaults() -> UserDefaults {
+    makeIsolatedDefaults(prefix: "test.owltype.logout")
   }
 
   func testUpgradeDowngradeAndFirstLaunchNeverPromptWithoutFailedSelfCheck() {
     for old in [nil, "", "2.0.12", "2.0.13", "2.0.14"] as [String?] {
-      let (defaults, suite) = freshDefaults()
-      defer { defaults.removePersistentDomain(forName: suite) }
+      let defaults = freshDefaults()
       defaults.set(old, forKey: OwlUpdateLogoutPrompt.lastRunVersionKey)
       XCTAssertFalse(OwlUpdateLogoutPrompt.planPrompt(current: "2.0.13", defaults: defaults))
     }
@@ -41,8 +37,7 @@ final class OwlUpdateLogoutPromptTests: XCTestCase {
   }
 
   func testFailedSelfCheckPromptsUntilDispositionAndSuccessClearsFailure() {
-    let (defaults, suite) = freshDefaults()
-    defer { defaults.removePersistentDomain(forName: suite) }
+    let defaults = freshDefaults()
     defaults.set("2.0.13", forKey: OwlUpdateLogoutPrompt.failureVersionKey)
     XCTAssertTrue(OwlUpdateLogoutPrompt.planPrompt(current: "2.0.13", defaults: defaults))
     OwlUpdateLogoutPrompt.recordDisposition(current: "2.0.13", defaults: defaults)
@@ -62,8 +57,7 @@ final class OwlUpdateLogoutPromptTests: XCTestCase {
   }
 
   func test_diagnostics_recordThenReadBack_roundtrip() {
-    let (defaults, suite) = freshDefaults()
-    defer { defaults.removePersistentDomain(forName: suite) }
+    let defaults = freshDefaults()
     OwlLogoutDiagnostics.record(errorNumber: -1743, category: .automationDenied, defaults: defaults)
     let f = OwlLogoutDiagnostics.lastFailure(defaults: defaults)
     XCTAssertNotNil(f)
@@ -75,8 +69,7 @@ final class OwlUpdateLogoutPromptTests: XCTestCase {
   }
 
   func test_diagnostics_recordIsOverwrite_keepsLatest() {
-    let (defaults, suite) = freshDefaults()
-    defer { defaults.removePersistentDomain(forName: suite) }
+    let defaults = freshDefaults()
     OwlLogoutDiagnostics.record(errorNumber: -1712, category: .timeout, defaults: defaults)
     OwlLogoutDiagnostics.record(errorNumber: -1743, category: .automationDenied, defaults: defaults)
     XCTAssertEqual(OwlLogoutDiagnostics.lastFailure(defaults: defaults)?.errorNumber, -1743,
@@ -84,16 +77,14 @@ final class OwlUpdateLogoutPromptTests: XCTestCase {
   }
 
   func test_diagnostics_clear_removesFailure() {
-    let (defaults, suite) = freshDefaults()
-    defer { defaults.removePersistentDomain(forName: suite) }
+    let defaults = freshDefaults()
     OwlLogoutDiagnostics.record(errorNumber: -1743, category: .automationDenied, defaults: defaults)
     OwlLogoutDiagnostics.clear(defaults: defaults)
     XCTAssertNil(OwlLogoutDiagnostics.lastFailure(defaults: defaults))
   }
 
   func test_diagnostics_supportBundleSection_emptyAndPopulated() {
-    let (defaults, suite) = freshDefaults()
-    defer { defaults.removePersistentDomain(forName: suite) }
+    let defaults = freshDefaults()
     XCTAssertTrue(OwlLogoutDiagnostics.supportBundleSection(defaults: defaults).contains("无最近失败记录"))
     OwlLogoutDiagnostics.record(errorNumber: -1743, category: .automationDenied, defaults: defaults)
     let section = OwlLogoutDiagnostics.supportBundleSection(defaults: defaults)
@@ -198,8 +189,7 @@ final class OwlUpdateLogoutPromptTests: XCTestCase {
   }
 
   func test_selfCheck_failureStoresDiagnosisBesideVersion_passClearsBoth() {
-    let (defaults, suite) = freshDefaults()
-    defer { defaults.removePersistentDomain(forName: suite) }
+    let defaults = freshDefaults()
     let observation = Owltype.OwlSessionRestart.Observation(parentEnabled: true, modeEnabled: true,
       selectedSource: "im.owltype.inputmethod.Owltype.Hans", servers: [])
     let diagnosis = Owltype.OwlSessionRestart.Diagnosis(
@@ -225,8 +215,7 @@ final class OwlUpdateLogoutPromptTests: XCTestCase {
   }
 
   func test_selfCheckRecord_isOverwrite_keepsLatest() {
-    let (defaults, suite) = freshDefaults()
-    defer { defaults.removePersistentDomain(forName: suite) }
+    let defaults = freshDefaults()
     failedRecord(version: "2.0.18").save(defaults: defaults)
     failedRecord(version: "2.0.19").save(defaults: defaults)
     XCTAssertEqual(OwlInstallSelfCheckRecord.load(defaults: defaults)?.version, "2.0.19")
@@ -243,8 +232,7 @@ final class OwlUpdateLogoutPromptTests: XCTestCase {
   }
 
   func test_recordRecovered_consumesPromptAndKeepsRecordMarkedRecovered() {
-    let (defaults, suite) = freshDefaults()
-    defer { defaults.removePersistentDomain(forName: suite) }
+    let defaults = freshDefaults()
     defaults.set("2.0.19", forKey: OwlUpdateLogoutPrompt.failureVersionKey)
     failedRecord().save(defaults: defaults)
     OwlUpdateLogoutPrompt.recordRecovered(current: "2.0.19", defaults: defaults)
@@ -257,16 +245,14 @@ final class OwlUpdateLogoutPromptTests: XCTestCase {
   func test_recordDisposition_marksTheUsersChoiceOnTheRecord() {
     for (choice, status) in [(OwlUpdateLogoutPrompt.Choice.later, OwlInstallSelfCheckRecord.Status.dismissed),
                              (.logoutNow, .logoutRequested)] {
-      let (defaults, suite) = freshDefaults()
-      defer { defaults.removePersistentDomain(forName: suite) }
+      let defaults = freshDefaults()
       defaults.set("2.0.19", forKey: OwlUpdateLogoutPrompt.failureVersionKey)
       failedRecord().save(defaults: defaults)
       OwlUpdateLogoutPrompt.recordDisposition(current: "2.0.19", defaults: defaults, choice: choice)
       XCTAssertFalse(OwlUpdateLogoutPrompt.planPrompt(current: "2.0.19", defaults: defaults))
       XCTAssertEqual(OwlInstallSelfCheckRecord.load(defaults: defaults)?.status, status)
     }
-    let (defaults, suite) = freshDefaults()
-    defer { defaults.removePersistentDomain(forName: suite) }
+    let defaults = freshDefaults()
     failedRecord().save(defaults: defaults)
     OwlUpdateLogoutPrompt.recordDisposition(current: "2.0.19", defaults: defaults)
     XCTAssertEqual(OwlInstallSelfCheckRecord.load(defaults: defaults)?.status, .failed, "无处置信息不改状态")
@@ -284,8 +270,7 @@ final class OwlUpdateLogoutPromptTests: XCTestCase {
   }
 
   func test_selfCheckRecord_supportBundleSection_emptyAndPopulated() {
-    let (defaults, suite) = freshDefaults()
-    defer { defaults.removePersistentDomain(forName: suite) }
+    let defaults = freshDefaults()
     XCTAssertEqual(OwlInstallSelfCheckRecord.supportBundleSection(defaults: defaults), "## 安装自检\n（无最近失败记录）")
     var record = failedRecord()
     record.recheckTimestampUTC = "2026-10-22T07:05:00Z"
@@ -303,8 +288,7 @@ final class OwlUpdateLogoutPromptTests: XCTestCase {
   }
 
   func test_selfCheckRecord_supportBundleSection_reportsAFailedRecheck() {
-    let (defaults, suite) = freshDefaults()
-    defer { defaults.removePersistentDomain(forName: suite) }
+    let defaults = freshDefaults()
     var record = failedRecord()
     record.recheckTimestampUTC = "2026-10-22T07:05:00Z"
     record.recheckError = "Owltype --install-session-probe 超过 8 秒未结束"

@@ -7,21 +7,17 @@ import XCTest
 @testable import Owltype
 
 final class OwlLiveInputTraceTests: XCTestCase {
-  private var suiteName: String!
   private var defaults: UserDefaults!
   private var traceURL: URL!
 
   override func setUp() {
     super.setUp()
-    suiteName = "OwlLiveInputTraceTests-\(UUID().uuidString)"
-    defaults = UserDefaults(suiteName: suiteName)!
+    defaults = makeIsolatedDefaults(prefix: "OwlLiveInputTraceTests")
     traceURL = FileManager.default.temporaryDirectory.appending(component: "owl-trace-\(UUID().uuidString).log")
   }
 
   override func tearDown() {
     try? FileManager.default.removeItem(at: traceURL)
-    defaults.removePersistentDomain(forName: suiteName)
-    suiteName = nil
     defaults = nil
     traceURL = nil
     super.tearDown()

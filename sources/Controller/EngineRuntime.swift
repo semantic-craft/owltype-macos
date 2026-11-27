@@ -42,6 +42,7 @@ final class EngineRuntime {
   /// session. These completions are drained at an idle composition boundary so enabling or
   /// rolling back a dict-pack never discards a partially selected phrase.
   private var liveSessionRefreshCompletions: [@MainActor () -> Void] = []
+  private var pendingHostPhraseRefresh = false
 
   init(
     engine: OwlRustEngine = OwlRustEngine.makeConfiguredEngine(),
@@ -78,6 +79,24 @@ final class EngineRuntime {
     loadSettings()
     OwlLatencyTrace.event("deploy.finalUIState")
     return ok
+  }
+
+  /// Push updated template/host phrases to live sessions without shutting down the engine,
+  /// deferring until active compositions become idle so Rust's engine rebuild cannot drop input.
+  @MainActor
+  @discardableResult
+  func refreshTemplateHostPhrases() -> Bool {
+    pendingHostPhraseRefresh = true
+    return flushPendingHostPhraseRefreshIfIdle()
+  }
+
+  @MainActor
+  @discardableResult
+  private func flushPendingHostPhraseRefreshIfIdle() -> Bool {
+    guard pendingHostPhraseRefresh else { return false }
+    guard !liveControllers.allObjects.contains(where: \.hasInFlightComposition) else { return false }
+    pendingHostPhraseRefresh = false
+    return engine.refreshHostPhrases()
   }
 
   /// The outcome of work that needs the engine stopped.
@@ -190,8 +209,8 @@ final class EngineRuntime {
   @discardableResult
   @MainActor
   func applyPendingLiveSessionRefreshIfIdle() -> Bool {
-    // No JSON, allocation or controller scan when the native callback queue is empty.
-    let pending = !liveSessionRefreshCompletions.isEmpty
+    let hasSessionRefresh = !liveSessionRefreshCompletions.isEmpty
+    let pending = hasSessionRefresh || pendingHostPhraseRefresh
     let composing = pending && liveControllers.allObjects.contains(where: \.hasInFlightComposition)
     switch owl_app_keyboard_refresh(pending ? 1 : 0, composing ? 1 : 0) {
     case 0: return false
@@ -200,13 +219,16 @@ final class EngineRuntime {
     default: preconditionFailure("Incompatible keyboard refresh plan")
     }
 
-    let completions = liveSessionRefreshCompletions
-    liveSessionRefreshCompletions.removeAll()
-    reapplyToLiveSession()
-    for completion in completions {
-      completion()
+    if hasSessionRefresh {
+      let completions = liveSessionRefreshCompletions
+      liveSessionRefreshCompletions.removeAll()
+      reapplyToLiveSession()
+      for completion in completions {
+        completion()
+      }
     }
-    return false
+    _ = flushPendingHostPhraseRefreshIfIdle()
+    return pendingHostPhraseRefresh
   }
 
   /// Re-apply the just-deployed config to EVERY live controller's session so the freshly-built

@@ -8,18 +8,14 @@ import XCTest
 
 @MainActor
 final class OwlCandidatePanelDisplayLifecycleTests: XCTestCase {
-  private var suiteName = ""
   private var defaults: UserDefaults!
 
   override func setUp() {
     super.setUp()
-    suiteName = "OwlCandidatePanelDisplayLifecycleTests-\(UUID().uuidString)"
-    defaults = UserDefaults(suiteName: suiteName)!
-    defaults.removePersistentDomain(forName: suiteName)
+    defaults = makeIsolatedDefaults(prefix: "OwlCandidatePanelDisplayLifecycleTests")
   }
 
   override func tearDown() {
-    defaults.removePersistentDomain(forName: suiteName)
     defaults = nil
     super.tearDown()
   }

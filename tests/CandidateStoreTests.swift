@@ -256,6 +256,7 @@ final class OwlModernUISmokeTests: XCTestCase {
       state: settingsState,
       onSelectSchema: { _ in },
       onRedeploy: { true },
+      onTemplatesChanged: {},
       onApplyKeyboardConfigFast: { .init(written: [], succeeded: true) },
       onApplyFuzzyConfigFast: { .init(written: [], succeeded: true) },
       userDataActions: .init(
@@ -274,6 +275,7 @@ final class OwlModernUISmokeTests: XCTestCase {
       state: settingsState,
       onSelectSchema: { _ in },
       onRedeploy: { true },
+      onTemplatesChanged: {},
       onApplyKeyboardConfigFast: { .init(written: [], succeeded: true) },
       onApplyFuzzyConfigFast: { .init(written: [], succeeded: true) },
       userDataActions: .init(

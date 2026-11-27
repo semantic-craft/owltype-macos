@@ -31,9 +31,7 @@ final class OwlClipboardStoreBoundaryTests: XCTestCase {
   }
 
   func testClipboardStoreDefaultsOffAndLimitsLocalEntries() throws {
-    let suite = "OwlClipboardTests-\(UUID().uuidString)"
-    let defaults = try XCTUnwrap(UserDefaults(suiteName: suite))
-    defer { defaults.removePersistentDomain(forName: suite) }
+    let defaults = makeIsolatedDefaults(prefix: "OwlClipboardTests")
 
     XCTAssertFalse(OwlClipboardStore.isEnabled(defaults: defaults))
     OwlClipboardStore.setEnabled(true, defaults: defaults)

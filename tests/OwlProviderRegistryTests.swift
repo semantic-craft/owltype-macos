@@ -28,7 +28,6 @@ final class OwlProviderRegistryTests: XCTestCase {
 
   private var tempRoot: URL!
   private var defaults: UserDefaults!
-  private var suiteName = ""
   private let deepSeekEndpoint = "https://api.deepseek.com/v1/chat/completions"
 
   override func setUpWithError() throws {
@@ -36,14 +35,13 @@ final class OwlProviderRegistryTests: XCTestCase {
     tempRoot = FileManager.default.temporaryDirectory
       .appendingPathComponent("OwlProviderRegistryTests-\(UUID().uuidString)", isDirectory: true)
     try FileManager.default.createDirectory(at: tempRoot, withIntermediateDirectories: true)
-    suiteName = "OwlProviderRegistryTests-\(UUID().uuidString)"
-    defaults = try XCTUnwrap(UserDefaults(suiteName: suiteName))
+    defaults = makeIsolatedDefaults(prefix: "OwlProviderRegistryTests")
     OwlProviderKeyVerification.resetForTesting()
   }
 
   override func tearDownWithError() throws {
     OwlProviderKeyVerification.resetForTesting()
-    defaults.removePersistentDomain(forName: suiteName)
+    defaults = nil
     if let tempRoot { try? FileManager.default.removeItem(at: tempRoot) }
     try super.tearDownWithError()
   }

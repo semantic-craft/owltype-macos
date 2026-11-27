@@ -172,9 +172,7 @@ final class OwlAgentSettingsTests: XCTestCase {
   }
 
   func testAccessRecordsEachAnsweredCall() {
-    let suite = "OwlAgentSettingsTests.\(UUID().uuidString)"
-    let defaults = UserDefaults(suiteName: suite)!
-    defer { defaults.removePersistentDomain(forName: suite) }
+    let defaults = makeIsolatedDefaults(prefix: "OwlAgentSettingsTests")
     let log = OwlAgentCallLog(fileURL: nil)
     let access = OwlAgentAccess(defaults: defaults, callLog: log)
     let client = OwlAgentBridgeClient(helper: .init(name: "owltype-mcp", version: "0.1.0"),

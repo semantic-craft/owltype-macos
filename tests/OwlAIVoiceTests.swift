@@ -634,9 +634,7 @@ final class OwlAIVoiceTests: XCTestCase {
   // MARK: - 7. Voice ASR Settings & DeepSeek Profile Key Reuse
 
   func testSaveVoiceASRSettingsPersistsKeyEndpointAndModel() {
-    let suiteName = "OwlVoiceASRSettingsTests.\(UUID().uuidString)"
-    let defaults = UserDefaults(suiteName: suiteName)!
-    defer { defaults.removePersistentDomain(forName: suiteName) }
+    let defaults = makeIsolatedDefaults(prefix: "OwlVoiceASRSettingsTests")
 
     var savedKey: String?
     let res = OwlSettingsActions.saveVoiceASRSettings(
@@ -722,9 +720,7 @@ final class OwlAIVoiceTests: XCTestCase {
   }
 
   func testConfiguredGeminiProviderProfileAutoSwitchesVoiceASRAndFormatsErrorsWithGeminiName() throws {
-    let suiteName = "OwlVoiceAutoGeminiTests.\(UUID().uuidString)"
-    let defaults = UserDefaults(suiteName: suiteName)!
-    defer { defaults.removePersistentDomain(forName: suiteName) }
+    let defaults = makeIsolatedDefaults(prefix: "OwlVoiceAutoGeminiTests")
 
     let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
@@ -787,9 +783,7 @@ final class OwlAIVoiceTests: XCTestCase {
   }
 
   func testConfiguredDeepSeekProviderProfileAutoSwitchesVoiceASRAndFormatsErrorsWithDeepSeekName() throws {
-    let suiteName = "OwlVoiceAutoDeepSeekTests.\(UUID().uuidString)"
-    let defaults = UserDefaults(suiteName: suiteName)!
-    defer { defaults.removePersistentDomain(forName: suiteName) }
+    let defaults = makeIsolatedDefaults(prefix: "OwlVoiceAutoDeepSeekTests")
 
     let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
     try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
