@@ -376,10 +376,16 @@ final class OwlSwiftUICandidatePanel: OwlFloatingPanel {
     }
   }
 
+  var hasRenderedComposition: Bool {
+    !panelState.preedit.isEmpty || !panelState.candidates.isEmpty || !panelState.scrollRows.isEmpty
+  }
+
   func hidePanel() {
     orderOut(nil)
-    // B5: a re-show must always fully re-render (the early-out is guarded by `isVisible`, but
-    // resetting here also makes the intent explicit and survives any future visibility tweak).
+    if hasRenderedComposition {
+      panelState.resetComposition()
+      contentView?.layoutSubtreeIfNeeded()
+    }
     lastContent = nil
     lastSettings = nil
   }

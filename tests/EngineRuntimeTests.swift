@@ -462,7 +462,8 @@ final class FakeEngineSession: OwlRustSession {
 
   override func option(_ option: EngineOption) -> Bool { optionState[option] ?? false }
 
-  override func setOption(_ option: EngineOption, _ value: Bool) {
+  override func setOption(_ option: EngineOption, _ value: Bool, notify: Bool = true) {
+    _ = notify
     setOptions.append((option, value))
     optionState[option] = value
   }

@@ -18,7 +18,7 @@
 import AppKit
 import SwiftUI
 
-final class OwlSettingsWindow: NSWindowController {
+final class OwlSettingsWindow: NSWindowController, NSWindowDelegate {
   /// Strong reference to the observable state so it lives as long as the window.
   private var state: OwlSettingsState?
   private static var installedMainMenu = false
@@ -36,6 +36,12 @@ final class OwlSettingsWindow: NSWindowController {
     window.minSize = NSSize(width: 640, height: 460)
     window.center()
     super.init(window: window)
+    window.delegate = self
+  }
+
+  func windowWillClose(_ notification: Notification) {
+    window?.contentView = nil
+    state = nil
   }
 
   @available(*, unavailable)

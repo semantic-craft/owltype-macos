@@ -1311,7 +1311,7 @@ final class OwlRustEngineTests: XCTestCase {
     let engine = try makeSharedSupportSeedEngine()
     let session = engine.createSession()
     defer { session.destroy() }
-    session.setOption(.traditionalization, true)
+    session.setOption(.traditional, true)
     XCTAssertTrue(session.process(keycode: asciiKeycode("U"), modifiers: kShiftMask.rawValue))
     typeText("0000", into: session)
     let composition = try XCTUnwrap(session.composition())
@@ -1381,9 +1381,7 @@ final class OwlRustEngineTests: XCTestCase {
     }
     let simplified = try XCTUnwrap(session.composition())
     let index = try XCTUnwrap(simplified.candidates.firstIndex { $0.text == "中国" })
-    let options: [EngineOption] = [.traditional, .traditionalization, .zhTrad, .transcription]
-    for option in options { session.setOption(option, true) }
-    session.setOption(.simplification, false)
+    session.setOption(.traditional, true)
     let traditional = try XCTUnwrap(session.composition())
     XCTAssertEqual(traditional.candidates[index].text, "中國")
     XCTAssertEqual(session.peekCandidates(from: index, count: 1).first?.text, "中國")
@@ -1391,8 +1389,7 @@ final class OwlRustEngineTests: XCTestCase {
                                   candidateID: index, isAbsolute: false)
     XCTAssertTrue(session.selectCandidate(token))
     XCTAssertEqual(session.takeCommit(), "中國")
-    for option in options { session.setOption(option, false) }
-    session.setOption(.simplification, true)
+    session.setOption(.traditional, false)
     for scalar in "zhongguo".unicodeScalars {
       XCTAssertTrue(session.process(keycode: scalar.value, modifiers: 0))
     }
@@ -1412,7 +1409,7 @@ final class OwlRustEngineTests: XCTestCase {
     let simplified = try XCTUnwrap(session.composition())
     let index = try XCTUnwrap(simplified.candidates.firstIndex { $0.text == "里面" })
     let generation = session.generation
-    session.setOption(.traditionalization, true)
+    session.setOption(.traditional, true)
     let traditional = try XCTUnwrap(session.composition())
     XCTAssertEqual(traditional.candidates[index].text, "裏面")
     XCTAssertEqual(session.peekCandidates(from: index, count: 1).first?.text, "裏面")
@@ -1421,7 +1418,7 @@ final class OwlRustEngineTests: XCTestCase {
                                   candidateID: index, isAbsolute: false)
     XCTAssertTrue(session.selectCandidate(token))
     XCTAssertEqual(session.takeCommit(), "裏面")
-    session.setOption(.traditionalization, false)
+    session.setOption(.traditional, false)
     typeText("limian", into: session)
     XCTAssertTrue(session.selectCandidate(index))
     XCTAssertEqual(session.takeCommit(), "里面")
@@ -1522,8 +1519,7 @@ final class OwlRustEngineTests: XCTestCase {
     let session = engine.createSession()
     defer { session.destroy() }
 
-    session.setOption(.traditionalization, true)
-    session.setOption(.simplification, false)
+    session.setOption(.traditional, true)
     typeText("shi", into: session)
     let initial = try XCTUnwrap(session.composition())
     let initialIndex = try XCTUnwrap(initial.candidates.firstIndex { $0.text == "時" })
@@ -2632,7 +2628,7 @@ final class OwlRustEngineTests: XCTestCase {
     let session = engine.createSession()
     defer { session.destroy() }
 
-    session.setOption(.transcription, true)
+    session.setOption(.traditional, true)
     for scalar in "Kowlrecord".unicodeScalars {
       XCTAssertTrue(session.process(keycode: scalar.value, modifiers: scalar.value == asciiKeycode("K") ? kShiftMask.rawValue : 0))
     }
@@ -2650,7 +2646,7 @@ final class OwlRustEngineTests: XCTestCase {
       )?.id,
       entry.id
     )
-    session.setOption(.transcription, false)
+    session.setOption(.traditional, false)
 
     for (input, staleText) in [("owlreport", "📝遗留提示词"), ("owlmail", "legacy@example.com")] {
       for scalar in ("K" + input).unicodeScalars {
@@ -2972,5 +2968,79 @@ final class OwlRustEngineTests: XCTestCase {
     XCTAssertTrue(customSession.process(keycode: asciiKeycode("K"), modifiers: kShiftMask.rawValue))
     typeText("go", into: customSession)
     XCTAssertTrue(visibleAndPeekedCandidates(in: customSession).contains { $0.text == "自定GO" })
+  }
+
+  func testStateLabelReturnsNilForInternalAndUnknownOptions() {
+    let session = OwlRustSession(sessionID: 1)
+    let suppressed = ["soft_cursor", "simplification", "_linear", "_vertical", "unknown_option"]
+    for option in suppressed {
+      for state in [false, true] {
+        for abbreviated in [false, true] {
+          XCTAssertNil(
+            session.stateLabel(option: option, state: state, abbreviated: abbreviated),
+            "expected nil label for \(option) state=\(state) abbreviated=\(abbreviated)"
+          )
+        }
+      }
+    }
+
+    let expected: [(name: String, on: String, off: String)] = [
+      ("ascii_mode", "英", "中"),
+      ("ascii_punct", ".，", "。，"),
+      ("full_shape", "全", "半"),
+      ("traditional", "繁", "简"),
+      ("emoji", "😄", "👍"),
+    ]
+    for entry in expected {
+      for abbreviated in [false, true] {
+        XCTAssertEqual(session.stateLabel(option: entry.name, state: true, abbreviated: abbreviated), entry.on)
+        XCTAssertEqual(session.stateLabel(option: entry.name, state: false, abbreviated: abbreviated), entry.off)
+      }
+    }
+  }
+
+  func testSetOptionSuppressesUnsetFalseAndEmitsOnceOnRealToggle() {
+    let engine = OwlRustEngine(sharedSupportURL: nil, userDataURL: nil)
+    var notifications: [(sessionID: UInt64, type: String, value: String?)] = []
+    engine.setNotificationHandler { sessionID, type, value in
+      notifications.append((sessionID, type, value))
+    }
+    let session = OwlRustSession(sessionID: 7, handle: nil, ownerEngine: engine)
+
+    session.setOption(.fullShape, false)
+    XCTAssertTrue(notifications.isEmpty, "writing false to an unset option must not notify")
+
+    session.setOption(.traditional, true, notify: false)
+    XCTAssertTrue(session.option(.traditional))
+    XCTAssertTrue(notifications.isEmpty, "notify: false must suppress option notifications")
+
+    session.setOption(.traditional, false, notify: false)
+    XCTAssertFalse(session.option(.traditional))
+    XCTAssertTrue(notifications.isEmpty, "notify: false must suppress option notifications on reset")
+
+    session.setOption(.fullShape, true)
+    XCTAssertEqual(notifications.count, 1)
+    XCTAssertEqual(notifications.first?.sessionID, 7)
+    XCTAssertEqual(notifications.first?.type, "option")
+    XCTAssertEqual(notifications.first?.value, "full_shape")
+
+    session.setOption(.fullShape, true)
+    XCTAssertEqual(notifications.count, 1, "repeating the same option value must not notify again")
+
+    session.setOption(.fullShape, false)
+    XCTAssertEqual(notifications.count, 2)
+    XCTAssertEqual(notifications.last?.type, "option")
+    XCTAssertEqual(notifications.last?.value, "!full_shape")
+  }
+
+  func testStartMaintenanceEmitsNoNotifications() {
+    let engine = OwlRustEngine(sharedSupportURL: nil, userDataURL: nil)
+    var notifications: [(type: String, value: String?)] = []
+    engine.setNotificationHandler { _, type, value in
+      notifications.append((type, value))
+    }
+
+    XCTAssertTrue(engine.startMaintenance(fullCheck: false))
+    XCTAssertTrue(notifications.isEmpty, "startMaintenance must emit no notifications, got \(notifications)")
   }
 }

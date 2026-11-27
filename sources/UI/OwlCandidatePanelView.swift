@@ -675,5 +675,12 @@ private struct OwlCaret: View {
           visible = false
         }
       }
+      .onDisappear {
+        var transaction = Transaction()
+        transaction.disablesAnimations = true
+        withTransaction(transaction) {
+          visible = true
+        }
+      }
   }
 }

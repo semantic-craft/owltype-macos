@@ -728,6 +728,74 @@ final class OwlInputHabitsIntegrationTests: XCTestCase {
   }
 
   @MainActor
+  func testSessionLifecycleEmitsNoOptionNotificationsWhileInteractiveTogglesEmitOnce() throws {
+    let engine = NotificationProbingEngine()
+    var notifications: [(type: String, value: String?)] = []
+    engine.setNotificationHandler { _, type, value in
+      notifications.append((type, value))
+    }
+
+    let delegate = NSApp.owlAppDelegate
+    let savedEngine = delegate.runtime.engine
+    let savedMethod = OwlKeyboardPreferences.inputMethod
+    let savedAscii = OwlKeyboardPreferences.defaultAsciiMode
+    let savedFullShape = OwlKeyboardPreferences.defaultFullShape
+    let savedTraditional = OwlKeyboardPreferences.traditionalOutput
+    let savedEmoji = OwlEmojiPreferences.candidateEmojiEnabled
+    delegate.runtime.engine = engine
+    OwlKeyboardPreferences.inputMethod = .pinyin
+    OwlKeyboardPreferences.defaultAsciiMode = true
+    OwlKeyboardPreferences.defaultFullShape = true
+    OwlKeyboardPreferences.traditionalOutput = true
+    OwlEmojiPreferences.candidateEmojiEnabled = true
+    defer {
+      delegate.runtime.engine = savedEngine
+      OwlKeyboardPreferences.inputMethod = savedMethod
+      OwlKeyboardPreferences.defaultAsciiMode = savedAscii
+      OwlKeyboardPreferences.defaultFullShape = savedFullShape
+      OwlKeyboardPreferences.traditionalOutput = savedTraditional
+      OwlEmojiPreferences.candidateEmojiEnabled = savedEmoji
+    }
+
+    let client = HabitsTextClient()
+    client.appID = "com.owltype.test.notify.\(UUID().uuidString)"
+    let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    defer { controller.destroySession(); delegate.owlPanel?.hidePanel() }
+    controller.client = client
+    controller.activateServer(client)
+    controller.engineUpdate()
+
+    let styleFlags = delegate.runtime.styleFlags
+    controller.engineSession?.setOption(.linear, !styleFlags.linear, notify: false)
+    controller.engineSession?.setOption(.vertical, !styleFlags.vertical, notify: false)
+    _ = controller.processKey(UInt32(XK_a), modifiers: 0)
+    XCTAssertEqual(controller.engineSession?.option(.linear), styleFlags.linear)
+    XCTAssertEqual(controller.engineSession?.option(.vertical), styleFlags.vertical)
+
+    XCTAssertTrue(
+      notifications.isEmpty,
+      "createSession, activateServer, initial engineUpdate, and layout sync must emit no notifications, got \(notifications)"
+    )
+
+    controller.toggleASCIIModeFromMenu()
+    XCTAssertEqual(notifications.count, 1)
+    XCTAssertEqual(notifications.first?.type, "option")
+    XCTAssertEqual(notifications.first?.value, "!ascii_mode")
+
+    notifications.removeAll()
+    controller.toggleTraditionalInputFromMenu()
+    XCTAssertEqual(notifications.count, 1)
+    XCTAssertEqual(notifications.first?.type, "option")
+    XCTAssertEqual(notifications.first?.value, "!traditional")
+
+    notifications.removeAll()
+    controller.toggleTraditionalInputFromMenu()
+    XCTAssertEqual(notifications.count, 1)
+    XCTAssertEqual(notifications.first?.type, "option")
+    XCTAssertEqual(notifications.first?.value, "traditional")
+  }
+
+  @MainActor
   private func type(_ text: String, into controller: OwlInputController, client: HabitsTextClient) throws {
     for character in text {
       XCTAssertTrue(controller.handle(try key(String(character), code: character == " " ? 49 : 0), client: client))
@@ -773,5 +841,46 @@ final class HabitsTextClient: NSObject, IMKTextInput {
   func firstRect(forCharacterRange range: NSRange, actualRange: NSRangePointer!) -> NSRect {
     actualRange?.pointee = range
     return NSRect(x: 100, y: 200, width: 1, height: 20)
+  }
+}
+
+private final class NotificationProbingSession: OwlRustSession {
+  private var valid = true
+  private var schemaID = "rime_ice"
+
+  override var isValid: Bool { valid }
+
+  override func selectSchema(_ id: String) -> Bool {
+    schemaID = id
+    return true
+  }
+
+  override func status() -> EngineStatus? {
+    guard valid else { return nil }
+    return EngineStatus(
+      schemaId: schemaID,
+      isASCIIMode: option(.asciiMode),
+      isASCIIPunct: option(.asciiPunct),
+      isFullShape: option(.fullShape)
+    )
+  }
+
+  override func destroy() {
+    valid = false
+    super.destroy()
+  }
+}
+
+private final class NotificationProbingEngine: OwlRustEngine {
+  private var nextID: UInt64 = 1
+
+  init() {
+    super.init(sharedSupportURL: nil, userDataURL: nil)
+  }
+
+  override func createSession() -> OwlRustSession {
+    let id = nextID
+    nextID += 1
+    return NotificationProbingSession(sessionID: id, handle: nil, ownerEngine: self)
   }
 }

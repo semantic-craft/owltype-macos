@@ -337,6 +337,60 @@ fn uncertified_traditional_pin_never_ranks_a_lossy_simplified_source() {
 }
 
 #[test]
+fn only_traditional_option_toggles_pinned_traditional_mode() {
+    let tmp = TempDir::new().unwrap();
+    let db_path = tmp.path().join("test-pinyin.db");
+    build_minimal_test_pinyin_db(&db_path);
+    let c_pinyin = CString::new(db_path.to_str().unwrap()).unwrap();
+    let c_empty = CString::new("").unwrap();
+    let session =
+        owl_msime_session_create(c_pinyin.as_ptr(), c_empty.as_ptr(), c_empty.as_ptr(), 5);
+    assert!(!session.is_null());
+
+    assert!(call_action(
+        session,
+        r#"{"op":"set_pinned_words","text":"shi\t1\t時","traditional_sources":[{"code":"shi","text":"時","source":"时"}]}"#,
+    )
+    .ok);
+
+    for legacy in [
+        r#"{"op":"set_option","name":"traditionalization","value":true}"#,
+        r#"{"op":"set_option","name":"zh_trad","value":true}"#,
+        r#"{"op":"set_option","name":"transcription","value":true}"#,
+        r#"{"op":"set_option","name":"simplification","value":false}"#,
+    ] {
+        assert!(call_action(session, legacy).ok);
+    }
+
+    for ch in ["s", "h", "i"] {
+        assert!(call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#)).ok);
+    }
+    let before = call_snapshot(session);
+    assert_ne!(
+        before.candidates[0].comment.as_deref(),
+        Some("置顶"),
+        "legacy option aliases must not activate traditional mode"
+    );
+
+    assert!(call_action(session, r#"{"op":"clear"}"#).ok);
+    assert!(
+        call_action(
+            session,
+            r#"{"op":"set_option","name":"traditional","value":true}"#,
+        )
+        .ok
+    );
+    for ch in ["s", "h", "i"] {
+        assert!(call_action(session, &format!(r#"{{"op":"insert","ch":"{ch}"}}"#)).ok);
+    }
+    let after = call_snapshot(session);
+    assert_eq!(after.candidates[0].text, "时");
+    assert_eq!(after.candidates[0].comment.as_deref(), Some("置顶"));
+
+    owl_msime_session_destroy(session);
+}
+
+#[test]
 fn supports_tokens_peek_pinned_words_punctuation_and_caret() {
     let tmp = TempDir::new().unwrap();
     let db_path = tmp.path().join("test-pinyin.db");

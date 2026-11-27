@@ -161,6 +161,139 @@ final class OwlCandidatePanelAppearanceLifecycleTests: XCTestCase {
     XCTAssertTrue(panelState.animationsAllowed(reduceMotion: false))
     XCTAssertFalse(panelState.animationsAllowed(reduceMotion: true), "Reduce Motion must win")
   }
+
+  func testCandidatePanelHideClearsRenderedCompositionAndReshowsCleanly() {
+    let state = CandidatePanelState()
+    state.preedit = "nihao"
+    state.cursor = 5
+    state.selStart = 0
+    state.selEnd = 5
+    state.candidates = [CandidateViewModel(id: 0, label: "1", text: "你好")]
+    state.scrollRows = [OwlScrollRow(id: 1, candidates: [CandidateViewModel(id: 5, label: "", text: "拟好")])]
+    state.highlightedIndex = 2
+    state.page = 1
+    state.hasPrevPage = true
+    state.hasNextPage = true
+    state.isExpanded = true
+
+    state.resetComposition()
+    XCTAssertEqual(state.preedit, "")
+    XCTAssertEqual(state.cursor, 0)
+    XCTAssertEqual(state.selStart, 0)
+    XCTAssertEqual(state.selEnd, 0)
+    XCTAssertTrue(state.candidates.isEmpty)
+    XCTAssertTrue(state.scrollRows.isEmpty)
+    XCTAssertEqual(state.highlightedIndex, 0)
+    XCTAssertEqual(state.page, 0)
+    XCTAssertFalse(state.hasPrevPage)
+    XCTAssertFalse(state.hasNextPage)
+    XCTAssertFalse(state.isExpanded)
+
+    let panel = OwlSwiftUICandidatePanel()
+    XCTAssertFalse(panel.hasRenderedComposition)
+
+    let snapshot = OwlCandidatePanelSettings(
+      defaults: defaults,
+      fontCatalog: AppearanceLifecycleFontCatalog([])
+    ).snapshot()
+    let content = OwlPanelContent(
+      preedit: "nihao",
+      cursor: 5,
+      selStart: 0,
+      selEnd: 5,
+      candidates: [
+        CandidateViewModel(id: 0, label: "1", text: "你好"),
+        CandidateViewModel(id: 1, label: "2", text: "拟好"),
+      ],
+      highlightedIndex: 0,
+      page: 0,
+      hasPrevPage: false,
+      hasNextPage: true,
+      isVertical: false,
+      schemaID: "rime_ice",
+      anchor: NSRect(x: 200, y: 200, width: 1, height: 18)
+    )
+
+    XCTAssertTrue(panel.update(content, settings: snapshot))
+    XCTAssertTrue(panel.isVisible)
+    XCTAssertTrue(panel.hasRenderedComposition)
+
+    panel.hidePanel()
+    XCTAssertFalse(panel.isVisible)
+    XCTAssertFalse(panel.hasRenderedComposition)
+
+    XCTAssertTrue(panel.update(content, settings: snapshot), "re-showing after hide must render again")
+    XCTAssertTrue(panel.isVisible)
+    XCTAssertTrue(panel.hasRenderedComposition)
+    panel.hidePanel()
+    XCTAssertFalse(panel.hasRenderedComposition)
+  }
+
+  func testOnboardingAndSettingsWindowsTearDownContentViewOnCloseAndReopenCleanly() {
+    let onboarding = OwlOnboardingWindow()
+    onboarding.show(
+      onOpenSystemSettings: {},
+      onSelectSchema: { _ in },
+      onOpenInputSettings: {},
+      onFinish: {},
+      isOwltypeEnabled: { true }
+    )
+    XCTAssertNotNil(onboarding.window?.contentView)
+    onboarding.close()
+    XCTAssertNil(onboarding.window?.contentView, "closing onboarding must detach its SwiftUI hosting view")
+
+    onboarding.show(
+      onOpenSystemSettings: {},
+      onSelectSchema: { _ in },
+      onOpenInputSettings: {},
+      onFinish: {},
+      isOwltypeEnabled: { true }
+    )
+    XCTAssertNotNil(onboarding.window?.contentView, "reopening onboarding must reattach its content view")
+    onboarding.close()
+
+    let settings = OwlSettingsWindow()
+    let firstState = OwlSettingsState()
+    firstState.schemas = [SchemaItem(id: "rime_ice", name: "雾凇拼音")]
+    settings.show(
+      state: firstState,
+      onSelectSchema: { _ in },
+      onRedeploy: { true },
+      onApplyKeyboardConfigFast: { .init(written: [], succeeded: true) },
+      onApplyFuzzyConfigFast: { .init(written: [], succeeded: true) },
+      userDataActions: .init(resetUserDict: {}),
+      onOpenDataFolder: {},
+      onOpenLog: {},
+      onShowOnboarding: {},
+      onPanelPreferencesChanged: {}
+    )
+    XCTAssertNotNil(settings.window?.contentView)
+    XCTAssertTrue(settings.restoreIfOpen(selectedPage: .ai))
+    XCTAssertEqual(firstState.selectedPage, .ai)
+
+    settings.close()
+    XCTAssertNil(settings.window?.contentView, "closing settings must detach its SwiftUI hosting view")
+    XCTAssertFalse(settings.restoreIfOpen(), "closed settings window must not report as open")
+
+    let secondState = OwlSettingsState()
+    secondState.schemas = [SchemaItem(id: "rime_ice", name: "雾凇拼音")]
+    settings.show(
+      state: secondState,
+      onSelectSchema: { _ in },
+      onRedeploy: { true },
+      onApplyKeyboardConfigFast: { .init(written: [], succeeded: true) },
+      onApplyFuzzyConfigFast: { .init(written: [], succeeded: true) },
+      userDataActions: .init(resetUserDict: {}),
+      onOpenDataFolder: {},
+      onOpenLog: {},
+      onShowOnboarding: {},
+      onPanelPreferencesChanged: {}
+    )
+    XCTAssertNotNil(settings.window?.contentView, "reopening settings must reattach its content view")
+    XCTAssertTrue(settings.restoreIfOpen(selectedPage: .keyboard))
+    XCTAssertEqual(secondState.selectedPage, .keyboard)
+    settings.close()
+  }
 }
 
 private struct AppearanceLifecycleFontCatalog: OwlCandidateFontCatalog {

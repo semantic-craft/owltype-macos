@@ -78,7 +78,7 @@ extension OwlInputController {
     defer { OwlLatencyTrace.end("composition.update", updateTrace) }
     // Same engine call order as before, only the call SITE moved behind the seam:
     //   takeCommit (get_commit/free_commit) → status (get_status/free_status) →
-    //   [no_inline/inline/soft_cursor option calls] → composition (get_context/free_context)
+    //   [no_inline/inline option calls] → composition (get_context/free_context)
     //   → input (get_input). The Live adapter does the C-struct alloc→read→free internally,
     //   so the only ordering nuance is that `free_status` now happens inside `status()`
     //   (i.e. before the option reads); freeing the status struct is independent of those
@@ -99,8 +99,8 @@ extension OwlInputController {
       }
       // inline 旗标每轮重算（2026-07-12 B3 破闩锁）：原先只在上面 schema 变化分支里算一次——
       // delegate styleFlags 若在毒化后恢复（见 loadSettings 的先验后换契约），老控制器永远陷在
-      // 占位模式。get_option 是进程内 引擎调用（零 IPC 往返），每键重算可承受；styleFlags
-      // 读 delegate 缓存值不重开 config。soft_cursor 只在首轮或值变化时下发，避免每键 set_option。
+      // 占位模式。get_option 是进程内引擎调用（零 IPC 往返），每键重算可承受；styleFlags
+      // 读 delegate 缓存值不重开 config。
       let styleFlags = engineRuntime.styleFlags
       let resolved = OwlStyleFlags.sessionInline(
         style: styleFlags, noInline: engineSession.option(.noInline), inlineForced: engineSession.option(.inline))
@@ -111,12 +111,6 @@ extension OwlInputController {
         styleFlagsSynced = true
         inlinePreedit = resolved.preedit
         inlineCandidate = resolved.candidate
-        // The candidate panel now draws its OWN structured caret at cursor_pos (a SwiftUI bar
-        // between the 已输入/待输入 preedit runs — see OwlCandidatePanelView.header), so the engine's
-        // soft_cursor ‸ symbol must stay OUT of the preedit string in BOTH modes. Inline preedit
-        // already had it off; forcing false here also drops the stray ‸ the self-drawn panel used
-        // to render at the real cursor. cursor_pos itself is unaffected by this option.
-        engineSession.setOption(.softCursor, false)
       }
     }
 
