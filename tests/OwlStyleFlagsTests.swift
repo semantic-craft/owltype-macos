@@ -1,63 +1,76 @@
 //
 //  OwlStyleFlagsTests.swift
-//  OwltypeTests — inline 旗标决策纯函数锁（2026-07-12，#90 真机诊断产出）
-//
-//  Locks `OwlStyleFlags.sessionInline` — the per-session inline resolution hoisted out of
-//  `engineUpdate` when the flags moved to per-round recompute (B3 闩锁修复). The precedence it
-//  pins: global style ∧ ¬no_inline, with the app_options `inline` force-override winning for
-//  the PREEDIT only (squirrel#435 先例，Chromium omnibox 规避). Pure value math — no config,
-//  no engine.
+//  OwltypeTests — OwlStyleFlags defaults and panel-preference layout derivation
 //
 
 import XCTest
 @testable import Owltype
 
 final class OwlStyleFlagsTests: XCTestCase {
+  private var suiteName = ""
+  private var defaults: UserDefaults!
 
-  private func flags(inlinePreedit: Bool, inlineCandidate: Bool) -> OwlStyleFlags {
-    var made = OwlStyleFlags()
-    made.inlinePreedit = inlinePreedit
-    made.inlineCandidate = inlineCandidate
-    return made
+  override func setUp() {
+    super.setUp()
+    suiteName = "OwlStyleFlagsTests-\(UUID().uuidString)"
+    defaults = UserDefaults(suiteName: suiteName)!
+    defaults.removePersistentDomain(forName: suiteName)
   }
 
-  func test_globalInline_normalHost() {
-    // 出厂 owltype.yaml：inline_preedit=true / inline_candidate=false；普通宿主无选项。
-    let r = OwlStyleFlags.sessionInline(
-      style: flags(inlinePreedit: true, inlineCandidate: false), noInline: false, inlineForced: false)
-    XCTAssertTrue(r.preedit)
-    XCTAssertFalse(r.candidate)
+  override func tearDown() {
+    defaults.removePersistentDomain(forName: suiteName)
+    defaults = nil
+    super.tearDown()
   }
 
-  func test_noInline_terminalHost_disablesBoth() {
-    // iTerm2/Terminal app_options no_inline=true：内嵌全关（全角占位模式）。
-    let r = OwlStyleFlags.sessionInline(
-      style: flags(inlinePreedit: true, inlineCandidate: true), noInline: true, inlineForced: false)
-    XCTAssertFalse(r.preedit)
-    XCTAssertFalse(r.candidate)
+  func testDefaultsAreInlineLinearWithMixStatusMessage() {
+    let flags = OwlStyleFlags()
+    XCTAssertTrue(flags.linear)
+    XCTAssertFalse(flags.vertical)
+    XCTAssertTrue(flags.inlinePreedit)
+    XCTAssertFalse(flags.inlineCandidate)
+    XCTAssertEqual(flags.statusMessageType, .mix)
   }
 
-  func test_inlineForced_overridesNoInline_forPreeditOnly() {
-    // Chrome app_options inline=true：preedit 强制内嵌，压过 no_inline；candidate 不被强制。
-    let r = OwlStyleFlags.sessionInline(
-      style: flags(inlinePreedit: true, inlineCandidate: true), noInline: true, inlineForced: true)
-    XCTAssertTrue(r.preedit)
-    XCTAssertFalse(r.candidate)
+  func testApplyLayoutPreferencesDerivesLinearAndVerticalFromOrientation() {
+    let catalog = NoReadFontCatalog()
+    let settings = OwlCandidatePanelSettings(defaults: defaults, fontCatalog: catalog)
+    let cases: [(OwlPanelOrientation, Bool, Bool)] = [
+      (.vertical, false, true),
+      (.horizontal, true, false),
+      (.scroll, true, false),
+      (.auto, true, false)
+    ]
+
+    for (orientation, expectedLinear, expectedVertical) in cases {
+      defaults.set(orientation.rawValue, forKey: "OwlPanelOrientation")
+      var style = OwlStyleFlags()
+      settings.applyLayoutPreferences(to: &style)
+      XCTAssertEqual(style.linear, expectedLinear, "linear for \(orientation)")
+      XCTAssertEqual(style.vertical, expectedVertical, "vertical for \(orientation)")
+      XCTAssertTrue(style.inlinePreedit)
+      XCTAssertFalse(style.inlineCandidate)
+    }
+    XCTAssertEqual(catalog.readCount, 0, "layout preference derivation must not touch font catalog")
   }
 
-  func test_inlineForced_rescuesDegradedStyle() {
-    // 承重回归锁：styleFlags 被毒化成全默认（inlinePreedit=false，B1/B2 场景）时，Chrome 的
-    // inline 强制仍须让 preedit 内嵌——这正是本次诊断里「Chrome 曾正常」的机制，不能丢。
-    let r = OwlStyleFlags.sessionInline(
-      style: OwlStyleFlags(), noInline: false, inlineForced: true)
-    XCTAssertTrue(r.preedit)
-    XCTAssertFalse(r.candidate)
-  }
+  func testApplyLayoutPreferencesPropagatesInlineCandidateAndAlwaysKeepsInlinePreedit() {
+    let settings = OwlCandidatePanelSettings(defaults: defaults, fontCatalog: NoReadFontCatalog())
+    defaults.set(true, forKey: "OwlPanelInlineCandidate")
+    var style = OwlStyleFlags(linear: false, vertical: true, inlinePreedit: false, inlineCandidate: false)
 
-  func test_degradedStyle_noForce_isPlaceholderMode() {
-    // 毒化 + 无强制 = 占位模式（本 bug 的用户可见形态）；此案例记录现象、防语义漂移。
-    let r = OwlStyleFlags.sessionInline(style: OwlStyleFlags(), noInline: false, inlineForced: false)
-    XCTAssertFalse(r.preedit)
-    XCTAssertFalse(r.candidate)
+    settings.applyLayoutPreferences(to: &style)
+
+    XCTAssertTrue(style.inlinePreedit)
+    XCTAssertTrue(style.inlineCandidate)
+  }
+}
+
+private final class NoReadFontCatalog: OwlCandidateFontCatalog {
+  private(set) var readCount = 0
+
+  func availableFontFamilies() -> [String] {
+    readCount += 1
+    return []
   }
 }

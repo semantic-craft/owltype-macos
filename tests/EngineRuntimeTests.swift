@@ -12,26 +12,36 @@ import XCTest
 
 final class EngineRuntimeTests: XCTestCase {
   private var userDirectory: URL!
-  private var sharedSupport: URL!
+  private var savedOrientation: Any?
+  private var savedInlineCandidate: Any?
 
   override func setUpWithError() throws {
     let base = FileManager.default.temporaryDirectory
       .appendingPathComponent("owl-engine-runtime-\(UUID().uuidString)", isDirectory: true)
     userDirectory = base.appendingPathComponent("user", isDirectory: true)
-    sharedSupport = base.appendingPathComponent("shared", isDirectory: true)
     try FileManager.default.createDirectory(at: userDirectory, withIntermediateDirectories: true)
-    try FileManager.default.createDirectory(at: sharedSupport, withIntermediateDirectories: true)
+    savedOrientation = OwlDefaults.standard.object(forKey: "OwlPanelOrientation")
+    savedInlineCandidate = OwlDefaults.standard.object(forKey: "OwlPanelInlineCandidate")
   }
 
   override func tearDownWithError() throws {
+    if let savedOrientation {
+      OwlDefaults.standard.set(savedOrientation, forKey: "OwlPanelOrientation")
+    } else {
+      OwlDefaults.standard.removeObject(forKey: "OwlPanelOrientation")
+    }
+    if let savedInlineCandidate {
+      OwlDefaults.standard.set(savedInlineCandidate, forKey: "OwlPanelInlineCandidate")
+    } else {
+      OwlDefaults.standard.removeObject(forKey: "OwlPanelInlineCandidate")
+    }
     try? FileManager.default.removeItem(at: userDirectory.deletingLastPathComponent())
   }
 
   // MARK: - Start and redeploy
 
-  func testRedeployStopsThenStartsMaintenanceThenDeploysFrontendConfig() throws {
+  func testRedeployStopsThenStartsMaintenanceThenDeploysFrontendConfig() {
     let engine = FakeInputEngine()
-    try writeBaseConfig(layout: "linear")
 
     XCTAssertTrue(makeRuntime(engine).redeploy())
 
@@ -51,9 +61,8 @@ final class EngineRuntimeTests: XCTestCase {
 
   // MARK: - Running work with the engine stopped
 
-  func testWhileStoppedRunsBodyBetweenStopAndRestart() throws {
+  func testWhileStoppedRunsBodyBetweenStopAndRestart() {
     let engine = FakeInputEngine()
-    try writeBaseConfig(layout: "linear")
     let runtime = makeRuntime(engine)
 
     let run = runtime.whileStopped { engine.lifecycleTrace }
@@ -64,7 +73,6 @@ final class EngineRuntimeTests: XCTestCase {
     XCTAssertEqual(traceDuringBody, ["finalize"], "the body runs only after the engine stopped")
     XCTAssertTrue(restarted)
     XCTAssertEqual(engine.lifecycleTrace, ["finalize", "startMaintenance"])
-    XCTAssertNotNil(runtime.config, "the config cache is reloaded after the restart")
   }
 
   /// A failing body must still bring the engine back: a finalized engine means no typing.
@@ -115,58 +123,54 @@ final class EngineRuntimeTests: XCTestCase {
     XCTAssertFalse(message.hasPrefix("重置失败"), message)
   }
 
-  // MARK: - Config cache (B1/B2)
+  // MARK: - Style flags from panel preferences
 
-  func testLoadSettingsReadsStyleFlagsFromAUsableConfig() throws {
-    try writeBaseConfig(layout: "stacked")
+  func testLoadSettingsAndApplyPanelPreferencesDeriveLayoutFlagsFromPanelSettings() {
     let runtime = makeRuntime(FakeInputEngine())
+    let cases: [(OwlPanelOrientation, Bool, Bool)] = [
+      (.vertical, false, true),
+      (.horizontal, true, false),
+      (.scroll, true, false),
+      (.auto, true, false)
+    ]
 
-    runtime.loadSettings()
+    for (orientation, expectedLinear, expectedVertical) in cases {
+      OwlDefaults.standard.set(orientation.rawValue, forKey: "OwlPanelOrientation")
+      OwlDefaults.standard.set(false, forKey: "OwlPanelInlineCandidate")
+      runtime.loadSettings()
+      XCTAssertEqual(runtime.styleFlags.linear, expectedLinear, "loadSettings linear for \(orientation)")
+      XCTAssertEqual(runtime.styleFlags.vertical, expectedVertical, "loadSettings vertical for \(orientation)")
+      XCTAssertTrue(runtime.styleFlags.inlinePreedit)
+      XCTAssertFalse(runtime.styleFlags.inlineCandidate)
+    }
 
-    XCTAssertNotNil(runtime.config)
+    OwlDefaults.standard.set(OwlPanelOrientation.vertical.rawValue, forKey: "OwlPanelOrientation")
+    OwlDefaults.standard.set(true, forKey: "OwlPanelInlineCandidate")
+    runtime.applyPanelPreferences()
     XCTAssertFalse(runtime.styleFlags.linear)
-  }
-
-  /// B1: a reread that opens an empty shell must not replace the good config or its flags.
-  func testUnusableRereadKeepsThePreviousConfigAndFlags() throws {
-    try writeBaseConfig(layout: "stacked")
-    let runtime = makeRuntime(FakeInputEngine())
-    runtime.loadSettings()
-    let good = try XCTUnwrap(runtime.config)
-    let flags = runtime.styleFlags
-
-    try Data("config_version: \"2\"\n".utf8).write(to: baseConfigURL)
-    runtime.loadSettings()
-
-    XCTAssertTrue(runtime.config === good)
-    XCTAssertEqual(runtime.styleFlags, flags)
-  }
-
-  /// Without any usable config the IMK path still gets inline, linear defaults.
-  func testNoUsableConfigFallsBackToInlineLinearFlags() {
-    let runtime = makeRuntime(FakeInputEngine())
-
-    runtime.loadSettings()
-
-    XCTAssertNil(runtime.config)
-    XCTAssertTrue(runtime.styleFlags.linear)
+    XCTAssertTrue(runtime.styleFlags.vertical)
     XCTAssertTrue(runtime.styleFlags.inlinePreedit)
+    XCTAssertTrue(runtime.styleFlags.inlineCandidate)
+
+    OwlDefaults.standard.set(OwlPanelOrientation.horizontal.rawValue, forKey: "OwlPanelOrientation")
+    OwlDefaults.standard.set(false, forKey: "OwlPanelInlineCandidate")
+    runtime.applyPanelPreferences()
+    XCTAssertTrue(runtime.styleFlags.linear)
+    XCTAssertFalse(runtime.styleFlags.vertical)
+    XCTAssertTrue(runtime.styleFlags.inlinePreedit)
+    XCTAssertFalse(runtime.styleFlags.inlineCandidate)
   }
 
-  /// B2: a per-schema reload heals a missing config once the base config becomes readable.
-  func testSchemaReloadHealsAMissingConfig() throws {
-    let runtime = makeRuntime(FakeInputEngine())
-    runtime.loadSettings()
-    XCTAssertNil(runtime.config)
-
-    try writeBaseConfig(layout: "stacked")
-    runtime.loadSettings(for: "rime_ice")
-
-    XCTAssertNotNil(runtime.config)
-    XCTAssertFalse(runtime.styleFlags.linear)
+  func testEngineOptionKeysMatchRustFFIAndDropRemovedCases() {
+    XCTAssertEqual(EngineOption.linear.rawValue, "linear")
+    XCTAssertEqual(EngineOption.vertical.rawValue, "vertical")
+    XCTAssertEqual(
+      Set(EngineOption.allCases.map(\.rawValue)),
+      ["ascii_mode", "ascii_punct", "full_shape", "traditional", "emoji", "linear", "vertical"]
+    )
   }
 
-  // MARK: - Refresh when idle
+  // MARK: - Refresh when idle & live-session lifecycle
 
   @MainActor
   func testRefreshRunsAtOnceWithoutLiveSessions() {
@@ -224,23 +228,246 @@ final class EngineRuntimeTests: XCTestCase {
     XCTAssertTrue(session.destroyed, "the queued configuration refresh runs at the idle boundary")
   }
 
+  @MainActor
+  func testReapplyToLiveSessionDestroysDeactivatedControllersWithoutMintingUnknownApp() throws {
+    let delegate = NSApp.owlAppDelegate
+    let previousEngine = delegate.runtime.engine
+    let previousActivated = delegate.runtime.activatedInputController
+    let engine = FakeInputEngine()
+    delegate.runtime.engine = engine
+    defer {
+      delegate.runtime.activatedInputController = previousActivated
+      delegate.runtime.engine = previousEngine
+    }
+
+    let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    defer { controller.destroySession() }
+    controller.destroySession()
+    controller.client = nil
+    let oldSession = FakeEngineSession(sessionID: 40, input: "ni")
+    controller.engineSession = oldSession
+    delegate.runtime.registerLiveController(controller)
+    delegate.runtime.activatedInputController = controller  // deactivated client==nil must still be destroy-only
+
+    let createdBefore = engine.createdSessionCount
+    let unknownBefore = OwlInputController.unknownAppCnt
+    delegate.runtime.reapplyToLiveSession()
+
+    XCTAssertTrue(oldSession.destroyed)
+    XCTAssertNil(controller.engineSession)
+    XCTAssertEqual(engine.createdSessionCount, createdBefore, "deactivated controller must never eagerly recreate")
+    XCTAssertEqual(OwlInputController.unknownAppCnt, unknownBefore, "deactivated controller must never mint UnknownApp")
+
+    // Direct defensive guard: calling reapplyConfigToLiveSession(replayComposition: true) with client == nil.
+    let secondSession = FakeEngineSession(sessionID: 41, input: "hao")
+    controller.engineSession = secondSession
+    controller.reapplyConfigToLiveSession(replayComposition: true)
+    XCTAssertTrue(secondSession.destroyed)
+    XCTAssertNil(controller.engineSession)
+    XCTAssertEqual(engine.createdSessionCount, createdBefore)
+    XCTAssertEqual(OwlInputController.unknownAppCnt, unknownBefore)
+  }
+
+  @MainActor
+  func testReapplyToLiveSessionRecreatesAndReplaysActivatedControllerWithLiveClient() throws {
+    let delegate = NSApp.owlAppDelegate
+    let previousEngine = delegate.runtime.engine
+    let previousActivated = delegate.runtime.activatedInputController
+    let previousEmitter = delegate.snapshotEmitter
+    let engine = FakeInputEngine()
+    delegate.runtime.engine = engine
+    delegate.snapshotEmitter = FakeSnapshotEmitter()
+    defer {
+      delegate.runtime.activatedInputController = previousActivated
+      delegate.runtime.engine = previousEngine
+      delegate.snapshotEmitter = previousEmitter
+    }
+
+    let background = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    let active = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    defer { background.destroySession(); active.destroySession() }
+    background.destroySession()
+    active.destroySession()
+
+    let freshSession = FakeEngineSession(sessionID: 52)
+    engine.vendedSession = freshSession
+
+    let bgSession = FakeEngineSession(sessionID: 50)
+    background.client = nil
+    background.engineSession = bgSession
+    delegate.runtime.registerLiveController(background)
+
+    let activeOldSession = FakeEngineSession(sessionID: 51, input: "ni")
+    let hostClient = HabitsTextClient()
+    hostClient.appID = "com.apple.TextEdit"
+    active.client = hostClient
+    active.engineSession = activeOldSession
+    active.schemaId = "double_pinyin_flypy"
+    delegate.runtime.registerLiveController(active)
+    delegate.runtime.activatedInputController = active
+
+    let createdBefore = engine.createdSessionCount
+    let unknownBefore = OwlInputController.unknownAppCnt
+    delegate.runtime.reapplyToLiveSession()
+
+    XCTAssertTrue(bgSession.destroyed)
+    XCTAssertNil(background.engineSession, "background controller is destroyed only")
+    XCTAssertTrue(activeOldSession.destroyed)
+    XCTAssertTrue(active.engineSession === freshSession)
+    XCTAssertEqual(engine.createdSessionCount, createdBefore + 1)
+    XCTAssertEqual(OwlInputController.unknownAppCnt, unknownBefore)
+    XCTAssertEqual(active.currentApp, "com.apple.TextEdit")
+    XCTAssertTrue(freshSession.selectedLiveSchemas.contains("double_pinyin_flypy"))
+    XCTAssertEqual(
+      freshSession.processedKeys.map(\.keycode),
+      [UInt32(UnicodeScalar("n").value), UInt32(UnicodeScalar("i").value)]
+    )
+  }
+
+  @MainActor
+  func testDelegateOptionAppliesUpdateAllLiveSessionsWhenSettingsFocused() throws {
+    let delegate = NSApp.owlAppDelegate
+    let previousEngine = delegate.runtime.engine
+    let previousActivated = delegate.runtime.activatedInputController
+    let previousEmitter = delegate.snapshotEmitter
+    let emitter = FakeSnapshotEmitter()
+    delegate.runtime.engine = FakeInputEngine()
+    delegate.snapshotEmitter = emitter
+    defer {
+      delegate.runtime.activatedInputController = previousActivated
+      delegate.runtime.engine = previousEngine
+      delegate.snapshotEmitter = previousEmitter
+    }
+
+    let first = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    let second = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    defer { first.destroySession(); second.destroySession() }
+    first.destroySession()
+    second.destroySession()
+
+    let sessionA = FakeEngineSession(sessionID: 60)
+    let sessionB = FakeEngineSession(sessionID: 61)
+    first.client = nil
+    second.client = nil
+    first.engineSession = sessionA
+    second.engineSession = sessionB
+    delegate.runtime.registerLiveController(first)
+    delegate.runtime.registerLiveController(second)
+    delegate.runtime.activatedInputController = nil
+
+    delegate.applyTraditionalOutputToLiveSession(true)
+    delegate.applyEmojiSuggestionToLiveSession(true)
+    delegate.applyDefaultAsciiModeToLiveSession(true)
+    delegate.applyDefaultFullShapeToLiveSession(true)
+
+    for session in [sessionA, sessionB] {
+      XCTAssertEqual(session.optionState[.traditional], true)
+      XCTAssertEqual(session.optionState[.emojiSuggestion], true)
+      XCTAssertEqual(session.optionState[.asciiMode], true)
+      XCTAssertEqual(session.optionState[.fullShape], true)
+      XCTAssertTrue(session.notifiedOptions.isEmpty, "background controllers must not emit duplicate notifications")
+    }
+    XCTAssertEqual(emitter.emitClearedCount, 0, "deactivated controllers must not emit spurious cleared snapshots")
+
+    // When one controller is activated, both sessions update and only the active controller notifies.
+    let activeClient = HabitsTextClient()
+    first.client = activeClient
+    delegate.runtime.activatedInputController = first
+
+    delegate.applyTraditionalOutputToLiveSession(false)
+    XCTAssertEqual(sessionA.optionState[.traditional], false)
+    XCTAssertEqual(sessionB.optionState[.traditional], false)
+    XCTAssertEqual(sessionA.notifiedOptions.map(\.option), [.traditional])
+    XCTAssertTrue(sessionB.notifiedOptions.isEmpty)
+  }
+
+  @MainActor
+  func testDelegateSelectSchemaSwitchesLiveSessionsWhenSettingsFocusedAndAggregatesFailures() throws {
+    let delegate = NSApp.owlAppDelegate
+    let previousEngine = delegate.runtime.engine
+    let previousActivated = delegate.runtime.activatedInputController
+    let previousEmitter = delegate.snapshotEmitter
+    let emitter = FakeSnapshotEmitter()
+    let engine = FakeInputEngine(selectSchemaResult: true)
+    delegate.runtime.engine = engine
+    delegate.snapshotEmitter = emitter
+    defer {
+      delegate.runtime.activatedInputController = previousActivated
+      delegate.runtime.engine = previousEngine
+      delegate.snapshotEmitter = previousEmitter
+    }
+
+    let first = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    let second = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    defer { first.destroySession(); second.destroySession() }
+    first.destroySession()
+    second.destroySession()
+
+    let sessionA = FakeEngineSession(sessionID: 70, optionState: [.asciiMode: true], selectSchemaResult: true)
+    let sessionB = FakeEngineSession(sessionID: 71, selectSchemaResult: true)
+    first.client = nil
+    second.client = nil
+    first.engineSession = sessionA
+    second.engineSession = sessionB
+    delegate.runtime.registerLiveController(first)
+    delegate.runtime.registerLiveController(second)
+    delegate.runtime.activatedInputController = nil
+
+    XCTAssertTrue(delegate.selectSchema("double_pinyin_flypy"))
+    XCTAssertEqual(engine.selectedSchemas, ["double_pinyin_flypy"])
+    XCTAssertEqual(sessionA.selectedLiveSchemas, ["double_pinyin_flypy"])
+    XCTAssertEqual(sessionB.selectedLiveSchemas, ["double_pinyin_flypy"])
+    XCTAssertEqual(sessionA.optionState[.asciiMode], true, "live switch preserves ascii_mode")
+    XCTAssertEqual(first.schemaId, "double_pinyin_flypy")
+    XCTAssertEqual(second.schemaId, "double_pinyin_flypy")
+    XCTAssertEqual(emitter.emitClearedCount, 0, "deactivated controllers skip engineUpdate during background schema switch")
+
+    // If any live session fails, selectSchema reports failure without poisoning that controller's cache.
+    sessionB.selectSchemaResult = false
+    XCTAssertFalse(delegate.selectSchema("wubi86_jidian"))
+    XCTAssertEqual(first.schemaId, "wubi86_jidian")
+    XCTAssertEqual(second.schemaId, "double_pinyin_flypy")
+  }
+
+  @MainActor
+  func testDelegateFinalizeStrandedCompositionTargetsActivatedController() throws {
+    let delegate = NSApp.owlAppDelegate
+    let previousEngine = delegate.runtime.engine
+    let previousActivated = delegate.runtime.activatedInputController
+    let previousEmitter = delegate.snapshotEmitter
+    delegate.runtime.engine = FakeInputEngine()
+    delegate.snapshotEmitter = FakeSnapshotEmitter()
+    defer {
+      delegate.runtime.activatedInputController = previousActivated
+      delegate.runtime.engine = previousEngine
+      delegate.snapshotEmitter = previousEmitter
+    }
+
+    let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    defer { controller.destroySession() }
+    controller.destroySession()
+    let session = FakeEngineSession(sessionID: 80, input: "ni", finishNativeResult: true, finishNativeCommit: "你")
+    controller.engineSession = session
+    let client = HabitsTextClient()
+    controller.activateServer(client)
+    XCTAssertTrue(delegate.runtime.activatedInputController === controller)
+
+    // Still on Owltype: must be a no-op.
+    delegate.finalizeStrandedComposition(currentInputSourceID: "\(OwlInstaller.inputSourcePrefix).Han")
+    XCTAssertTrue(delegate.runtime.activatedInputController === controller)
+    XCTAssertNotNil(controller.client)
+
+    // Switched away via TIS: deactivates activatedInputController even when showPanel never ran.
+    delegate.finalizeStrandedComposition(currentInputSourceID: "com.apple.keylayout.ABC")
+    XCTAssertNil(delegate.runtime.activatedInputController)
+    XCTAssertNil(controller.client)
+    XCTAssertEqual(client.text.string, "你")
+  }
+
   // MARK: - Helpers
 
   private func makeRuntime(_ engine: FakeInputEngine) -> EngineRuntime {
-    EngineRuntime(engine: engine, userDirectory: userDirectory, sharedSupportURL: sharedSupport)
-  }
-
-  private var baseConfigURL: URL {
-    sharedSupport.appendingPathComponent("owltype.yaml")
-  }
-
-  private func writeBaseConfig(layout: String) throws {
-    try Data("""
-      config_version: "1"
-      style:
-        candidate_list_layout: \(layout)
-        inline_preedit: true
-      """.utf8).write(to: baseConfigURL)
+    EngineRuntime(engine: engine, userDirectory: userDirectory)
   }
 
   private func writeRustJournal() throws -> URL {
@@ -285,6 +512,7 @@ final class FakeEngineSession: OwlRustSession {
 
   private(set) var processedKeys: [(keycode: UInt32, modifiers: UInt32)] = []
   private(set) var setOptions: [(option: EngineOption, value: Bool)] = []
+  private(set) var notifiedOptions: [(option: EngineOption, value: Bool)] = []
   private(set) var properties: [(name: String, value: String)] = []
   private(set) var selectedIndices: [Int] = []
   private(set) var pageChanges: [Bool] = []
@@ -463,8 +691,10 @@ final class FakeEngineSession: OwlRustSession {
   override func option(_ option: EngineOption) -> Bool { optionState[option] ?? false }
 
   override func setOption(_ option: EngineOption, _ value: Bool, notify: Bool = true) {
-    _ = notify
     setOptions.append((option, value))
+    if notify {
+      notifiedOptions.append((option, value))
+    }
     optionState[option] = value
   }
 

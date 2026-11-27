@@ -141,17 +141,12 @@ final class OwlSelectionMenuCoordinator {
     tapMonitor = NSEvent.addGlobalMonitorForEvents(
       matching: [.flagsChanged, .keyDown, .leftMouseDown, .rightMouseDown]
     ) { [weak self] event in
-      guard let self else { return }
+      guard let self, OwlSelectionMenuPreferences.isEnabled else { return }
       guard event.type == .flagsChanged else {
         self.doubleTap.invalidate()
         return
       }
       guard self.doubleTap.processFlagsChanged(event.modifierFlags, at: Date()) else { return }
-      // 双击 ⌥ 成立。总开关只管这个手势（录制热键是平行开关，走 hotKeyTap，不经这里）。
-      guard OwlSelectionMenuPreferences.isEnabled else {
-        OwlHotKeyMatcher.log.notice("double-tap option dropped: toolbox disabled")
-        return
-      }
       self.summonForCurrentSelection()
     }
   }

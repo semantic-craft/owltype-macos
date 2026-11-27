@@ -2972,7 +2972,7 @@ final class OwlRustEngineTests: XCTestCase {
 
   func testStateLabelReturnsNilForInternalAndUnknownOptions() {
     let session = OwlRustSession(sessionID: 1)
-    let suppressed = ["soft_cursor", "simplification", "_linear", "_vertical", "unknown_option"]
+    let suppressed = ["soft_cursor", "simplification", "linear", "vertical", "_linear", "_vertical", "unknown_option"]
     for option in suppressed {
       for state in [false, true] {
         for abbreviated in [false, true] {

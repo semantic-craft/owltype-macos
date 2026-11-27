@@ -385,7 +385,7 @@ final class OwlSettingsActionTests: XCTestCase {
   /// (prism rebuild on a background thread) and MUST `join_maintenance_thread` BEFORE the live
   /// reselect re-reads `build/` — otherwise the reselect races the rebuild and the new fuzzy
   /// rules silently fail to take effect. Drive the delegate with a fake engine and assert the
-  /// join happens, after start_maintenance. No `activeInputController`, so the reselect is a
+  /// join happens, after start_maintenance. No `activatedInputController`, so the reselect is a
   /// safe no-op here; we only assert the engine lifecycle ordering.
   func testApplyFuzzyConfigFastJoinsMaintenanceAfterStartAndBeforeReselect() throws {
     let delegate = OwlApplicationDelegate()

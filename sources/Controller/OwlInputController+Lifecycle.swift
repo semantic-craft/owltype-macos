@@ -30,17 +30,6 @@ extension OwlInputController {
     pendingTemplateDelivery?.hostDidActivate()
     // print("[DEBUG] activateServer:")
     debugLiveInputTrace("activateServer hasSender=\(sender != nil) controller=\(ObjectIdentifier(self).hashValue)")
-    var keyboardLayout = engineRuntime.config?.getString("keyboard_layout") ?? ""
-    if keyboardLayout == "last" || keyboardLayout == "" {
-      keyboardLayout = ""
-    } else if keyboardLayout == "default" {
-      keyboardLayout = "com.apple.keylayout.ABC"
-    } else if !keyboardLayout.hasPrefix("com.apple.keylayout.") {
-      keyboardLayout = "com.apple.keylayout.\(keyboardLayout)"
-    }
-    if keyboardLayout != "" {
-      client?.overrideKeyboard(withKeyboardNamed: keyboardLayout)
-    }
     if engineSession?.isValid == true {
       currentApp = client?.bundleIdentifier() ?? currentApp
       updateAppOptions()

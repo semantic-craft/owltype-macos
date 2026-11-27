@@ -1,7 +1,6 @@
 #![allow(unsafe_code)]
 
 mod app_rpc;
-mod config;
 mod input_ffi;
 mod pinned_transform;
 mod punctuation_menu;

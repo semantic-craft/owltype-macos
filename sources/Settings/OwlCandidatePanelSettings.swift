@@ -266,9 +266,7 @@ struct OwlCandidatePanelSettings {
       size: OwlPanelFontSize(
         rawValue: defaults.string(forKey: Self.sizeKey) ?? ""
       ) ?? Self.defaultSize,
-      orientation: OwlPanelOrientation(
-        rawValue: defaults.string(forKey: Self.orientationKey) ?? ""
-      ) ?? Self.defaultOrientation,
+      orientation: currentOrientation(),
       showPreedit: defaults.object(forKey: Self.showPreeditKey) as? Bool ?? Self.defaultShowPreedit,
       inlineCandidate: currentInlineCandidate(),
       showPaging: defaults.object(forKey: Self.showPagingKey) as? Bool ?? Self.defaultShowPaging,
@@ -288,16 +286,28 @@ struct OwlCandidatePanelSettings {
     OwlSkin(rawValue: defaults.string(forKey: Self.skinKey) ?? "") ?? .deepred
   }
 
+  /// Lightweight runtime read for the IMK composition path. Reads UserDefaults directly without
+  /// touching the AppKit font catalog.
+  func currentOrientation() -> OwlPanelOrientation {
+    OwlPanelOrientation(
+      rawValue: defaults.string(forKey: Self.orientationKey) ?? ""
+    ) ?? Self.defaultOrientation
+  }
+
   /// Lightweight runtime read for the IMK composition path. Unlike `snapshot()`, this does not
-  /// resolve installed fonts, so schema reloads never make an AppKit font-catalog call.
+  /// resolve installed fonts, so reloads never make an AppKit font-catalog call.
   func currentInlineCandidate() -> Bool {
     defaults.object(forKey: Self.inlineCandidateKey) as? Bool ?? Self.defaultInlineCandidate
   }
 
-  /// Apply the persisted inline-preview override to the flags consumed on every composition
-  /// update. This is also called after any candidate-setting edit, so the next input round does
-  /// not wait for a schema reload to observe the toggle.
-  func applyInlineCandidate(to style: inout OwlStyleFlags) {
+  /// Apply the persisted orientation and inline-preview preferences to the flags consumed on
+  /// every composition update. Runs on settings load and after any candidate-panel edit so the
+  /// next keystroke observes changes immediately without reading fonts.
+  func applyLayoutPreferences(to style: inout OwlStyleFlags) {
+    let vertical = currentOrientation().isVertical(engineVertical: false)
+    style.vertical = vertical
+    style.linear = !vertical
+    style.inlinePreedit = true
     style.inlineCandidate = currentInlineCandidate()
   }
 

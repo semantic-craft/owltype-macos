@@ -78,39 +78,28 @@ extension OwlInputController {
     defer { OwlLatencyTrace.end("composition.update", updateTrace) }
     // Same engine call order as before, only the call SITE moved behind the seam:
     //   takeCommit (get_commit/free_commit) → status (get_status/free_status) →
-    //   [no_inline/inline option calls] → composition (get_context/free_context)
-    //   → input (get_input). The Live adapter does the C-struct alloc→read→free internally,
-    //   so the only ordering nuance is that `free_status` now happens inside `status()`
-    //   (i.e. before the option reads); freeing the status struct is independent of those
-    //   option queries, so the behaviour is identical.
+    //   composition (get_context/free_context) → input (get_input).
     defer { punctuationKeyInFlight = nil }
     consumeCommittedText()
     rememberAppInputMode()
 
     if let status = engineSession.status() {
-      // enable schema specific ui style. The value type maps a null `schema_id` C pointer
-      // to "" (the engine never reports a non-null empty schema_id during composition), so a
-      // non-empty `schemaId` here matches the old `if let schema_id = status.schema_id`.
+      // The value type maps a null `schema_id` C pointer to "" (the engine never reports a
+      // non-null empty schema_id during composition).
       if !status.schemaId.isEmpty, schemaId == "" || schemaId != status.schemaId {
         schemaId = status.schemaId
         pinnedWordsRevision = nil
         syncPinnedWords()
-        engineRuntime.loadSettings(for: schemaId)
+        engineRuntime.loadSettings()
       }
-      // inline 旗标每轮重算（2026-07-12 B3 破闩锁）：原先只在上面 schema 变化分支里算一次——
-      // delegate styleFlags 若在毒化后恢复（见 loadSettings 的先验后换契约），老控制器永远陷在
-      // 占位模式。get_option 是进程内引擎调用（零 IPC 往返），每键重算可承受；styleFlags
-      // 读 delegate 缓存值不重开 config。
       let styleFlags = engineRuntime.styleFlags
-      let resolved = OwlStyleFlags.sessionInline(
-        style: styleFlags, noInline: engineSession.option(.noInline), inlineForced: engineSession.option(.inline))
-      if !styleFlagsSynced || resolved.preedit != inlinePreedit || resolved.candidate != inlineCandidate {
+      if !styleFlagsSynced || styleFlags.inlinePreedit != inlinePreedit || styleFlags.inlineCandidate != inlineCandidate {
         debugLiveInputTrace(
-          "flags sync inlinePreedit=\(inlinePreedit)->\(resolved.preedit) inlineCandidate=\(inlineCandidate)->\(resolved.candidate)"
+          "flags sync inlinePreedit=\(inlinePreedit)->\(styleFlags.inlinePreedit) inlineCandidate=\(inlineCandidate)->\(styleFlags.inlineCandidate)"
             + " styleInline=\(styleFlags.inlinePreedit) firstSync=\(!styleFlagsSynced)")
         styleFlagsSynced = true
-        inlinePreedit = resolved.preedit
-        inlineCandidate = resolved.candidate
+        inlinePreedit = styleFlags.inlinePreedit
+        inlineCandidate = styleFlags.inlineCandidate
       }
     }
 
@@ -282,11 +271,9 @@ extension OwlInputController {
     ) ?? Self.safeFallbackAnchor()
     let inputPos = resolvedAnchor
 
-    // SwiftUI is the sole candidate renderer. Record the caret anchor + active controller
-    // on the delegate so the status HUD can position near the caret and `finalizeStranded
-    // Composition` can reach the controller (was `panel.position` / `panel.inputController`).
+    // SwiftUI is the sole candidate renderer. Record the caret anchor on the delegate so
+    // the status HUD and quick-send panel can position near the caret.
     NSApp.owlAppDelegate.recordCaretAnchor(inputPos, host: host)
-    engineRuntime.activeInputController = self
     engineRuntime.registerLiveController(self)
 
     let isVertical = engineSession?.option(.vertical) ?? false

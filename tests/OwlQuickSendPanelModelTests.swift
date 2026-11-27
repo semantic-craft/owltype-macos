@@ -351,6 +351,22 @@ extension OwlQuickSendPanelModelTests {
                  "pinning belongs to the IMK path with live candidates")
   }
 
+  func testEventTapSkipsComboLookupWhenOwltypeIsNotCurrentInputSource() {
+    var comboCalls = 0
+    let result = OwlHotKeyEventTap.slotToConsume(
+      keyCode: UInt16(kVK_ANSI_J),
+      flags: [.control, .option],
+      suppressed: false,
+      owltypeIsCurrent: false,
+      combo: { _ in
+        comboCalls += 1
+        return (UInt32(kVK_ANSI_J), UInt32(controlKey | optionKey))
+      }
+    )
+    XCTAssertNil(result)
+    XCTAssertEqual(comboCalls, 0, "when Owltype is not the active input source, combo lookup must not run")
+  }
+
   func testEventTapFlagsAreSharedAcrossThreads() {
     let saved = OwlHotKeyEventTap.isSuppressed
     defer { OwlHotKeyEventTap.isSuppressed = saved }

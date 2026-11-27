@@ -27,16 +27,9 @@ final class EngineRuntime {
   var engine: OwlRustEngine
   /// User data root: deploy inputs, the template-migration journal and the Rust user data.
   let userDirectory: URL
-  private let sharedSupportURL: URL?
-  /// The last config that passed `isUsable`. Never replaced by a failed or empty reread.
-  private(set) var config: OwlConfig?
-  /// Candidate-window LAYOUT flags read from `style/*` (linear/vertical/inline*), read live by
-  /// the IMK path. Seeded in `loadSettings()` from the global config, overridden per-schema in
-  /// `loadSettings(for:)`. Not theming — the skin/colors live in `OwlThemes`.
+  /// Candidate-window LAYOUT flags (linear/vertical/inline*), read live by the IMK path and
+  /// updated from `OwlCandidatePanelSettings` on settings load and panel preference edits.
   private(set) var styleFlags = OwlStyleFlags()
-  /// The controller that composed last, set on each `showPanel`. Refreshed last (with replay)
-  /// when live sessions reload the config.
-  weak var activeInputController: OwlInputController?
   /// The controller IMK activated last and has not deactivated. A host field that regains focus
   /// after a template window may be served by a new controller; delivery re-binds to it.
   weak var activatedInputController: OwlInputController?
@@ -52,12 +45,10 @@ final class EngineRuntime {
 
   init(
     engine: OwlRustEngine = OwlRustEngine.makeConfiguredEngine(),
-    userDirectory: URL = OwlApp.userDir,
-    sharedSupportURL: URL? = Bundle.main.sharedSupportURL
+    userDirectory: URL = OwlApp.userDir
   ) {
     self.engine = engine
     self.userDirectory = userDirectory
-    self.sharedSupportURL = sharedSupportURL
   }
 
   // MARK: - Start, redeploy, stop
@@ -111,12 +102,10 @@ final class EngineRuntime {
     return .finished(result, restarted: restarted)
   }
 
-  /// Close the config and finalize the engine. False (and nothing closed in the engine) while a
-  /// session is still live.
+  /// Finalize the engine. False (and nothing closed in the engine) while a session is still live.
   @discardableResult
   func shutdown() -> Bool {
     OwlLatencyTrace.event("deploy.rimeFinalize")
-    config?.close()
     return engine.finalize()
   }
 
@@ -136,73 +125,20 @@ final class EngineRuntime {
     }
   }
 
-  // MARK: - Config cache and style flags
-
-  private static func isUsable(_ config: OwlConfig?) -> Bool {
-    guard let config else { return false }
-    return config.has(section: "style")
-  }
-
-  private func makeConfig() -> OwlConfig {
-    OwlConfig(sharedSupportURL: sharedSupportURL, userDataURL: userDirectory)
-  }
+  // MARK: - Style flags
 
   func loadSettings() {
-    // 先验后换（B1）：曾经是「先把 config 换成新对象、open 失败静默 return」——一次失败的
-    // 重读（部署重写 build/ 的窗口期）就把好句柄换成毒句柄，此后每个新控制器经 loadSettings(for:)
-    // 用它重算 styleFlags → 全默认（inlinePreedit=false 占位模式），且零诊断、永不自愈。
-    // 现契约：candidate 全验证（open + 非空壳）通过才换 config / 重读 styleFlags；失败保留
-    // 旧状态（旧而真 > 新而毒）+ trace（只记布尔，#88 §4）。
-    let candidate = makeConfig()
-    let opened = candidate.openBaseConfig()
-    let usable = opened && Self.isUsable(candidate)
-    OwlLiveInputTrace.write { "loadSettings openBase=\(opened) usable=\(usable)" }
-    guard usable else {
-      if config == nil {
-        var flags = OwlStyleFlags(linear: true, vertical: false, inlinePreedit: true, inlineCandidate: false)
-        OwlCandidatePanelSettings.live.applyInlineCandidate(to: &flags)
-        styleFlags = flags
-      }
-      return
-    }
-    config = candidate
-    // Layout flags from the global `style/*` (was `panel.load(...)` into OwlTheme).
-    styleFlags = OwlStyleFlags.base(config: candidate)
-    // Feature 3: the 内嵌候选预览 pref overrides `style/inline_candidate` without hand-editing
-    // yaml. The same module method runs after live edits and every global/schema style reload.
-    OwlCandidatePanelSettings.live.applyInlineCandidate(to: &styleFlags)
-    OwlLiveInputTrace.write { "loadSettings styleFlags inlinePreedit=\(styleFlags.inlinePreedit) inlineCandidate=\(styleFlags.inlineCandidate)" }
-  }
-
-  func loadSettings(for schemaID: String) {
-    if schemaID.count == 0 || schemaID.first == "." {
-      return
-    }
-    // 自愈（B1/B2）：句柄缺失或空壳（历史毒化/启动竞态残留）→ 先试全量重读；仍不可用则保留现有
-    // styleFlags 直接返回——宁可沿用旧值也不用全默认去踩掉内嵌旗标（那正是占位模式蔓延的路径）。
-    if !Self.isUsable(config) {
-      loadSettings()
-    }
-    guard let config, Self.isUsable(config) else {
-      OwlLiveInputTrace.write { "loadSettings(for:) config unusable — keeping current styleFlags" }
-      return
-    }
-    let schema = makeConfig()
-    // Base flags from the global style, then let a per-schema `style` section override
-    // (same precedence the deleted OwlTheme.load used for these layout keys).
-    var flags = OwlStyleFlags.base(config: config)
-    if schema.open(schemaID: schemaID, baseConfig: config) && schema.has(section: "style") {
-      flags.apply(config: schema)
-    }
-    // Feature 3: pref override wins over both global + per-schema `style/inline_candidate`.
-    OwlCandidatePanelSettings.live.applyInlineCandidate(to: &flags)
+    var flags = OwlStyleFlags()
+    OwlCandidatePanelSettings.live.applyLayoutPreferences(to: &flags)
     styleFlags = flags
-    schema.close()
+    OwlLiveInputTrace.write {
+      "loadSettings styleFlags linear=\(styleFlags.linear) vertical=\(styleFlags.vertical) inlinePreedit=\(styleFlags.inlinePreedit) inlineCandidate=\(styleFlags.inlineCandidate)"
+    }
   }
 
-  /// Re-apply the 内嵌候选预览 preference to the cached flags after a settings-page edit.
+  /// Re-apply candidate-panel orientation and inline-preview preferences after a settings-page edit.
   func applyPanelPreferences() {
-    OwlCandidatePanelSettings.live.applyInlineCandidate(to: &styleFlags)
+    OwlCandidatePanelSettings.live.applyLayoutPreferences(to: &styleFlags)
   }
 
   // MARK: - Keyboard settings
@@ -293,19 +229,23 @@ final class EngineRuntime {
   /// the IMK keystroke hot path.
   func reapplyToLiveSession() {
     OwlLatencyTrace.event("deploy.sessionReapplyStart")
-    let active = activeInputController
+    let active: OwlInputController? = if let activated = activatedInputController, activated.client != nil {
+      activated
+    } else {
+      nil
+    }
     // Snapshot first (mutating sessions during iteration; the table is weak so dead ones are
-    // already gone). Background controllers (destroy-only) first, then the active one LAST so its
-    // recreate + panel render wins.
+    // already gone). Background and deactivated controllers (destroy-only) first, then the
+    // active controller LAST so its recreate + panel render wins.
     let live = liveControllers.allObjects
     for controller in live where controller !== active {
       OwlLatencyTrace.event("deploy.sessionRelease")
       controller.reapplyConfigToLiveSession(replayComposition: false)
     }
-    if active != nil {
+    if let active {
       OwlLatencyTrace.event("deploy.sessionRecreate")
+      active.reapplyConfigToLiveSession(replayComposition: true)
     }
-    active?.reapplyConfigToLiveSession(replayComposition: true)
   }
 }
 

@@ -32,8 +32,6 @@ struct OwlPanelCompositionParams {
 
 final class OwlInputController: IMKInputController {
   // seam: was private; internal so OwlInputController+Session.swift can reach it across files.
-  static let keyRollOver = 50
-  // seam: was private; internal so OwlInputController+Session.swift can reach it across files.
   static var unknownAppCnt: UInt = 0
 
   // seam: was private; internal so the Menu/EngineUpdate/Lifecycle/Session extensions can reach it across files.
@@ -88,20 +86,8 @@ final class OwlInputController: IMKInputController {
   // 组字结束（空 menu 的 showPanel）复位。展开后整个组字期内保持——翻回第一页、追打字母
   // 都不收起；只有提交/清空才回到单行。只被 showPanel 读写，不在按键判定路径上。
   var scrollDidPage = false
-  // 首轮旗标同步哨兵（2026-07-12 B3 破闩锁）：inline 旗标改为每轮 engineUpdate 重算——原先只在
-  // schema 变化时算一次，delegate styleFlags 事后恢复了老控制器也永远用不上。false = 尚未同步。
+  // 首轮旗标同步哨兵（2026-07-12 B3 破闩锁）：inline 旗标改为每轮 engineUpdate 重算。false = 尚未同步。
   var styleFlagsSynced = false
-  // for chord-typing
-  // seam: was private; internal so OwlInputController+Session.swift can reach it across files.
-  var chordKeyCodes: [UInt32] = .init(repeating: 0, count: OwlInputController.keyRollOver)
-  // seam: was private; internal so OwlInputController+Session.swift can reach it across files.
-  var chordModifiers: [UInt32] = .init(repeating: 0, count: OwlInputController.keyRollOver)
-  // seam: was private; internal so OwlInputController+Session.swift can reach it across files.
-  var chordKeyCount: Int = 0
-  // seam: was private; internal so OwlInputController+Session.swift can reach it across files.
-  var chordTimer: Timer?
-  // seam: was private; internal so OwlInputController+Session.swift can reach it across files.
-  var chordDuration: TimeInterval = 0
   // seam: was private; internal so OwlInputController+Session.swift can reach it across files.
   var currentApp: String = ""
   var appModeObservation = OwlAppModeObservation()
@@ -391,21 +377,6 @@ final class OwlInputController: IMKInputController {
       self?.reportASCIIMode(notification)
     })
     notificationTokens.append(NotificationCenter.default.addObserver(
-      forName: .init("OwlToggleTraditionalInputNotification"),
-      object: nil,
-      queue: nil
-    ) { [weak self] _ in self?.toggleTraditionalInputFromMenu() })
-    notificationTokens.append(NotificationCenter.default.addObserver(
-      forName: .init("OwlToggleASCIIPunctuationNotification"),
-      object: nil,
-      queue: nil
-    ) { [weak self] _ in self?.toggleASCIIPunctuationFromMenu() })
-    notificationTokens.append(NotificationCenter.default.addObserver(
-      forName: .init("OwlToggleFullShapeNotification"),
-      object: nil,
-      queue: nil
-    ) { [weak self] _ in self?.toggleFullShapeFromMenu() })
-    notificationTokens.append(NotificationCenter.default.addObserver(
       forName: .owlRerankPreferencesDidChange,
       object: nil,
       queue: nil
@@ -465,36 +436,6 @@ final class OwlInputController: IMKInputController {
     let handled = engineSession.process(keycode: engineKeycode, modifiers: engineModifiers)
     OwlLatencyTrace.end("session.process", processTrace)
     debugLiveInputTrace("process after handled=\(handled) schema=\(engineSession.status()?.schemaId ?? "<nil>")")
-    // print("[DEBUG] rime_keycode: \(engineKeycode), rime_modifiers: \(engineModifiers), handled = \(handled)")
-
-    // TODO add special key event postprocessing here
-
-    if !handled {
-      let hasControl = engineModifiers & kControlMask.rawValue != 0
-      let isVimCommandKey = engineKeycode == UInt32(XK_c)
-        || engineKeycode == UInt32(XK_C)
-        || engineKeycode == UInt32(XK_bracketleft)
-      let isVimBackInCommandMode = engineKeycode == UInt32(XK_Escape)
-        || (hasControl && isVimCommandKey)
-      if isVimBackInCommandMode && engineSession.option(.vimMode) &&
-          !engineSession.option(.asciiMode) {
-        engineSession.setOption(.asciiMode, true)
-        // print("[DEBUG] turned Chinese mode off in vim-like editor's command mode")
-      }
-    } else {
-      let isChordingKey = switch Int32(engineKeycode) {
-      case XK_space...XK_asciitilde, XK_Control_L, XK_Control_R, XK_Alt_L, XK_Alt_R, XK_Shift_L, XK_Shift_R:
-        true
-      default:
-        false
-      }
-      if isChordingKey && engineSession.option(.chordTyping) {
-        updateChord(keycode: engineKeycode, modifiers: engineModifiers)
-      } else if (engineModifiers & kReleaseMask.rawValue) == 0 {
-        // non-chording key pressed
-        clearChord()
-      }
-    }
 
     if !handled, engineKeycode >= 32, engineKeycode < 127,
        (engineModifiers & (kControlMask.rawValue | kAltMask.rawValue | kSuperMask.rawValue | kReleaseMask.rawValue)) == 0 {

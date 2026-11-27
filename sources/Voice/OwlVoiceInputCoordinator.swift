@@ -103,19 +103,25 @@ final class OwlVoiceInputCoordinator {
   func startGlobalMonitor() {
     guard !OwlDefaults.isRunningUnitTests, globalEventMonitor == nil else { return }
     globalEventMonitor = NSEvent.addGlobalMonitorForEvents(matching: [.flagsChanged, .keyDown]) { [weak self] event in
-      Task { @MainActor [weak self] in
-        guard let self, self.isVoiceEnabled else { return }
-        guard event.timestamp != self.lastHandledEventTimestamp
-           || event.type != self.lastHandledEventType
-           || event.keyCode != self.lastHandledKeyCode else {
-          return
-        }
-        guard OwlInstaller.currentInputSourceID()?.hasPrefix(OwlInstaller.inputSourcePrefix) == true else {
-          return
-        }
-        _ = self.handleKeyEvent(event)
+      if Thread.isMainThread {
+        MainActor.assumeIsolated { self?.handleGlobalMonitorEvent(event) }
+      } else {
+        Task { @MainActor [weak self] in self?.handleGlobalMonitorEvent(event) }
       }
     }
+  }
+
+  private func handleGlobalMonitorEvent(_ event: NSEvent) {
+    guard isVoiceEnabled else { return }
+    guard event.timestamp != lastHandledEventTimestamp
+       || event.type != lastHandledEventType
+       || event.keyCode != lastHandledKeyCode else {
+      return
+    }
+    guard OwlInstaller.currentInputSourceID()?.hasPrefix(OwlInstaller.inputSourcePrefix) == true else {
+      return
+    }
+    _ = handleKeyEvent(event)
   }
 
   func stopGlobalMonitor() {
