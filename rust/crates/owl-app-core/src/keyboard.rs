@@ -34,8 +34,6 @@ pub fn schema(id: &str) -> Value {
         "wubi86_jidian" | "wubi86_jidian_trad" | "wubi98" | "wubi98_trad" => "wubi",
         _ => double,
     };
-    result["validConfigID"] =
-        json!(!id.is_empty() && !id.starts_with('.') && !id.contains('/') && !id.contains(".."));
     result["inputMode"] = json!(if id.starts_with("wubi") {
         "wubi"
     } else {

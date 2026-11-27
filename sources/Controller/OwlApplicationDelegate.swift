@@ -13,6 +13,7 @@ import os
 
 final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandardUserDriverDelegate, UNUserNotificationCenterDelegate {
   private var installSelfCheckObserver: NSObjectProtocol?
+  private var workspacePowerOffObserver: NSObjectProtocol?
   static let rimeWikiURL = URL(string: "https://github.com/rime/home/wiki")!
   static let updateNotificationIdentifier = "OwlUpdateNotification"
   static let notificationIdentifier = "OwlNotification"
@@ -72,10 +73,8 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   /// falling back to it IS the fix — borrowing another app's caret is what put these surfaces on
   /// the wrong display.
   ///
-  /// The frontmost app, not `activeInputController`, is the honest reading of "current host":
-  /// the active controller is only re-pointed on `showPanel`, so it names the app that last
-  /// COMPOSED — after an app switch, exactly the stale identity this scoping exists to drop.
-  /// Both callers read this while the host is still frontmost (the quick-send panel positions
+  /// The frontmost app, not `activatedInputController`, is the honest reading of "current host":
+  /// both callers read this while the host is still frontmost (the quick-send panel positions
   /// itself before it orders front, and never activates Owltype).
   var currentHostCaretAnchor: NSRect {
     lastCaretAnchor(forHost: NSWorkspace.shared.frontmostApplication?.bundleIdentifier) ?? .zero
@@ -125,6 +124,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     guard !OwlApp.isShowingSettingsForUITests else { return }
     if !OwlTestStorage.isEnabled {
       UNUserNotificationCenter.current().delegate = self
+      _ = updateController
     }
     addObservers()
     selectionMenuCoordinator = OwlSelectionMenuCoordinator()
@@ -161,6 +161,11 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   func applicationWillTerminate(_ notification: Notification) {
     // swiftlint:disable:next notification_center_detachment
     NotificationCenter.default.removeObserver(self)
+    if let observer = workspacePowerOffObserver {
+      NSWorkspace.shared.notificationCenter.removeObserver(observer)
+      workspacePowerOffObserver = nil
+    }
+    DistributedNotificationCenter.default().removeObserver(self)
     if let observer = installSelfCheckObserver {
       DistributedNotificationCenter.default().removeObserver(observer)
       installSelfCheckObserver = nil
@@ -262,8 +267,8 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   /// logged gate drops.
   func startHotKeyTap() {
     hotKeyTap.onQuickSend = { [weak self] in
-      guard let controller = self?.runtime.activeInputController else {
-        OwlHotKeyMatcher.log.notice("quickSend fired but activeInputController=nil — dropped")
+      guard let controller = self?.runtime.activatedInputController else {
+        OwlHotKeyMatcher.log.notice("quickSend fired but activatedInputController=nil — dropped")
         return
       }
       controller.showOwltypeQuickSend()
@@ -473,34 +478,46 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     runtime.engine.version()
   }
 
-  /// Switch the active schema (输入方式/双拼 picker, 方案切换 row). PR3: this no longer runs
-  /// the heavy full `runtime.redeploy()`. Schema configs
-  /// are already built, so switching is `select_schema`-only:
-  ///   1. `engine.selectSchema(id)` on a transient session — the engine REMEMBERS the selection
-  ///      for subsequent new sessions (e.g. the next app the user types in).
-  ///   2. switch the ACTIVE controller's LIVE session in place (`select_schema(id)` re-reads
-  ///      the built `build/<id>.schema.yaml`; no dict/octagram rebuild) so the current
-  ///      composition window immediately uses the new schema.
-  ///   3. reload style flags so the new schema's layout (linear/vertical/inline) takes effect.
-  /// Wrapped in a `OwlPerf` mark. Off the IMK keystroke hot path.
-  //
-  // NEEDS REAL-MACHINE VERIFICATION: live typing session picking up the switched schema.
+  /// Switch the active schema (输入方式/双拼 picker, 方案切换 row):
+  ///   1. `engine.selectSchema(id)` on a transient session so future sessions remember the choice.
+  ///   2. switch every live session in place (`activatedInputController` last so its render wins).
+  ///   3. reload layout style flags.
   @discardableResult
   func selectSchema(_ id: String) -> Bool {
     guard !id.isEmpty else { return false }
     let schemaTrace = OwlLatencyTrace.begin("deploy.schemaSwitch")
     defer { OwlLatencyTrace.end("deploy.schemaSwitch", schemaTrace) }
     let perf = OwlPerf.mark()
-    let engineSelected = runtime.engine.selectSchema(id)          // remembered for future sessions
-    let result = runtime.activeInputController?.switchLiveSessionSchema(to: id) // live session, no full deploy
+    let engineSelected = runtime.engine.selectSchema(id) // remembered for future sessions
+    let active = activeLiveController
+    let live = runtime.liveControllers.allObjects
+    var aggregatedResult: SchemaSwitchResult = .noLiveSession
+    func merge(_ outcome: SchemaSwitchResult) {
+      switch outcome {
+      case .selectFailed:
+        if case .selectFailed = aggregatedResult { return }
+        aggregatedResult = outcome
+      case .ok:
+        if case .noLiveSession = aggregatedResult {
+          aggregatedResult = .ok
+        }
+      case .noLiveSession:
+        break
+      }
+    }
+    for controller in live where controller !== active {
+      merge(controller.switchLiveSessionSchema(to: id))
+    }
+    if let active {
+      merge(active.switchLiveSessionSchema(to: id))
+    }
     let failedID = OwlSchemaSelectionGate.failedSchemaID(
-      requested: id, engineSelected: engineSelected, liveResult: result
+      requested: id, engineSelected: engineSelected, liveResult: aggregatedResult
     )
     if let failedID {
       Self.notifySchemaNotCompiled(failedID)
     }
     runtime.loadSettings()
-    runtime.loadSettings(for: id)
     OwlPerf.since(perf, "fastapply.schema")
     return failedID == nil
   }
@@ -556,6 +573,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   }
 
   static func showMessage(msgText: String?) {
+    guard !OwlTestStorage.isEnabled else { return }
     let center = UNUserNotificationCenter.current()
     center.requestAuthorization(options: [.alert, .provisional]) { _, error in
       if let error = error {
@@ -609,60 +627,50 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     )
   }
 
+  private var activeLiveController: OwlInputController? {
+    runtime.activatedInputController.flatMap { $0.client != nil ? $0 : nil }
+  }
+
+  private func applyOptionToLiveSessions(_ apply: (OwlInputController, Bool) -> Void) {
+    let active = activeLiveController
+    for controller in runtime.liveControllers.allObjects where controller !== active {
+      apply(controller, false)
+    }
+    if let active {
+      apply(active, true)
+      active.engineUpdate()
+    }
+  }
+
   func applyTraditionalOutputToLiveSession(_ traditional: Bool) {
-    runtime.activeInputController?.setTraditionalOutputOptions(traditional)
-    runtime.activeInputController?.engineUpdate()
+    applyOptionToLiveSessions { controller, isActive in
+      controller.setTraditionalOutputOptions(traditional, notify: isActive)
+    }
   }
 
-  /// 候选 emoji 开关 live 生效（仿 `applyTraditionalOutputToLiveSession`）：切当前会话的
-  /// `emoji` option（rime-ice 的 emoji switch 名），立即重算候选。新会话由 `createSession` 按 pref 重新 seed。
+  /// 候选 emoji 开关 live 生效（仿 `applyTraditionalOutputToLiveSession`）：切所有活动会话的
+  /// `emoji` option，立即重算候选。新会话由 `createSession` 按 pref 重新 seed。
   func applyEmojiSuggestionToLiveSession(_ enabled: Bool) {
-    runtime.activeInputController?.setEngineOption(.emojiSuggestion, enabled)
-    runtime.activeInputController?.engineUpdate()
+    applyOptionToLiveSessions { controller, isActive in
+      controller.setEngineOption(.emojiSuggestion, enabled, notify: isActive)
+    }
   }
 
-  /// 默认状态·中英文 live 生效：改下拉时立刻把当前会话切到 中文/英文（`ascii_mode`）。新会话由
+  /// 默认状态·中英文 live 生效：改下拉时立刻把所有活动会话切到 中文/英文（`ascii_mode`）。新会话由
   /// `createSession` 按 `defaultAsciiMode` pref 重新 seed。
   func applyDefaultAsciiModeToLiveSession(_ english: Bool) {
-    runtime.activeInputController?.setEngineOption(.asciiMode, english)
-    runtime.activeInputController?.engineUpdate()
+    applyOptionToLiveSessions { controller, isActive in
+      controller.setEngineOption(.asciiMode, english, notify: isActive)
+      controller.appModeObservation.seed(english)
+    }
   }
 
-  /// 默认状态·全半角 live 生效：改下拉时立刻把当前会话切到 半角/全角（`full_shape`）。新会话由
+  /// 默认状态·全半角 live 生效：改下拉时立刻把所有活动会话切到 半角/全角（`full_shape`）。新会话由
   /// `createSession` 按 `defaultFullShape` pref 重新 seed。
   func applyDefaultFullShapeToLiveSession(_ fullShape: Bool) {
-    runtime.activeInputController?.setEngineOption(.fullShape, fullShape)
-    runtime.activeInputController?.engineUpdate()
-  }
-
-  // prevent freezing the system
-  func problematicLaunchDetected() -> Bool {
-    var detected = false
-    let logFile = FileManager.default.temporaryDirectory.appendingPathComponent("owl_launch.json", conformingTo: .json)
-    // print("[DEBUG] archive: \(logFile)")
-    do {
-      let archive = try Data(contentsOf: logFile, options: [.uncached])
-      let decoder = JSONDecoder()
-      decoder.dateDecodingStrategy = .millisecondsSince1970
-      let previousLaunch = try decoder.decode(Date.self, from: archive)
-      if previousLaunch.timeIntervalSinceNow >= -2 {
-        detected = true
-      }
-    } catch let error as NSError where error.domain == NSCocoaErrorDomain && error.code == NSFileReadNoSuchFileError {
-
-    } catch {
-      print("Error occurred during processing launch time archive: \(error.localizedDescription)")
-      return detected
+    applyOptionToLiveSessions { controller, isActive in
+      controller.setEngineOption(.fullShape, fullShape, notify: isActive)
     }
-    do {
-      let encoder = JSONEncoder()
-      encoder.dateEncodingStrategy = .millisecondsSince1970
-      let record = try encoder.encode(Date.now)
-      try record.write(to: logFile)
-    } catch {
-      print("Error occurred during saving launch time to archive: \(error.localizedDescription)")
-    }
-    return detected
   }
 
   // add an awakeFromNib item so that we can set the action method.  Note that
@@ -670,7 +678,15 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   // Input Menu.
   func addObservers() {
     let center = NSWorkspace.shared.notificationCenter
-    center.addObserver(forName: NSWorkspace.willPowerOffNotification, object: nil, queue: nil, using: workspaceWillPowerOff)
+    if let observer = workspacePowerOffObserver {
+      center.removeObserver(observer)
+    }
+    workspacePowerOffObserver = center.addObserver(
+      forName: NSWorkspace.willPowerOffNotification,
+      object: nil,
+      queue: nil,
+      using: workspaceWillPowerOff
+    )
 
     let notifCenter = DistributedNotificationCenter.default()
     // Observer side of the DNC-suspension fix (2026-07-24, see Main.swift `--reload`): the
@@ -689,14 +705,13 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     // 无 payload——只当「该重查一次」的信号用，让用户在系统设置里勾上开关的瞬间 tap 就位，
     // 不必切回法墨窗口。通知名将来若失效，无声退化为 didBecomeActive 补装，无副作用。
     notifCenter.addObserver(self, selector: #selector(accessibilityAPIChanged(_:)), name: .init("com.apple.accessibility.api"), object: nil, suspensionBehavior: .deliverImmediately)
-    notifCenter.addObserver(forName: .init(kTISNotifySelectedKeyboardInputSourceChanged as String), object: nil, queue: .main) { [weak self] _ in
-      self?.finalizeStrandedComposition()
-      // （旧划词小菜单在此收起；工具箱是标准窗口，切输入源不需要动它——2026-07-26 重设计。）
-      // S1/R5: if the selected source is a Owltype mode that is NOT truly enabled (the
-      // key-swallowing dead half-state), log + surface copyable recovery guidance.
-      // Not the IMK hot path: this fires only on selected-source CHANGE, not per keystroke.
-      OwlInstaller().detectAndGuideIfHalfState()
-    }
+    notifCenter.addObserver(
+      self,
+      selector: #selector(selectedInputSourceChanged(_:)),
+      name: .init(kTISNotifySelectedKeyboardInputSourceChanged as String),
+      object: nil,
+      suspensionBehavior: .deliverImmediately
+    )
   }
 
   /// Install-time activation repair: refreshes registration without rewriting system input prefs.
@@ -788,16 +803,30 @@ private extension OwlApplicationDelegate {
   // is still delivered, so finalize the composition here as a fallback.
   // Switching via the menu bar calls deactivateServer first, making this a
   // no-op.
-  func finalizeStrandedComposition() {
-    let currentInputSourceID = OwlInstaller.currentInputSourceID() ?? ""
+  internal func finalizeStrandedComposition(currentInputSourceID: String?) {
+    let currentInputSourceID = currentInputSourceID ?? ""
     guard !currentInputSourceID.hasPrefix(OwlInstaller.inputSourcePrefix) else { return }
-    if let inputController = runtime.activeInputController {
+    if let inputController = runtime.activatedInputController {
       let trace = OwlLatencyTrace.begin("strandedComposition.finalize")
       defer { OwlLatencyTrace.end("strandedComposition.finalize", trace) }
       inputController.deactivateServer(inputController.client())
     }
   }
 
+  @objc func selectedInputSourceChanged(_: Notification) {
+    let handle = { [weak self] in
+      self?.finalizeStrandedComposition(currentInputSourceID: OwlInstaller.currentInputSourceID())
+      // S1/R5: if the selected source is a Owltype mode that is NOT truly enabled (the
+      // key-swallowing dead half-state), log + surface copyable recovery guidance.
+      // Not the IMK hot path: this fires only on selected-source CHANGE, not per keystroke.
+      OwlInstaller().detectAndGuideIfHalfState()
+    }
+    if Thread.isMainThread {
+      handle()
+    } else {
+      DispatchQueue.main.async(execute: handle)
+    }
+  }
 
   func workspaceWillPowerOff(_: Notification) {
     print("Finalizing before logging out.")

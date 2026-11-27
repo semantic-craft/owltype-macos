@@ -88,7 +88,6 @@ extension OwlAppCore {
   struct SchemaConfiguration: Decodable {
     let id: String
     let name: String
-    let validConfigID: Bool
     let inputMode: String
     let wubiProfile: String
     let pinyinScheme: String

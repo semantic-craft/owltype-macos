@@ -16,7 +16,7 @@
 //  nothing AND the combo is stolen from every app — including our own IMK-path matcher below.
 //
 //  The working design: both features only matter while 法墨 is the ACTIVE input source (panel needs
-//  `activeInputController`, 划词召唤 no-ops otherwise) — and in that state every keyDown already
+//  `activatedInputController`, 划词召唤 no-ops otherwise) — and in that state every keyDown already
 //  flows through `OwlInputController.handle()`. `OwlHotKeyMatcher` matches the combos there;
 //  no registration, no extra permissions, no reapply choreography (combos are read live).
 //
@@ -262,24 +262,18 @@ final class OwlHotKeyEventTap: NSObject {
   }
 
   /// The slot a keyDown triggers, or `nil` to pass it through. Pure, so the consume rule is testable
-  /// without a live tap: suppression, ⌃⌥⌘ pre-filter, fixed slot precedence, then the source check.
+  /// without a live tap: suppression, current-source check, ⌃⌥⌘ pre-filter, then fixed slot precedence.
   static func slotToConsume(keyCode: UInt16, flags: NSEvent.ModifierFlags, suppressed: Bool,
                             owltypeIsCurrent: Bool,
                             combo: (OwlHotKeySlot) -> (keyCode: UInt32, modifiers: UInt32)?) -> OwlHotKeySlot? {
-    // Fast pre-filter: every configured combo requires a non-shift modifier — plain typing and
-    // shift-typing exit here before any defaults read.
-    guard !suppressed, !flags.isDisjoint(with: [.control, .option, .command]) else { return nil }
+    // Fast pre-filter: exit before any defaults read or matcher call when suppressed, when Owltype
+    // is not the current input source, or when no non-shift modifier is held.
+    guard !suppressed, owltypeIsCurrent, !flags.isDisjoint(with: [.control, .option, .command]) else { return nil }
     // Fixed precedence (allCases order): 快捷短语面板 → 划词菜单. The recorder rejects
     // duplicates, so at most one slot matches; the order only keeps a stale duplicate deterministic.
-    let matched = OwlHotKeySlot.allCases.filter { $0 != .pinCandidate }.first { slot in
+    return OwlHotKeySlot.allCases.filter { $0 != .pinCandidate }.first { slot in
       combo(slot).map { OwlHotKeyMatcher.matches($0, keyCode: keyCode, flags: flags) } ?? false
     }
-    guard let matched else { return nil }
-    guard owltypeIsCurrent else {
-      OwlHotKeyMatcher.log.notice("tap match passthrough: Owltype not current input source")
-      return nil
-    }
-    return matched
   }
 
   /// The port and the tap thread's run loop, shared between main (start/stop) and the tap thread.

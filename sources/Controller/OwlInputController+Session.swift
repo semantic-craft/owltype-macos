@@ -19,57 +19,6 @@ extension OwlInputController {
     OwlLiveInputTrace.write(message)
   }
 
-  func onChordTimer(_: Timer) {
-    // chord release triggered by timer
-    var processedKeys = false
-    if chordKeyCount > 0, let engineSession, engineSession.sessionID != 0 {
-      // simulate key-ups
-      for i in 0..<chordKeyCount {
-        let handled = engineSession.process(keycode: chordKeyCodes[i], modifiers: chordModifiers[i] | kReleaseMask.rawValue)
-        if handled {
-          processedKeys = true
-        }
-      }
-    }
-    clearChord()
-    if processedKeys {
-      engineUpdate()
-    }
-  }
-
-  func updateChord(keycode: UInt32, modifiers: UInt32) {
-    // print("[DEBUG] update chord: {\(chordKeyCodes)} << \(keycode)")
-    for i in 0..<chordKeyCount where chordKeyCodes[i] == keycode {
-      return
-    }
-    if chordKeyCount >= Self.keyRollOver {
-      // you are cheating. only one human typist (fingers <= 10) is supported.
-      return
-    }
-    chordKeyCodes[chordKeyCount] = keycode
-    chordModifiers[chordKeyCount] = modifiers
-    chordKeyCount += 1
-    // reset timer
-    if let timer = chordTimer, timer.isValid {
-      timer.invalidate()
-    }
-    chordDuration = 0.1
-    if let duration = engineRuntime.config?.getDouble("chord_duration"), duration > 0 {
-      chordDuration = duration
-    }
-    chordTimer = Timer.scheduledTimer(withTimeInterval: chordDuration, repeats: false, block: onChordTimer)
-  }
-
-  func clearChord() {
-    chordKeyCount = 0
-    if let timer = chordTimer {
-      if timer.isValid {
-        timer.invalidate()
-      }
-      chordTimer = nil
-    }
-  }
-
   // MARK: - Settled reranking
 
   func shouldArmSettledRerank(after keycode: UInt32) -> Bool {
@@ -325,7 +274,7 @@ extension OwlInputController {
         schemaId = preferredSchema
         pinnedWordsRevision = nil
         syncPinnedWords()
-        engineRuntime.loadSettings(for: preferredSchema)
+        engineRuntime.loadSettings()
       }
     }
   }
@@ -345,9 +294,6 @@ extension OwlInputController {
       engineSession.setOption(.asciiMode, restored, notify: false)
     }
     appModeObservation.seed(restored)
-    if let reportBundleID = engineRuntime.config?.getBool("unsafe/report_bundleid"), reportBundleID {
-      engineSession.setProperty(name: "client_app", value: currentApp)
-    }
   }
 
   func destroySession() {
@@ -357,7 +303,6 @@ extension OwlInputController {
     // print("[DEBUG] destroySession:")
     engineSession?.destroy()
     engineSession = nil
-    clearChord()
   }
 
   /// Resource-generation switches cannot use `rawInput` replay: Rust keeps partially selected
@@ -413,10 +358,10 @@ extension OwlInputController {
   func reapplyConfigToLiveSession(replayComposition: Bool) {
     guard let engineSession, engineSession.isValid else { return }
 
-    // Background controller: destroy only. The next keystroke's `handle()` recreates the session
-    // with a live `client`, reading the new `build/` and the correct per-app options. Eager
-    // recreate here would mislabel the app (`UnknownApp<n>`) because its `client` is nil.
-    guard replayComposition else {
+    // Background or deactivated controller: destroy only. The next keystroke's `handle()`
+    // recreates the session with a live `client`, reading fresh settings and deriving the real
+    // app bundle ID instead of minting `UnknownApp<n>`.
+    guard replayComposition && client != nil else {
       destroySession()
       return
     }
@@ -483,7 +428,9 @@ extension OwlInputController {
     } else {
       debugLiveInputTrace("switchLiveSessionSchema id=\(id) select=false — schemaId NOT updated (no cache poisoning)")
     }
-    engineUpdate()                           // render the engine's true post-select state either way
+    if client != nil && engineRuntime.activatedInputController === self {
+      engineUpdate()                           // render the engine's true post-select state either way
+    }
     return selected ? .ok : .selectFailed(schemaID: id)
   }
 }

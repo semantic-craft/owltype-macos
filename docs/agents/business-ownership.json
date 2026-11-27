@@ -703,13 +703,6 @@
       "reason": "Native views, presentation state, geometry or explicit system context capture"
     },
     {
-      "path": "sources/Settings/OwlConfig.swift",
-      "role": "adapter",
-      "target": "Swift",
-      "issue": null,
-      "reason": "Rust config handles, cached native values and filesystem paths; schema path validation is Rust-owned"
-    },
-    {
       "path": "sources/Settings/OwlEmojiPreferences.swift",
       "role": "adapter",
       "target": "Swift",

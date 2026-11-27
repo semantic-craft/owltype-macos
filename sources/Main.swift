@@ -276,15 +276,6 @@ struct OwlApp {
 
       if runningUnitTests || uiTestSettings {
         print("Owltype test host: skipping IMK/Rime startup.")
-      } else if NSApp.owlAppDelegate.problematicLaunchDetected() {
-        print("Problematic launch detected!")
-        let args = ["Problematic launch detected! Owltype may be suffering a crash due to improper configuration. Revert previous modifications to see if the problem recurs."]
-        let task = Process()
-        task.executableURL = "/usr/bin/say".withCString { dir in
-          URL(fileURLWithFileSystemRepresentation: dir, isDirectory: false, relativeTo: nil)
-        }
-        task.arguments = args
-        try? task.run()
       } else {
         let perfEngine = OwlPerf.mark()
         delegate.setupEngine()

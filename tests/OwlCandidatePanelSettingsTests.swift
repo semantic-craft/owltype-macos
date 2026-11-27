@@ -153,26 +153,41 @@ final class OwlCandidatePanelSettingsTests: XCTestCase {
   }
 
   func testInlineCandidateEditReachesSessionInlineResolutionThroughRuntimeConsumer() {
+    let catalog = StubCandidateFontCatalog([])
     let settings = OwlCandidatePanelSettings(
       defaults: defaults,
-      fontCatalog: StubCandidateFontCatalog([])
+      fontCatalog: catalog
     )
     let editingState = OwlSettingsState()
     var style = OwlStyleFlags()
 
     settings.edit(.inlineCandidate(true), state: editingState) {
-      settings.applyInlineCandidate(to: &style)
+      settings.applyLayoutPreferences(to: &style)
     }
 
-    XCTAssertTrue(style.inlineCandidate)
+    XCTAssertTrue(style.inlinePreedit)
     XCTAssertTrue(
-      OwlStyleFlags.sessionInline(
-        style: style,
-        noInline: false,
-        inlineForced: false
-      ).candidate,
+      style.inlineCandidate,
       "the next composition update must consume the edited inline-candidate preference"
     )
+
+    let orientations: [(OwlPanelOrientation, Bool, Bool)] = [
+      (.vertical, false, true),
+      (.horizontal, true, false),
+      (.scroll, true, false),
+      (.auto, true, false)
+    ]
+    for (orientation, expectedLinear, expectedVertical) in orientations {
+      settings.edit(.orientation(orientation), state: editingState) {
+        settings.applyLayoutPreferences(to: &style)
+      }
+      XCTAssertEqual(settings.currentOrientation(), orientation)
+      XCTAssertEqual(style.linear, expectedLinear, "linear for \(orientation)")
+      XCTAssertEqual(style.vertical, expectedVertical, "vertical for \(orientation)")
+      XCTAssertTrue(style.inlinePreedit)
+      XCTAssertTrue(style.inlineCandidate)
+    }
+    XCTAssertEqual(catalog.readCount, 0, "layout preference updates must stay lightweight and skip font discovery")
   }
 
   func testNotificationEditControlsOptionAndSchemaPolicyIncludingOffMainRead() {

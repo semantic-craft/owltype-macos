@@ -21,12 +21,8 @@ enum EngineOption: String, CaseIterable {
   case fullShape = "full_shape"
   case traditional
   case emojiSuggestion = "emoji"
-  case vimMode = "vim_mode"
 
   // Presentation and input-controller flags.
-  case linear = "_linear"
-  case vertical = "_vertical"
-  case chordTyping = "_chord_typing"
-  case noInline = "no_inline"
-  case inline
+  case linear
+  case vertical
 }

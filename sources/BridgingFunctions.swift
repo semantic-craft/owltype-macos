@@ -9,12 +9,6 @@ import Foundation
 
 infix operator ?= : AssignmentPrecedence
 // swiftlint:disable:next operator_whitespace
-func ?=<T>(left: inout T, right: T?) {
-  if let right = right {
-    left = right
-  }
-}
-// swiftlint:disable:next operator_whitespace
 func ?=<T>(left: inout T?, right: T?) {
   if let right = right {
     left = right
