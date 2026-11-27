@@ -428,7 +428,7 @@ extension OwlInputController {
     } else {
       debugLiveInputTrace("switchLiveSessionSchema id=\(id) select=false — schemaId NOT updated (no cache poisoning)")
     }
-    if client != nil || engineRuntime.activatedInputController === self {
+    if client != nil && engineRuntime.activatedInputController === self {
       engineUpdate()                           // render the engine's true post-select state either way
     }
     return selected ? .ok : .selectFailed(schemaID: id)

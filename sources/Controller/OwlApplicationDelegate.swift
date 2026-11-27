@@ -489,7 +489,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     defer { OwlLatencyTrace.end("deploy.schemaSwitch", schemaTrace) }
     let perf = OwlPerf.mark()
     let engineSelected = runtime.engine.selectSchema(id) // remembered for future sessions
-    let active = runtime.activatedInputController
+    let active = activeLiveController
     let live = runtime.liveControllers.allObjects
     var aggregatedResult: SchemaSwitchResult = .noLiveSession
     func merge(_ outcome: SchemaSwitchResult) {
@@ -573,6 +573,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   }
 
   static func showMessage(msgText: String?) {
+    guard !OwlTestStorage.isEnabled else { return }
     let center = UNUserNotificationCenter.current()
     center.requestAuthorization(options: [.alert, .provisional]) { _, error in
       if let error = error {
@@ -626,13 +627,14 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     )
   }
 
+  private var activeLiveController: OwlInputController? {
+    runtime.activatedInputController.flatMap { $0.client != nil ? $0 : nil }
+  }
+
   private func applyOptionToLiveSessions(_ apply: (OwlInputController, Bool) -> Void) {
-    let active = runtime.activatedInputController
+    let active = activeLiveController
     for controller in runtime.liveControllers.allObjects where controller !== active {
       apply(controller, false)
-      if controller.client != nil {
-        controller.engineUpdate()
-      }
     }
     if let active {
       apply(active, true)
@@ -659,6 +661,7 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
   func applyDefaultAsciiModeToLiveSession(_ english: Bool) {
     applyOptionToLiveSessions { controller, isActive in
       controller.setEngineOption(.asciiMode, english, notify: isActive)
+      controller.appModeObservation.seed(english)
     }
   }
 

@@ -760,14 +760,98 @@ final class OwlVoiceInputIntegrationTests: XCTestCase {
     XCTAssertTrue(next.insertedTexts.isEmpty)
   }
 
+  func testDuplicateEscapeEventFromGlobalMonitorAndIMKRemainsConsumed() throws {
+    let coordinator = OwlVoiceInputCoordinator()
+    coordinator.isEnabledOverride = true
+    let mockRecorder = OwlMockAudioRecorder()
+    coordinator.audioRecorder = mockRecorder
+    let mockClient = MockVoiceTextInputClient()
+    coordinator.targetSnapshotProvider = { OwlVoiceTargetSnapshot(client: mockClient) }
+
+    let down = try makeKeyEvent(
+      type: .flagsChanged,
+      keyCode: OwlVoiceInputCoordinator.rightOptionKeyCode,
+      modifiers: [.option],
+      timestamp: 100.0
+    )
+    XCTAssertTrue(coordinator.handleKeyEvent(down))
+    guard case .holding = coordinator.mode else {
+      return XCTFail("Expected .holding after Right Option press, got \(coordinator.mode)")
+    }
+
+    let esc = try makeKeyEvent(type: .keyDown, keyCode: 53, timestamp: 101.0)
+    XCTAssertTrue(coordinator.handleKeyEvent(esc), "first delivery must cancel and consume Escape")
+    XCTAssertEqual(coordinator.mode, .idle)
+    XCTAssertEqual(mockRecorder.cancelRecordingCallCount, 1)
+
+    XCTAssertTrue(
+      coordinator.handleKeyEvent(esc),
+      "second delivery of the same Escape event must still return true so IMK does not leak it to the host"
+    )
+    XCTAssertEqual(coordinator.mode, .idle)
+    XCTAssertEqual(mockRecorder.cancelRecordingCallCount, 1)
+  }
+
+  func testDuplicateRightOptionPressInHandsFreeWithShortClipDoesNotRestartRecording() throws {
+    let coordinator = OwlVoiceInputCoordinator()
+    coordinator.isEnabledOverride = true
+    let mockRecorder = OwlMockAudioRecorder()
+    mockRecorder.simulatedDuration = 0.1
+    coordinator.audioRecorder = mockRecorder
+    let mockClient = MockVoiceTextInputClient()
+    coordinator.targetSnapshotProvider = { OwlVoiceTargetSnapshot(client: mockClient) }
+
+    let down = try makeKeyEvent(
+      type: .flagsChanged,
+      keyCode: OwlVoiceInputCoordinator.rightOptionKeyCode,
+      modifiers: [.option],
+      timestamp: 200.0
+    )
+    XCTAssertTrue(coordinator.handleKeyEvent(down))
+    let space = try makeKeyEvent(type: .keyDown, keyCode: 49, modifiers: [.option], timestamp: 201.0)
+    XCTAssertTrue(coordinator.handleKeyEvent(space))
+    let up = try makeKeyEvent(
+      type: .flagsChanged,
+      keyCode: OwlVoiceInputCoordinator.rightOptionKeyCode,
+      modifiers: [],
+      timestamp: 202.0
+    )
+    XCTAssertTrue(coordinator.handleKeyEvent(up))
+    guard case .handsFreeLocked = coordinator.mode else {
+      return XCTFail("Expected .handsFreeLocked, got \(coordinator.mode)")
+    }
+    XCTAssertEqual(mockRecorder.startRecordingCallCount, 1)
+
+    let stopPress = try makeKeyEvent(
+      type: .flagsChanged,
+      keyCode: OwlVoiceInputCoordinator.rightOptionKeyCode,
+      modifiers: [.option],
+      timestamp: 203.0
+    )
+    XCTAssertTrue(coordinator.handleKeyEvent(stopPress))
+    XCTAssertEqual(coordinator.mode, .idle, "short clip error aborts back to .idle")
+    XCTAssertEqual(mockRecorder.stopRecordingCallCount, 1)
+    XCTAssertEqual(mockRecorder.startRecordingCallCount, 1)
+
+    XCTAssertTrue(coordinator.handleKeyEvent(stopPress))
+    XCTAssertEqual(coordinator.mode, .idle, "duplicate delivery of the same press must not restart recording")
+    XCTAssertEqual(mockRecorder.startRecordingCallCount, 1)
+    XCTAssertFalse(mockRecorder.isRecording)
+  }
+
   // MARK: - Helper
 
-  private func makeKeyEvent(type: NSEvent.EventType, keyCode: UInt16, modifiers: NSEvent.ModifierFlags = []) throws -> NSEvent {
+  private func makeKeyEvent(
+    type: NSEvent.EventType,
+    keyCode: UInt16,
+    modifiers: NSEvent.ModifierFlags = [],
+    timestamp: TimeInterval = ProcessInfo.processInfo.systemUptime
+  ) throws -> NSEvent {
     let event = NSEvent.keyEvent(
       with: type,
       location: .zero,
       modifierFlags: modifiers,
-      timestamp: ProcessInfo.processInfo.systemUptime,
+      timestamp: timestamp,
       windowNumber: 0,
       context: nil,
       characters: "",

@@ -229,6 +229,68 @@ final class OwlCandidatePanelAppearanceLifecycleTests: XCTestCase {
     XCTAssertFalse(panel.hasRenderedComposition)
   }
 
+  func testSwitchingOrientationFromVerticalToAutoClearsVerticalAfterRefreshPreferences() throws {
+    let delegate = NSApp.owlAppDelegate
+    let previousOrientation = OwlDefaults.standard.object(forKey: "OwlPanelOrientation")
+    let previousEngine = delegate.runtime.engine
+    let previousPanel = delegate.owlPanel
+    let previousEmitter = delegate.snapshotEmitter
+    let previousActivated = delegate.runtime.activatedInputController
+
+    let panel = OwlSwiftUICandidatePanel()
+    delegate.runtime.engine = FakeInputEngine()
+    delegate.snapshotEmitter = FakeSnapshotEmitter()
+    delegate.owlPanel = panel
+    defer {
+      panel.hidePanel()
+      if let previousOrientation {
+        OwlDefaults.standard.set(previousOrientation, forKey: "OwlPanelOrientation")
+      } else {
+        OwlDefaults.standard.removeObject(forKey: "OwlPanelOrientation")
+      }
+      delegate.runtime.applyPanelPreferences()
+      delegate.owlPanel = previousPanel
+      delegate.snapshotEmitter = previousEmitter
+      delegate.runtime.activatedInputController = previousActivated
+      delegate.runtime.engine = previousEngine
+    }
+
+    OwlDefaults.standard.set(OwlPanelOrientation.vertical.rawValue, forKey: "OwlPanelOrientation")
+    delegate.runtime.applyPanelPreferences()
+
+    let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    defer { controller.destroySession() }
+    controller.destroySession()
+    let session = FakeEngineSession(sessionID: 95, optionState: [.vertical: true])
+    controller.engineSession = session
+    let client = HabitsTextClient()
+    controller.client = client
+
+    controller.showPanel(
+      preedit: "ni",
+      cursor: 2,
+      selStart: 0,
+      selEnd: 2,
+      candidates: ["你"],
+      comments: [""],
+      labels: ["1"],
+      highlighted: 0,
+      page: 0,
+      lastPage: true,
+      pageSize: 5
+    )
+    XCTAssertTrue(panel.panelState.isVertical, "explicit vertical setting must render vertically")
+
+    OwlDefaults.standard.set(OwlPanelOrientation.auto.rawValue, forKey: "OwlPanelOrientation")
+    delegate.runtime.applyPanelPreferences()
+    panel.refreshPreferences()
+
+    XCTAssertFalse(
+      panel.panelState.isVertical,
+      "switching orientation from vertical to auto must clear vertical instead of feeding engineSession.option(.vertical) back"
+    )
+  }
+
   func testOnboardingAndSettingsWindowsTearDownContentViewOnCloseAndReopenCleanly() {
     let onboarding = OwlOnboardingWindow()
     onboarding.show(

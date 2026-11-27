@@ -130,6 +130,7 @@ final class OwlSelectionMenuCoordinator {
   /// 只做一件事——作废进行中的双击手势（⌥ 正被当真修饰键用）。回调是纯内存状态机，零 AX、零计时器。
   private var tapMonitor: Any?
   private var doubleTap = OwlOptionDoubleTapDetector()
+  private var wasEnabled = true
 
   // 「选中即自动弹出」管线（0.30s 停留、每次划选后的后台 AX 读、面板维护计时器、dismissedText/
   // readGeneration/lastSummon 消失状态机）已删（2026-07-26 工具箱重设计）：打开工具箱只剩明确
@@ -141,7 +142,15 @@ final class OwlSelectionMenuCoordinator {
     tapMonitor = NSEvent.addGlobalMonitorForEvents(
       matching: [.flagsChanged, .keyDown, .leftMouseDown, .rightMouseDown]
     ) { [weak self] event in
-      guard let self, OwlSelectionMenuPreferences.isEnabled else { return }
+      guard let self else { return }
+      guard OwlSelectionMenuPreferences.isEnabled else {
+        if self.wasEnabled {
+          self.wasEnabled = false
+          self.doubleTap.invalidate()
+        }
+        return
+      }
+      self.wasEnabled = true
       guard event.type == .flagsChanged else {
         self.doubleTap.invalidate()
         return

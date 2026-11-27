@@ -169,8 +169,6 @@ final class OwlInputController: IMKInputController {
 
     if self.client == nil {
       self.client = sender as? IMKTextInput
-      // A session that starts on a key instead of activateServer is still the one IMK serves.
-      if self.client != nil { engineRuntime.activatedInputController = self }
     }
     if engineSession?.isValid != true {
       createSession()
@@ -178,6 +176,9 @@ final class OwlInputController: IMKInputController {
         return false
       }
     }
+    // Bind before draining a queued refresh so it recreates this active session instead of
+    // tearing it down as a background controller.
+    if self.client != nil { engineRuntime.activatedInputController = self }
     // A Rust resource switch that arrived mid-composition is queued. If the host or a
     // previous command already completed it, switch before this key reaches the old session.
     MainActor.assumeIsolated {

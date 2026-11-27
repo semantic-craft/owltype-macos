@@ -220,7 +220,7 @@ enum OwlScrollRowsPlan {
 }
 
 final class OwlSwiftUICandidatePanel: OwlFloatingPanel {
-  private let panelState = CandidatePanelState()
+  let panelState = CandidatePanelState()
   private var lastEngineVertical = false
   private var lastSchemaID = ""
 

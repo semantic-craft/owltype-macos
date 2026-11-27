@@ -276,7 +276,8 @@ extension OwlInputController {
     NSApp.owlAppDelegate.recordCaretAnchor(inputPos, host: host)
     engineRuntime.registerLiveController(self)
 
-    let isVertical = engineSession?.option(.vertical) ?? false
+    // OwlCandidatePanelSettings is the sole owner of panel orientation, not a YAML schema override.
+    let engineVertical = false
     let candidatePanelSettings = OwlCandidatePanelSettings.live.snapshot()
     let currentSessionID = engineSession?.sessionID ?? 0
 
@@ -293,14 +294,14 @@ extension OwlInputController {
       if OwlScrollRowsPlan.wantsPrevRow(
         settings: candidatePanelSettings, didPage: scrollDidPage, page: page,
         candidateCount: candidates.count,
-        engineVertical: isVertical, schemaID: schemaId
+        engineVertical: engineVertical, schemaID: schemaId
       ) {
         prevPeeked = engineSession.peekCandidates(from: (page - 1) * pageSize, count: pageSize)
       }
       if OwlScrollRowsPlan.wantsRows(
         settings: candidatePanelSettings, didPage: scrollDidPage, lastPage: lastPage,
         candidateCount: candidates.count,
-        engineVertical: isVertical, schemaID: schemaId
+        engineVertical: engineVertical, schemaID: schemaId
       ) {
         nextPeeked = engineSession.peekCandidates(from: (page + 1) * pageSize,
                                          count: OwlCandidatePanelSettings.maximumScrollRows * pageSize)
@@ -408,7 +409,7 @@ extension OwlInputController {
       page: page,
       hasPrevPage: page > 0,
       hasNextPage: !lastPage,
-      isVertical: isVertical,
+      isVertical: engineVertical,
       schemaID: schemaId,
       anchor: inputPos,
       scrollRows: scrollRows

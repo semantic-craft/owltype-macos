@@ -61,6 +61,7 @@ final class OwlVoiceInputCoordinator {
   private var lastHandledEventTimestamp: TimeInterval = -1
   private var lastHandledEventType: NSEvent.EventType?
   private var lastHandledKeyCode: UInt16 = .max
+  private var lastHandledEventConsumed = false
   // Cancellation is cooperative. Every callback must still belong to this recording.
   private var voiceGeneration: UInt64 = 0
 
@@ -113,9 +114,10 @@ final class OwlVoiceInputCoordinator {
 
   private func handleGlobalMonitorEvent(_ event: NSEvent) {
     guard isVoiceEnabled else { return }
-    guard event.timestamp != lastHandledEventTimestamp
-       || event.type != lastHandledEventType
-       || event.keyCode != lastHandledKeyCode else {
+    if event.timestamp > 0,
+       event.timestamp == lastHandledEventTimestamp,
+       event.type == lastHandledEventType,
+       event.keyCode == lastHandledKeyCode {
       return
     }
     guard OwlInstaller.currentInputSourceID()?.hasPrefix(OwlInstaller.inputSourcePrefix) == true else {
@@ -135,14 +137,25 @@ final class OwlVoiceInputCoordinator {
 
   /// Intercepts key events. Returns true if consumed by the voice input subsystem.
   func handleKeyEvent(_ event: NSEvent) -> Bool {
+    if event.timestamp > 0,
+       event.timestamp == lastHandledEventTimestamp,
+       event.type == lastHandledEventType,
+       event.keyCode == lastHandledKeyCode {
+      return lastHandledEventConsumed
+    }
     guard isVoiceEnabled else { return false }
 
+    let consumed = processKeyEvent(event)
     if event.timestamp > 0 {
       lastHandledEventTimestamp = event.timestamp
       lastHandledEventType = event.type
       lastHandledKeyCode = event.keyCode
+      lastHandledEventConsumed = consumed
     }
+    return consumed
+  }
 
+  private func processKeyEvent(_ event: NSEvent) -> Bool {
     if event.type == .flagsChanged {
       return handleFlagsChangedEvent(event)
     }

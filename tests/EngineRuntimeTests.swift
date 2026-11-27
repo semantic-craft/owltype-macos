@@ -444,7 +444,10 @@ final class EngineRuntimeTests: XCTestCase {
     }
 
     let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
-    defer { controller.destroySession() }
+    defer {
+      MainActor.assumeIsolated { OwlInputStatusPanel.shared.deactivate(controller) }
+      controller.destroySession()
+    }
     controller.destroySession()
     let session = FakeEngineSession(sessionID: 80, input: "ni", finishNativeResult: true, finishNativeCommit: "你")
     controller.engineSession = session
@@ -462,6 +465,170 @@ final class EngineRuntimeTests: XCTestCase {
     XCTAssertNil(delegate.runtime.activatedInputController)
     XCTAssertNil(controller.client)
     XCTAssertEqual(client.text.string, "你")
+  }
+
+  @MainActor
+  func testHandleBindsActivatedControllerEvenWhenClientWasPrePopulated() throws {
+    let delegate = NSApp.owlAppDelegate
+    let previousEngine = delegate.runtime.engine
+    let previousActivated = delegate.runtime.activatedInputController
+    let previousEmitter = delegate.snapshotEmitter
+    delegate.runtime.engine = FakeInputEngine()
+    delegate.snapshotEmitter = FakeSnapshotEmitter()
+    defer {
+      delegate.runtime.activatedInputController = previousActivated
+      delegate.runtime.engine = previousEngine
+      delegate.snapshotEmitter = previousEmitter
+    }
+
+    let client = HabitsTextClient()
+    let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    defer {
+      MainActor.assumeIsolated { OwlInputStatusPanel.shared.deactivate(controller) }
+      controller.destroySession()
+    }
+    controller.client = client
+    XCTAssertNotNil(controller.client)
+    delegate.runtime.activatedInputController = nil
+
+    let keyDown = try XCTUnwrap(NSEvent.keyEvent(
+      with: .keyDown,
+      location: .zero,
+      modifierFlags: [],
+      timestamp: 1,
+      windowNumber: 0,
+      context: nil,
+      characters: "a",
+      charactersIgnoringModifiers: "a",
+      isARepeat: false,
+      keyCode: 0
+    ))
+    _ = controller.handle(keyDown, client: client)
+
+    XCTAssertTrue(
+      delegate.runtime.activatedInputController === controller,
+      "handle(_:client:) must bind activatedInputController even when self.client was already non-nil"
+    )
+  }
+
+  @MainActor
+  func testApplyDefaultAsciiModeUpdatesActiveSessionWithoutWritingStickyAppMemory() throws {
+    let delegate = NSApp.owlAppDelegate
+    let previousEngine = delegate.runtime.engine
+    let previousActivated = delegate.runtime.activatedInputController
+    let previousEmitter = delegate.snapshotEmitter
+    let previousMemoryEnabled = OwlAppInputMemory.shared.enabled
+    let appID = "com.test.default-ascii-\(UUID().uuidString)"
+    let bgAppID = "com.test.default-ascii-bg-\(UUID().uuidString)"
+    let emitter = FakeSnapshotEmitter()
+    delegate.runtime.engine = FakeInputEngine()
+    delegate.snapshotEmitter = emitter
+    OwlAppInputMemory.shared.enabled = true
+    defer {
+      OwlAppInputMemory.shared.forget(appID)
+      OwlAppInputMemory.shared.forget(bgAppID)
+      OwlAppInputMemory.shared.enabled = previousMemoryEnabled
+      delegate.runtime.activatedInputController = previousActivated
+      delegate.runtime.engine = previousEngine
+      delegate.snapshotEmitter = previousEmitter
+    }
+
+    let active = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    let background = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    defer {
+      MainActor.assumeIsolated {
+        OwlInputStatusPanel.shared.deactivate(active)
+        OwlInputStatusPanel.shared.deactivate(background)
+      }
+      active.destroySession()
+      background.destroySession()
+    }
+    active.destroySession()
+    background.destroySession()
+
+    let activeClient = HabitsTextClient()
+    activeClient.appID = appID
+    let activeSession = FakeEngineSession(sessionID: 90, optionState: [.asciiMode: false])
+    active.client = activeClient
+    active.currentApp = appID
+    active.engineSession = activeSession
+    active.appModeObservation.seed(false)
+
+    let bgClient = HabitsTextClient()
+    bgClient.appID = bgAppID
+    let bgSession = FakeEngineSession(sessionID: 91, optionState: [.asciiMode: false])
+    background.client = bgClient
+    background.currentApp = bgAppID
+    background.engineSession = bgSession
+    background.appModeObservation.seed(false)
+
+    delegate.runtime.registerLiveController(active)
+    delegate.runtime.registerLiveController(background)
+    delegate.runtime.activatedInputController = active
+
+    delegate.applyDefaultAsciiModeToLiveSession(true)
+
+    XCTAssertEqual(activeSession.optionState[.asciiMode], true)
+    XCTAssertEqual(bgSession.optionState[.asciiMode], true)
+    XCTAssertEqual(activeSession.notifiedOptions.map(\.option), [.asciiMode])
+    XCTAssertTrue(bgSession.notifiedOptions.isEmpty, "background controller must stay silent")
+    XCTAssertEqual(emitter.emitClearedCount, 1, "only the active controller runs engineUpdate")
+    XCTAssertNil(
+      OwlAppInputMemory.shared.modes[appID],
+      "global default ascii mode change must not record a sticky per-app override"
+    )
+    XCTAssertNil(OwlAppInputMemory.shared.modes[bgAppID])
+  }
+
+  @MainActor
+  func testDetachedActivatedControllerSkipsNotificationsAndEngineUpdate() throws {
+    let delegate = NSApp.owlAppDelegate
+    let previousEngine = delegate.runtime.engine
+    let previousActivated = delegate.runtime.activatedInputController
+    let previousEmitter = delegate.snapshotEmitter
+    let emitter = FakeSnapshotEmitter()
+    delegate.runtime.engine = FakeInputEngine(selectSchemaResult: true)
+    delegate.snapshotEmitter = emitter
+    defer {
+      delegate.runtime.activatedInputController = previousActivated
+      delegate.runtime.engine = previousEngine
+      delegate.snapshotEmitter = previousEmitter
+    }
+
+    let detached = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    let nonActive = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    defer {
+      MainActor.assumeIsolated {
+        OwlInputStatusPanel.shared.deactivate(detached)
+        OwlInputStatusPanel.shared.deactivate(nonActive)
+      }
+      detached.destroySession()
+      nonActive.destroySession()
+    }
+    detached.destroySession()
+    nonActive.destroySession()
+
+    let detachedSession = FakeEngineSession(sessionID: 92, selectSchemaResult: true)
+    detached.client = nil
+    detached.engineSession = detachedSession
+    delegate.runtime.registerLiveController(detached)
+    delegate.runtime.activatedInputController = detached
+
+    delegate.applyTraditionalOutputToLiveSession(true)
+    XCTAssertEqual(detachedSession.optionState[.traditional], true)
+    XCTAssertTrue(detachedSession.notifiedOptions.isEmpty, "detached controller must not notify")
+    XCTAssertEqual(emitter.emitClearedCount, 0, "detached controller must not run engineUpdate on option apply")
+
+    XCTAssertTrue(delegate.selectSchema("double_pinyin_flypy"))
+    XCTAssertEqual(detachedSession.selectedLiveSchemas, ["double_pinyin_flypy"])
+    XCTAssertEqual(emitter.emitClearedCount, 0, "detached controller must not run engineUpdate on schema switch")
+
+    let nonActiveClient = HabitsTextClient()
+    let nonActiveSession = FakeEngineSession(sessionID: 93, selectSchemaResult: true)
+    nonActive.client = nonActiveClient
+    nonActive.engineSession = nonActiveSession
+    XCTAssertEqual(nonActive.switchLiveSessionSchema(to: "rime_ice"), .ok)
+    XCTAssertEqual(emitter.emitClearedCount, 0, "non-active controller must not run engineUpdate on schema switch")
   }
 
   // MARK: - Helpers
