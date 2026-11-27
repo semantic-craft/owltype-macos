@@ -59,6 +59,7 @@ final class EngineRuntimeTests: XCTestCase {
     XCTAssertTrue(engine.deployedConfigFiles.isEmpty)
   }
 
+  @MainActor
   func testRefreshTemplateHostPhrasesRefreshesLiveSessionsWithoutRedeploy() {
     let engine = FakeInputEngine(finalizeResult: false)
 
@@ -72,6 +73,38 @@ final class EngineRuntimeTests: XCTestCase {
     XCTAssertEqual(engine.refreshHostPhrasesCount, 2)
     XCTAssertEqual(engine.finalizeCount, 0)
     XCTAssertEqual(engine.lifecycleTrace, ["refreshHostPhrases", "refreshHostPhrases"])
+  }
+
+  @MainActor
+  func testRefreshTemplateHostPhrasesDefersWhileComposingAndFlushesOnIdle() throws {
+    let delegate = NSApp.owlAppDelegate
+    let previousEngine = delegate.runtime.engine
+    delegate.runtime.engine = FakeInputEngine()
+    defer { delegate.runtime.engine = previousEngine }
+
+    let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    defer { controller.destroySession() }
+    controller.destroySession()
+    let session = FakeEngineSession(sessionID: 32, input: "ni")
+    controller.engineSession = session
+    let engine = FakeInputEngine()
+    let runtime = makeRuntime(engine)
+    runtime.registerLiveController(controller)
+
+    XCTAssertFalse(runtime.refreshTemplateHostPhrases())
+    XCTAssertEqual(engine.refreshHostPhrasesCount, 0, "composing session defers host phrase refresh")
+    XCTAssertFalse(session.destroyed, "host phrase refresh never tears down a session")
+    XCTAssertTrue(runtime.applyPendingLiveSessionRefreshIfIdle(), "refresh stays deferred while composing")
+    XCTAssertEqual(engine.refreshHostPhrasesCount, 0)
+
+    session.scriptedInput = nil
+    XCTAssertFalse(runtime.applyPendingLiveSessionRefreshIfIdle(), "idle boundary drains deferred host phrase refresh")
+    XCTAssertEqual(engine.refreshHostPhrasesCount, 1)
+    XCTAssertEqual(engine.finalizeCount, 0)
+    XCTAssertEqual(engine.lifecycleTrace, ["refreshHostPhrases"])
+    XCTAssertFalse(session.destroyed)
+    XCTAssertFalse(runtime.applyPendingLiveSessionRefreshIfIdle(), "subsequent idle checks are no-ops")
+    XCTAssertEqual(engine.refreshHostPhrasesCount, 1)
   }
 
   func testRemoveTestDefaultsSuiteUnlinksPreferencesPlist() throws {
@@ -672,8 +705,9 @@ final class EngineRuntimeTests: XCTestCase {
     let previousEngine = delegate.runtime.engine
     let previousEmitter = delegate.snapshotEmitter
     let previousFullShape = OwlKeyboardPreferences.defaultFullShape
+    let emitter = FakeSnapshotEmitter()
     delegate.runtime.engine = FakeInputEngine()
-    delegate.snapshotEmitter = FakeSnapshotEmitter()
+    delegate.snapshotEmitter = emitter
     OwlKeyboardPreferences.defaultFullShape = false
     defer {
       OwlKeyboardPreferences.defaultFullShape = previousFullShape
@@ -682,26 +716,48 @@ final class EngineRuntimeTests: XCTestCase {
     }
 
     let controller = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
+    let background = try XCTUnwrap(OwlInputController(server: nil, delegate: nil, client: nil))
     defer {
-      MainActor.assumeIsolated { OwlInputStatusPanel.shared.deactivate(controller) }
+      MainActor.assumeIsolated {
+        OwlInputStatusPanel.shared.deactivate(controller)
+        OwlInputStatusPanel.shared.deactivate(background)
+      }
       controller.destroySession()
+      background.destroySession()
     }
     controller.destroySession()
+    background.destroySession()
     let session = FakeEngineSession(
       sessionID: 94,
       status: EngineStatus(schemaId: "rime_ice", isASCIIMode: false, isASCIIPunct: false, isFullShape: false)
     )
+    let backgroundSession = FakeEngineSession(
+      sessionID: 95,
+      status: EngineStatus(schemaId: "rime_ice", isASCIIMode: false, isASCIIPunct: false, isFullShape: false)
+    )
     controller.client = HabitsTextClient()
     controller.engineSession = session
+    background.client = HabitsTextClient()
+    background.engineSession = backgroundSession
+    delegate.runtime.registerLiveController(controller)
+    delegate.runtime.registerLiveController(background)
 
     controller.toggleFullShapeFromMenu()
     XCTAssertEqual(session.optionState[.fullShape], true)
+    XCTAssertEqual(backgroundSession.optionState[.fullShape], true)
     XCTAssertTrue(OwlKeyboardPreferences.defaultFullShape)
+    XCTAssertEqual(session.notifiedOptions.map(\.option), [.fullShape])
+    XCTAssertTrue(backgroundSession.notifiedOptions.isEmpty, "background sessions update silently")
+    XCTAssertEqual(emitter.emitClearedCount, 1, "only the invoking controller runs engineUpdate")
 
     session.scriptedStatus = EngineStatus(schemaId: "rime_ice", isASCIIMode: false, isASCIIPunct: false, isFullShape: true)
     controller.toggleFullShapeFromMenu()
     XCTAssertEqual(session.optionState[.fullShape], false)
+    XCTAssertEqual(backgroundSession.optionState[.fullShape], false)
     XCTAssertFalse(OwlKeyboardPreferences.defaultFullShape)
+    XCTAssertEqual(session.notifiedOptions.map(\.value), [true, false])
+    XCTAssertTrue(backgroundSession.notifiedOptions.isEmpty)
+    XCTAssertEqual(emitter.emitClearedCount, 2)
   }
 
   // MARK: - Helpers

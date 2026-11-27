@@ -357,7 +357,9 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
         return ok
       },
       onTemplatesChanged: { [weak self] in
-        _ = self?.runtime.refreshTemplateHostPhrases()
+        MainActor.assumeIsolated {
+          _ = self?.runtime.refreshTemplateHostPhrases()
+        }
       },
       onApplyKeyboardConfigFast: { [weak self] in
         try self?.runtime.applyKeyboardSettings(.config) ?? .init(written: [], succeeded: false)

@@ -2716,6 +2716,56 @@ final class OwlRustEngineTests: XCTestCase {
                   "native database K prefix matching survives the Owl enhancement boundary")
   }
 
+  func testRefreshHostPhrasesSkipsComposingSessionAndSelectSchemaStillLoadsUpdatedPhrases() throws {
+    let userDir = try makeHostPhraseUserDirectory()
+    let engine = try makeHostPhraseEngine(userDataURL: userDir)
+    let session = engine.createSession()
+    defer { session.destroy() }
+
+    typeText("ni", into: session)
+    XCTAssertEqual(session.input(), "ni")
+    let composingBefore = try XCTUnwrap(session.composition())
+    XCTAssertFalse(composingBefore.preedit.isEmpty)
+
+    var entry = OwlTemplateEntry(title: "即时短语", body: "即时内容")
+    entry.trigger = "owllive"
+    entry.invocationMode = .candidate
+    try OwlTemplateStore.save(OwlTemplateLibrary(entries: [entry]), dataDir: userDir)
+
+    XCTAssertTrue(engine.refreshHostPhrases())
+    XCTAssertEqual(session.input(), "ni", "host phrase refresh must not wipe an active composition")
+    typeText("h", into: session)
+    XCTAssertEqual(session.input(), "nih", "Rust session keeps the in-flight composition intact")
+    XCTAssertFalse(try XCTUnwrap(session.composition()).candidates.isEmpty)
+
+    session.clearComposition()
+    XCTAssertTrue(engine.refreshHostPhrases())
+    for scalar in "Kowllive".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: scalar.value == asciiKeycode("K") ? kShiftMask.rawValue : 0))
+    }
+    let expectedPrefix = "\(OwlTemplateStore.candidatePrefix)\(entry.id.uuidString)]"
+    XCTAssertTrue(
+      try XCTUnwrap(session.composition()).candidates.contains { $0.text.hasPrefix(expectedPrefix) },
+      "idle refresh loads the saved template candidate"
+    )
+
+    var updated = OwlTemplateEntry(title: "切方案短语", body: "切换内容")
+    updated.trigger = "owlswitch"
+    updated.invocationMode = .candidate
+    try OwlTemplateStore.save(OwlTemplateLibrary(entries: [updated]), dataDir: userDir)
+
+    XCTAssertTrue(session.selectSchema("rime_ice"))
+    XCTAssertEqual(session.input(), "")
+    for scalar in "Kowlswitch".unicodeScalars {
+      XCTAssertTrue(session.process(keycode: scalar.value, modifiers: scalar.value == asciiKeycode("K") ? kShiftMask.rawValue : 0))
+    }
+    let switchedPrefix = "\(OwlTemplateStore.candidatePrefix)\(updated.id.uuidString)]"
+    XCTAssertTrue(
+      try XCTUnwrap(session.composition()).candidates.contains { $0.text.hasPrefix(switchedPrefix) },
+      "selectSchema clears active composition before syncing idle-gated host phrases"
+    )
+  }
+
   func testHostPhraseModesEmptyAndUnavailableFailClosed() throws {
     let emptyDir = try makeHostPhraseUserDirectory()
     try writeHostPhrase(

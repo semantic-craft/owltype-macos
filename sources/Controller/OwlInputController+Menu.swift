@@ -104,8 +104,11 @@ extension OwlInputController {
 
   @objc func toggleFullShapeFromMenu() {
     let fullShape = !currentEngineStatusFlags().fullShape
-    setEngineOption(.fullShape, fullShape)
     OwlKeyboardPreferences.defaultFullShape = fullShape
+    for controller in engineRuntime.liveControllers.allObjects where controller !== self {
+      controller.setEngineOption(.fullShape, fullShape, notify: false)
+    }
+    setEngineOption(.fullShape, fullShape)
     engineUpdate()
   }
 

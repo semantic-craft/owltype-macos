@@ -660,12 +660,14 @@ class OwlRustSession {
       return false
     }
     lastAppliedPageSize = pageSize
-    guard syncRuntimePreferences(includeHostPhrases: true),
-          let cleared = sendAction(["op": "clear"]),
+    guard let cleared = sendAction(["op": "clear"]),
           cleared.isOK else {
       return false
     }
     _ = applyActionResponse(cleared)
+    guard syncRuntimePreferences(includeHostPhrases: true) else {
+      return false
+    }
     activeSchemaId = id
     ownerEngine?.recordSelectedSchema(id)
     return true
@@ -695,7 +697,7 @@ class OwlRustSession {
     guard applyEngineOptions(), applyASCIIPunctIfNeeded() else { return false }
     guard includeHostPhrases, let ownerEngine else { return true }
     let packed = ownerEngine.loadPackedHostPhrases()
-    return applyChanged(packed, at: \.lastAppliedHostPhrases) {
+    return applyChanged(packed, at: \.lastAppliedHostPhrases, requiresIdle: true) {
       ["op": "set_host_phrases", "text": packed]
     }
   }
@@ -735,8 +737,11 @@ class OwlRustSession {
     action: () -> [String: Any]
   ) -> Bool {
     guard value != self[keyPath: keyPath], canApplyPreference(requiresIdle: requiresIdle) else { return true }
-    guard sendAction(action())?.isOK == true else { return false }
+    guard let response = sendAction(action()), response.isOK else { return false }
     self[keyPath: keyPath] = value
+    if requiresIdle {
+      _ = applyActionResponse(response)
+    }
     return true
   }
 
