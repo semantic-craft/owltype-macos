@@ -44,14 +44,9 @@ impl OwlMsimeSession {
                     .map_err(|error| error.to_string())?;
                 self.options.mixed_emoji = value;
             }
-            "traditional" | "traditionalization" | "zh_trad" | "transcription" => {
+            "traditional" => {
                 if let Ok(mut guard) = self.pinned_state.lock() {
                     guard.traditional = value;
-                }
-            }
-            "simplification" => {
-                if let Ok(mut guard) = self.pinned_state.lock() {
-                    guard.traditional = !value;
                 }
             }
             "vertical" => {

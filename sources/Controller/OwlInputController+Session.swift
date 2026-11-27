@@ -287,16 +287,10 @@ extension OwlInputController {
       // Silent (no user notification) — createSession runs on every focus change; only the explicit
       // picker (`OwlApplicationDelegate.selectSchema`) surfaces a user-facing failure.
       knownFailedSchemaID = OwlSchemaSelectionGate.markerAfterAttempt(preferred: preferredSchema, selected: selected)
-      // Resolve app memory and initial language once; avoid transient default-mode notifications.
-      setEngineOption(.fullShape, OwlKeyboardPreferences.defaultFullShape)
+      setEngineOption(.fullShape, OwlKeyboardPreferences.defaultFullShape, notify: false)
       updateAppOptions()
-      // Feature 1: seed 简↔繁 from the pref so Owltype's「简入繁出」choice survives focus changes /
-      // new sessions (方案 reset 回简体). Seeds the full option set so it covers 全拼/双拼
-      // (`transcription`) AND 五笔 (`zh_trad`) — a fresh wubi session otherwise loses 繁体.
-      setTraditionalOutputOptions(OwlKeyboardPreferences.traditionalOutput)
-      // 候选 emoji (rime-ice 原生 emoji switch). Owltype 出厂关；按 表情符号 设置开关 seed，
-      // 让选择在焦点切换 / 新会话后保持（rime 每次新会话会 reset 回 schema 默认值）。
-      setEngineOption(.emojiSuggestion, OwlEmojiPreferences.candidateEmojiEnabled)
+      setTraditionalOutputOptions(OwlKeyboardPreferences.traditionalOutput, notify: false)
+      setEngineOption(.emojiSuggestion, OwlEmojiPreferences.candidateEmojiEnabled, notify: false)
       syncPinnedWords()
     }
     // Register as a LIVE controller so the fast settings-apply path can force this session to
@@ -324,7 +318,7 @@ extension OwlInputController {
     case .attempt:
       let ascii = engineSession.option(.asciiMode)
       let selected = engineSession.selectSchema(preferredSchema)
-      if selected { engineSession.setOption(.asciiMode, ascii) }
+      if selected { engineSession.setOption(.asciiMode, ascii, notify: false) }
       knownFailedSchemaID = OwlSchemaSelectionGate.markerAfterAttempt(preferred: preferredSchema, selected: selected)
       debugLiveInputTrace("ensurePreferred idle current=\(currentSchema) preferred=\(preferredSchema) select=\(selected) after=\(engineSession.status()?.schemaId ?? "<nil>")")
       if selected {
@@ -347,7 +341,9 @@ extension OwlInputController {
       defaultASCIIMode: OwlKeyboardPreferences.defaultAsciiMode
     )
     let restored = OwlAppInputMemory.shared.initialMode(app: currentApp, fallback: fallback)
-    if engineSession.option(.asciiMode) != restored { engineSession.setOption(.asciiMode, restored) }
+    if engineSession.option(.asciiMode) != restored {
+      engineSession.setOption(.asciiMode, restored, notify: false)
+    }
     appModeObservation.seed(restored)
     if let reportBundleID = engineRuntime.config?.getBool("unsafe/report_bundleid"), reportBundleID {
       engineSession.setProperty(name: "client_app", value: currentApp)
@@ -480,7 +476,7 @@ extension OwlInputController {
     let selected = engineSession.selectSchema(id)   // re-reads build/<id>.schema.yaml in place; clears composition
     knownFailedSchemaID = OwlSchemaSelectionGate.markerAfterAttempt(preferred: id, selected: selected)
     if selected {
-      engineSession.setOption(.asciiMode, ascii)
+      engineSession.setOption(.asciiMode, ascii, notify: false)
       schemaId = id                        // only cache the id the engine actually switched to
       pinnedWordsRevision = nil
       syncPinnedWords()
@@ -504,9 +500,9 @@ extension OwlInputController {
     return (status.isASCIIMode, currentTraditionalOutputEnabled(), status.isASCIIPunct, status.isFullShape)
   }
 
-  func setEngineOption(_ option: EngineOption, _ enabled: Bool) {
+  func setEngineOption(_ option: EngineOption, _ enabled: Bool, notify: Bool = true) {
     guard let engineSession, engineSession.isValid else { return }
-    engineSession.setOption(option, enabled)
+    engineSession.setOption(option, enabled, notify: notify)
   }
 
   func toggleEngineOption(_ option: EngineOption) {
@@ -521,20 +517,11 @@ extension OwlInputController {
   }
 
   func currentTraditionalOutputEnabled() -> Bool {
-    // rime-ice 全拼/双拼走 `.traditionalization`，五笔走 `.zhTrad`；`.transcription` 是 rime_mint 类
-    // 方案的简繁 option，本底座用不到但保留以兼容其他可能携带这些 option 的方案。
-    optionValue(.traditional) || optionValue(.traditionalization) || optionValue(.zhTrad) || optionValue(.transcription)
+    optionValue(.traditional)
   }
 
-  /// 简↔繁 全局开关：把 Owltype 暴露的各方案用到的所有简繁 option 一次性设到当前会话，使「简入繁出」
-  /// 对全拼/双拼（`transcription`）与五笔（`zh_trad`）等所有方案统一生效。不调 `engineUpdate()`，
-  /// 由调用方决定是否立即重渲染（session seed 不需要、菜单/设置即时切换需要）。
-  func setTraditionalOutputOptions(_ traditional: Bool) {
-    setEngineOption(.traditional, traditional)
-    setEngineOption(.traditionalization, traditional)
-    setEngineOption(.zhTrad, traditional)
-    setEngineOption(.transcription, traditional)
-    setEngineOption(.simplification, !traditional)
+  func setTraditionalOutputOptions(_ traditional: Bool, notify: Bool = true) {
+    setEngineOption(.traditional, traditional, notify: notify)
   }
 
   // MARK: - AI Candidate Association (#392)

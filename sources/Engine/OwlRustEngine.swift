@@ -148,7 +148,6 @@ class OwlRustSession {
   private(set) var settledRerankReady = false
   private(set) var settledRerankLoading = false
   private var optionFlags: [EngineOption: Bool] = [
-    .simplification: true,
     .linear: true
   ]
   private var properties: [String: String] = [:]
@@ -160,19 +159,7 @@ class OwlRustSession {
   }
 
   private var isTraditionalEnabled: Bool {
-    if OwlRustSchemaMap.isTraditionalSchema(activeSchemaId) {
-      return true
-    }
-    if (optionFlags[.traditional] ?? false)
-      || (optionFlags[.traditionalization] ?? false)
-      || (optionFlags[.zhTrad] ?? false)
-      || (optionFlags[.transcription] ?? false) {
-      return true
-    }
-    if let simp = optionFlags[.simplification], !simp {
-      return true
-    }
-    return false
+    OwlRustSchemaMap.isTraditionalSchema(activeSchemaId) || (optionFlags[.traditional] ?? false)
   }
 
   private func convertToTraditionalIfNeeded(_ text: String, forCandidateDisplay: Bool = false) -> String {
@@ -813,11 +800,11 @@ class OwlRustSession {
     optionFlags[option] ?? false
   }
 
-  func setOption(_ option: EngineOption, _ value: Bool) {
-    let previous = optionFlags[option]
+  func setOption(_ option: EngineOption, _ value: Bool, notify: Bool = true) {
+    let previous = optionFlags[option] ?? false
     optionFlags[option] = value
     _ = sendAction(["op": "set_option", "name": option.rawValue, "value": value])
-    if previous != value {
+    if notify && previous != value {
       ownerEngine?.notifyOptionChanged(sessionID: sessionID, optionName: option.rawValue, value: value)
     }
   }
@@ -836,6 +823,7 @@ class OwlRustSession {
   }
 
   func stateLabel(option name: String, state: Bool, abbreviated: Bool) -> String? {
+    _ = abbreviated
     switch name {
     case EngineOption.asciiMode.rawValue:
       return state ? "英" : "中"
@@ -843,15 +831,12 @@ class OwlRustSession {
       return state ? ".，" : "。，"
     case EngineOption.fullShape.rawValue:
       return state ? "全" : "半"
-    case EngineOption.traditional.rawValue,
-         EngineOption.traditionalization.rawValue,
-         EngineOption.zhTrad.rawValue,
-         EngineOption.transcription.rawValue:
+    case EngineOption.traditional.rawValue:
       return state ? "繁" : "简"
     case EngineOption.emojiSuggestion.rawValue:
       return state ? "😄" : "👍"
     default:
-      return abbreviated ? nil : name
+      return nil
     }
   }
 
@@ -1023,10 +1008,7 @@ class OwlRustEngine {
 
   func startMaintenance(fullCheck: Bool) -> Bool {
     _ = fullCheck
-    notifyDeploy(status: "start")
-    let succeeded = refreshAllSessionsPreferences(includeHostPhrases: true)
-    notifyDeploy(status: succeeded ? "success" : "failure")
-    return succeeded
+    return refreshAllSessionsPreferences(includeHostPhrases: true)
   }
 
   func joinMaintenance() {}
@@ -1267,10 +1249,5 @@ class OwlRustEngine {
     guard let handler = notificationHandler else { return }
     let payload = "\(schemaId)/\(schemaName)"
     handler(0, "schema", payload)
-  }
-
-  private func notifyDeploy(status: String) {
-    guard let handler = notificationHandler else { return }
-    handler(0, "deploy", status)
   }
 }

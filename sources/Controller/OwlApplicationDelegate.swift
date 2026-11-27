@@ -123,6 +123,9 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
 
   func applicationWillFinishLaunching(_ notification: Notification) {
     guard !OwlApp.isShowingSettingsForUITests else { return }
+    if !OwlTestStorage.isEnabled {
+      UNUserNotificationCenter.current().delegate = self
+    }
     addObservers()
     selectionMenuCoordinator = OwlSelectionMenuCoordinator()
     selectionMenuCoordinator?.start()
@@ -606,12 +609,6 @@ final class OwlApplicationDelegate: NSObject, NSApplicationDelegate, SPUStandard
     )
   }
 
-  /// Feature 1: apply 简↔繁 to the live session right away from the settings UI — no redeploy.
-  /// Sets the FULL simplification/traditional option set (`transcription` for 全拼/双拼,
-  /// `zh_trad` for 五笔, plus the legacy `traditional`/`traditionalization`/`simplification`)
-  /// so the single「简入繁出」switch is global across every exposed schema. The pref write
-  /// stays in the settings layer; this only flips the options + re-renders the in-flight
-  /// composition. Seeded on session create (`createSession`) so the choice survives focus changes.
   func applyTraditionalOutputToLiveSession(_ traditional: Bool) {
     runtime.activeInputController?.setTraditionalOutputOptions(traditional)
     runtime.activeInputController?.engineUpdate()
@@ -726,20 +723,6 @@ private func notificationHandler(
   messageType: String,
   messageValue: String?
 ) {
-  if messageType == "deploy" {
-    switch messageValue {
-    case "start":
-      OwlApplicationDelegate.showMessage(msgText: NSLocalizedString("deploy_start", comment: ""))
-    case "success":
-      OwlApplicationDelegate.showMessage(msgText: NSLocalizedString("deploy_success", comment: ""))
-    case "failure":
-      OwlApplicationDelegate.showMessage(msgText: NSLocalizedString("deploy_failure", comment: ""))
-    default:
-      break
-    }
-    return
-  }
-
   if messageType == "option" {
     let state = messageValue?.first != "!"
     let optionName: String?

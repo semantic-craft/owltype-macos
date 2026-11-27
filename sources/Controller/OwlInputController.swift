@@ -89,8 +89,7 @@ final class OwlInputController: IMKInputController {
   // 都不收起；只有提交/清空才回到单行。只被 showPanel 读写，不在按键判定路径上。
   var scrollDidPage = false
   // 首轮旗标同步哨兵（2026-07-12 B3 破闩锁）：inline 旗标改为每轮 engineUpdate 重算——原先只在
-  // schema 变化时算一次，delegate styleFlags 事后恢复了老控制器也永远用不上；soft_cursor 只在
-  // 首轮或值变化时下发。false = 本控制器还没做过第一次同步。
+  // schema 变化时算一次，delegate styleFlags 事后恢复了老控制器也永远用不上。false = 尚未同步。
   var styleFlagsSynced = false
   // for chord-typing
   // seam: was private; internal so OwlInputController+Session.swift can reach it across files.
@@ -454,11 +453,11 @@ final class OwlInputController: IMKInputController {
     // with linear candidate list, arrow keys may behave differently.
     let styleFlags = engineRuntime.styleFlags
     if styleFlags.linear != engineSession.option(.linear) {
-      engineSession.setOption(.linear, styleFlags.linear)
+      engineSession.setOption(.linear, styleFlags.linear, notify: false)
     }
     // with vertical text, arrow keys may behave differently.
     if styleFlags.vertical != engineSession.option(.vertical) {
-      engineSession.setOption(.vertical, styleFlags.vertical)
+      engineSession.setOption(.vertical, styleFlags.vertical, notify: false)
     }
 
     debugLiveInputTrace("process before schema=\(engineSession.status()?.schemaId ?? "<nil>")")
