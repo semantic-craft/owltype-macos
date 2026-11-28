@@ -1,3 +1,13 @@
+<a name="2.5.7"></a>
+## 2.5.7 (2026-11-28)
+
+- 消除开机未激活时弹出 `soft_cursor` 提示与伪部署通知，合并繁体选项别名为 `traditional` 并仅在用户交互切换时发通知；候选窗隐藏时清空渲染态并停用空闲光标动画，关闭设置窗与引导窗时卸载 SwiftUI 视图以消除后台空闲 CPU 消耗。（#439）
+- 删除失效的 `OwlConfig` / `owl_msime_config_*` / `yaml-rust2` 配置栈及历史 Rime 死代码，对齐 `linear`/`vertical` 选项键名并由候选窗设置直接驱动布局标志；移除冗余的 `activeInputController`，统一以 `activatedInputController` 与 `liveControllers` 调度热键、切方案、多会话选项同步与搁浅合成收尾；修复 Sparkle 更新器启动初始化、通知观察者注销与 `.deliverImmediately`、划词/语音空闲全局监听器门控及语音事件双向去重。（#440）
+- 删除死代码 `rimeWikiURL`/`openWiki()` 与 9 个未引用本地化键，修正引导页与设置界面的过时 Rime/`Owltype` 文案；模板保存/删除/导入改为按空闲边界延迟触发的轻量宿主短语刷新，不打断正在进行的组字；持久化 `Ctrl+Shift+3` 标点切换与菜单全半角切换并同步到所有存活会话；将全部 18 组自定义单测 `UserDefaults` 隔离至临时目录以杜绝 `~/Library/Preferences/` 空 `.plist` 泄漏。（#441）
+- Eliminate startup `soft_cursor` prompts and spurious deployment notifications before activation, consolidate Traditional Chinese option aliases into `traditional` with user-initiated notifications only, clear candidate rendering state and stop idle cursor animation on hide, and tear down SwiftUI views when closing the Settings and Onboarding windows to eliminate idle background CPU usage (#439).
+- Delete the dead `OwlConfig` / `owl_msime_config_*` / `yaml-rust2` configuration stack and legacy Rime code, align `linear`/`vertical` option keys while deriving layout flags directly from candidate panel settings, remove redundant `activeInputController` in favor of `activatedInputController` and `liveControllers` for hotkeys, schema switches, multi-session option sync, and stranded-composition cleanup, and fix Sparkle updater initialization, notification observer removal and `.deliverImmediately`, idle global monitor gating for selection/voice, and bidirectional voice event deduplication (#440).
+- Delete dead `rimeWikiURL`/`openWiki()` hooks and 9 unreferenced localization keys while updating stale Rime/`Owltype` copy in Onboarding and Settings, replace template save/delete/import redeploys with lightweight host-phrase refreshes deferred to the idle boundary so active compositions are never interrupted, persist `Ctrl+Shift+3` punctuation toggles and menu full-width toggles across all live sessions, and isolate all 18 custom unit-test `UserDefaults` suites into temporary directories to prevent empty `.plist` leaks in `~/Library/Preferences/` (#441).
+
 <a name="2.5.6"></a>
 ## 2.5.6 (2026-11-15)
 
